@@ -450,6 +450,9 @@ void __init bootmem_init(void)
 	 * sparse_init() needs the bootmem allocator up and running.
 	 */
 	sparse_init();
+	// &mem_section[0][2] ~ &mem_section[0][10] 까지 
+	// section_mem_map 멤버에 struct page용 공간의 위치를 저장 및 플래그 설정
+	// page_block_bitmap 멤버에 0x40 크기의 할당받은 메모리 시작 주소 저장
 
 	/*
 	 * Now free the memory - free_area_init_node needs

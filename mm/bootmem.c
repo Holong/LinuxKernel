@@ -777,6 +777,7 @@ void * __init __alloc_bootmem(unsigned long size, unsigned long align,
 }
 
 // pgdat : &contig_page_data, size : 0x1000, align : 64, goal : 0x5FFFFFFF, limit : 0
+// pgdat : &contig_page_data, size : 0x800, align : 64, goal : 0x5FFFFFFF, limit : 0
 void * __init ___alloc_bootmem_node_nopanic(pg_data_t *pgdat,
 				unsigned long size, unsigned long align,
 				unsigned long goal, unsigned long limit)
@@ -861,6 +862,7 @@ void * __init __alloc_bootmem_node(pg_data_t *pgdat, unsigned long size,
 	return  ___alloc_bootmem_node(pgdat, size, align, goal, 0);
 }
 
+// pgdat : &contig_page_data, size : 0x2C0000, align : 0x1000, goal : 0x5FFFFFFF	
 void * __init __alloc_bootmem_node_high(pg_data_t *pgdat, unsigned long size,
 				   unsigned long align, unsigned long goal)
 {
@@ -886,7 +888,9 @@ void * __init __alloc_bootmem_node_high(pg_data_t *pgdat, unsigned long size,
 	}
 #endif
 
+	// pgdat : &contig_page_data, size : 0x2C0000, align : 0x1000, goal : 0x5FFFFFFF	
 	return __alloc_bootmem_node(pgdat, size, align, goal);
+	// 2816K 만큼 공간을 할당 받아 리턴함
 
 }
 
