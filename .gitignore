@@ -74,7 +74,6 @@ series
 # cscope files
 cscope.*
 ncscope.*
-tags
 
 # gnu global files
 GPATH
