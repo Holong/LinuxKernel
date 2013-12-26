@@ -45,14 +45,19 @@
  */
 __vet_atags:
 	tst	r2, #0x3			@ aligned?
+						// atag 포인터가 4바이트 정렬 되어 있는 지 확인
 	bne	1f
 
-	ldr	r5, [r2, #0]
+	ldr	r5, [r2, #0]			// atag의 시작 4바이트를 r5에 저장
 #ifdef CONFIG_OF_FLATTREE
 	ldr	r6, =OF_DT_MAGIC		@ is it a DTB?
-	cmp	r5, r6
-	beq	2f
-#endif
+						// DTB 매직 넘버를 r6에 저장
+	cmp	r5, r6				// 비교
+	beq	2f				// 일치하면 DTB가 존재하는 것임
+#endif						
+						// DTB가 아니면 atag 인지 확인
+						// 2번째 word에 매직 넘버가 저장되어 있음
+						// 이를 불러와 비교해서 확인함.
 	cmp	r5, #ATAG_CORE_SIZE		@ is first tag ATAG_CORE?
 	cmpne	r5, #ATAG_CORE_SIZE_EMPTY
 	bne	1f
@@ -151,19 +156,35 @@ ENDPROC(lookup_processor_type)
  */
 __lookup_processor_type:
 	adr	r3, __lookup_processor_type_data
-	ldmia	r3, {r4 - r6}
+						// r3에 __lookup_processor_type_data 주소저장(런 타임)
+	ldmia	r3, {r4 - r6}			// r4 : __lookup_processor_type_data 주소(컴파일 타임)
+						// r5 : __proc_info_begin >> section .proc.info.init의 시작 주소
+						// r6 : __proc_info_end >> section .proc.info.init의 마지막 주소
 	sub	r3, r3, r4			@ get offset between virt&phys
+						// r3 : 런타임 - 컴파일타임
 	add	r5, r5, r3			@ convert virt addresses to
+						// r5를 런타임 주소로 변경
 	add	r6, r6, r3			@ physical address space
+						// r6를 런타임 주소로 변경
 1:	ldmia	r5, {r3, r4}			@ value, mask
+						// .proc.info.init 섹션의 시작 4바이트 값을 r3로
+						// 그 다음 k바이트 값을 r4로 저장
 	and	r4, r4, r9			@ mask wanted bits
-	teq	r3, r4
-	beq	2f
+						// r9 : MIDR
+						// r4와 and 연산
+	teq	r3, r4				// 그 값이 r3와 동일한 지 확인
+	beq	2f				// 동일하면 2로 점프
+						// __v7_ca15mp_proc_info에서 
+						// r3 : .long   0x410fc0f0
+						// r4 : .long   0xff0ffff0
+						// 일 때 2f로 이동됨
 	add	r5, r5, #PROC_INFO_SZ		@ sizeof(proc_info_list)
-	cmp	r5, r6
-	blo	1b
+						// 아니면 r5를 다음 아키텍쳐로 이동
+	cmp	r5, r6				// 끝까지 왔는지 확인
+	blo	1b				// 더 있으면 다음 아키텍쳐 검사 루틴 수행
 	mov	r5, #0				@ unknown processor
-2:	mov	pc, lr
+						// 여기까지 오면 일치하는 아키텍쳐가 없는 것임
+2:	mov	pc, lr				// r5에 proc_info의 시작 주소를 저장한 채로 돌아감  
 ENDPROC(__lookup_processor_type)
 
 /*

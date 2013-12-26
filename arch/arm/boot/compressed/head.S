@@ -596,9 +596,12 @@ wont_overwrite:
  *   r12 = GOT end
  *   sp  = stack pointer
  */
-		orrs	r1, r0, r5		// ?? 
+		orrs	r1, r0, r5		// r0와 r5를 orr 연산 후 플래그에 저장
 		beq	not_relocated		// r0나 r5에 어떤 값이 있으면 무조건 점프 안하는데??
 						// r0나 r5에 어떤 값이 있으면 무조건 relocate 처리가 수행된다는 것인듯.
+						// r0에 값이 존재하면 실행 타임과 컴파일 타임 사이에 주소값 차이가 존재하기 때문에
+						// 링커 스크립트에서 가져온 변수 값을 바꿔줘야 함
+						// r5에 값이 존재하면 dtb가 붙은 상황이기 때문에 역시 링커 스크립트에서 가져온 변수 값을 바꿔줘야 함.
 
 		add	r11, r11, r0		// GOT start 조정
 		add	r12, r12, r0		// GOT end 조정
@@ -619,7 +622,7 @@ wont_overwrite:
 1:		ldr	r1, [r11, #0]		@ relocate entries in the GOT
 						// r1에 GOT 시작 값을 저장
 		add	r1, r1, r0		@ This fixes up C references
-						// GOT 시작 값에 델타 오프셋을 더함
+						// GOT 시작 값에 델타 오프셋을 더함 : entry
 		cmp	r1, r2			@ if entry >= bss_start &&
 		cmphs	r3, r1			@       bss_end > entry
 		addhi	r1, r1, r5		@    entry += dtb size

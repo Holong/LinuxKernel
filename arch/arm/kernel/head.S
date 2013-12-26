@@ -75,7 +75,10 @@
  */
 	.arm
 
-	__HEAD
+	__HEAD				// #define __HEAD		.section	".head.text","ax"
+					// 그러므로 아래부터는 .head.text 섹션으로 들어가며
+					// vmlinux.lds.S 에서 이 섹션이 가장 첫 섹션이 됨
+					// 그러므로 압축 푼 커널의 가장 처음 부분임
 ENTRY(stext)
 
  THUMB(	adr	r9, BSYM(1f)	)	@ Kernel is always entered in ARM.
@@ -84,18 +87,23 @@ ENTRY(stext)
  THUMB(1:			)
 
 #ifdef CONFIG_ARM_VIRT_EXT
-	bl	__hyp_stub_install
+	bl	__hyp_stub_install	// 하이퍼바이저 통과
 #endif
 	@ ensure svc mode and all interrupts masked
 	safe_svcmode_maskall r9
 
 	mrc	p15, 0, r9, c0, c0		@ get processor id
+						// MIDR를 r9에 저장
 	bl	__lookup_processor_type		@ r5=procinfo r9=cpuid
+						// r5 : __v7_ca15mp_proc_info의 주소가 저장
+						// r9 : MIDR
 	movs	r10, r5				@ invalid processor (r5=0)?
+						// r5가 0인지 확인
+						// 0이면 적합한 아키텍쳐를 찾지 못한 것임
  THUMB( it	eq )		@ force fixup-able long branch encoding
 	beq	__error_p			@ yes, error 'p'
 
-#ifdef CONFIG_ARM_LPAE
+#ifdef CONFIG_ARM_LPAE				// 통과
 	mrc	p15, 0, r3, c0, c1, 4		@ read ID_MMFR0
 	and	r3, r3, #0xf			@ extract VMSA support
 	cmp	r3, #5				@ long-descriptor translation table format?
@@ -103,25 +111,29 @@ ENTRY(stext)
 	blo	__error_p			@ only classic page table format
 #endif
 
-#ifndef CONFIG_XIP_KERNEL
+#ifndef CONFIG_XIP_KERNEL			// 통과
 	adr	r3, 2f
 	ldmia	r3, {r4, r8}
 	sub	r4, r3, r4			@ (PHYS_OFFSET - PAGE_OFFSET)
 	add	r8, r8, r4			@ PHYS_OFFSET
 #else
 	ldr	r8, =PHYS_OFFSET		@ always constant in this case
+						// r8 :  0x00800000
 #endif
 
 	/*
 	 * r1 = machine no, r2 = atags or dtb,
 	 * r8 = phys_offset, r9 = cpuid, r10 = procinfo
 	 */
-	bl	__vet_atags
+	bl	__vet_atags			// r2에 ATAG/DTB가 들어 있는지 확인
 #ifdef CONFIG_SMP_ON_UP
-	bl	__fixup_smp
+	bl	__fixup_smp			// 멀티 코어 시스템인지 확인함
+						// 멀티 코어이면 따로 처리 없이 복귀
+						// 싱글 코어이면 SMP 관련 부분을 UP에서도 돌아갈 수 있도록 처리
 #endif
 #ifdef CONFIG_ARM_PATCH_PHYS_VIRT
-	bl	__fixup_pv_table
+	bl	__fixup_pv_table		// __phys_to_virt, __virt_to_phys 에서 사용된 명령의
+						// imm8 값을 현재 델타 값에 맞게 변경시킴
 #endif
 	bl	__create_page_tables
 
@@ -470,24 +482,37 @@ ENDPROC(__turn_mmu_on)
 
 
 #ifdef CONFIG_SMP_ON_UP
-	__INIT
+	__INIT				// #define __INIT    .section	".init.text","ax"
 __fixup_smp:
 	and	r3, r9, #0x000f0000	@ architecture version
+					// r3에 아키텍쳐 버전을 저장
+					// Cortex-A15는 0x000F0000가 저장됨
 	teq	r3, #0x000f0000		@ CPU ID supported?
+					// CPUID 레지스터들이 지원되는 경우(ARMv7)
 	bne	__fixup_smp_on_up	@ no, assume UP
+					// ARMv7은 점프 하지 않음
 
-	bic	r3, r9, #0x00ff0000
+	bic	r3, r9, #0x00ff0000	
 	bic	r3, r3, #0x0000000f	@ mask 0xff00fff0
-	mov	r4, #0x41000000
+					// r9 & 0xFF00FFF0 값을 r3에 저장
+					// Implementer와 Primary Part Number 값만 남음
+	mov	r4, #0x41000000		// r4에 0x41000000 저장
 	orr	r4, r4, #0x0000b000
 	orr	r4, r4, #0x00000020	@ val 0x4100b020
+					// r4 : 0x4100B020
 	teq	r3, r4			@ ARM 11MPCore?
 	moveq	pc, lr			@ yes, assume SMP
+					// ARM 11MPCore 인지 확인
 
 	mrc	p15, 0, r0, c0, c0, 5	@ read MPIDR
+					// r0에 MPIDR 저장
+					// 멀티 코어 관련 레지스터임
 	and	r0, r0, #0xc0000000	@ multiprocessing extensions and
 	teq	r0, #0x80000000		@ not part of a uniprocessor system?
+					// MPIDR의 MSB가 1이면 멀티프로세서 시스템임
 	moveq	pc, lr			@ yes, assume SMP
+					// 멀티 프로세서이면 복귀
+					// Cortex-A15이면 무조건 1임
 
 __fixup_smp_on_up:
 	adr	r0, 1f
@@ -545,13 +570,20 @@ ENDPROC(fixup_smp)
  */
 	__HEAD
 __fixup_pv_table:
-	adr	r0, 1f
-	ldmia	r0, {r3-r5, r7}
+	adr	r0, 1f		// 1 레이블의 런타임 주소가 저장됨
+	ldmia	r0, {r3-r5, r7}	// r3 : 1 레이블의 컴파일 타임 주소
+				// r4 : __pv_table_begin
+				// r5 : __pv_table_end
+				// r7 : __pv_phys_offset
 	sub	r3, r0, r3	@ PHYS_OFFSET - PAGE_OFFSET
+				// r3 : 런타임 - 컴파일 타임
+				// 물리 주소 - 가상 주소 : 델타 = r3
 	add	r4, r4, r3	@ adjust table start address
 	add	r5, r5, r3	@ adjust table end address
 	add	r7, r7, r3	@ adjust __pv_phys_offset address
+				// 위에서 저장한 주소 값을 런타임으로 변경
 	str	r8, [r7]	@ save computed PHYS_OFFSET to __pv_phys_offset
+				// PHYS_OFFSET을 __pv_phys_offset이 가리키는 공간에 저장
 	mov	r6, r3, lsr #24	@ constant for add/sub instructions
 	teq	r3, r6, lsl #24 @ must be 16MiB aligned
 THUMB(	it	ne		@ cross section branch )
@@ -583,7 +615,7 @@ __fixup_a_pv_table:
 1:	add     r7, r3
 	ldrh	ip, [r7, #2]
 	and	ip, 0x8f00
-	orr	ip, r6	@ mask in offset bits 31-24
+	orr	ip, r6		@ mask in offset bits 31-24
 	strh	ip, [r7, #2]
 2:	cmp	r4, r5
 	ldrcc	r7, [r4], #4	@ use branch for delay slot
@@ -591,13 +623,21 @@ __fixup_a_pv_table:
 	bx	lr
 #else
 	b	2f
-1:	ldr	ip, [r7, r3]
+1:	ldr	ip, [r7, r3]	// 주소에 델타를 더한 후 거기 존재하는 데이터를 r12로 저장
+				// r12에는 명령들이 들어감
+				// __phys_to_virt, __virt_to_phys 들이 존재
 	bic	ip, ip, #0x000000ff
+				// 명령어의 하위 8비트를 날림
 	orr	ip, ip, r6	@ mask in offset bits 31-24
-	str	ip, [r7, r3]
-2:	cmp	r4, r5
+				// imm8을 반영시킴
+	str	ip, [r7, r3]	// 변경한 명령을 다시 원래 자리에 복구함
+2:	cmp	r4, r5		// r4 : __pv_table_begin
+				// r5 : __pv_table_end
 	ldrcc	r7, [r4], #4	@ use branch for delay slot
-	bcc	1b
+				// r4 < r5면 r7에 r4가 가리키는 데이터 값을 저장
+				// r7은 명령어가 저장되어 있는 주소임
+				// r4 += 4
+	bcc	1b		// r4 < r5면 1 레이블로 점프
 	mov	pc, lr
 #endif
 ENDPROC(__fixup_a_pv_table)
