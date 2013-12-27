@@ -98,7 +98,7 @@ ENTRY(stext)
 						// r5 : __v7_ca15mp_proc_info의 주소가 저장
 						// r9 : MIDR
 	movs	r10, r5				@ invalid processor (r5=0)?
-						// r5가 0인지 확인
+						// r5가 0인지 확인 + r10에 proc_info 저장
 						// 0이면 적합한 아키텍쳐를 찾지 못한 것임
  THUMB( it	eq )		@ force fixup-able long branch encoding
 	beq	__error_p			@ yes, error 'p'
@@ -111,14 +111,16 @@ ENTRY(stext)
 	blo	__error_p			@ only classic page table format
 #endif
 
-#ifndef CONFIG_XIP_KERNEL			// 통과
-	adr	r3, 2f
-	ldmia	r3, {r4, r8}
+#ifndef CONFIG_XIP_KERNEL
+	adr	r3, 2f				// 2번 레이블의 런타임 주소 저장
+	ldmia	r3, {r4, r8}			// r4 : 2번 레이블의 컴파일 타임 주소 저장
+						// r8 : PAGE_OFFSET 값 저장 (0xC0000000) (가상 시작 주소)
 	sub	r4, r3, r4			@ (PHYS_OFFSET - PAGE_OFFSET)
+						// 런타임과 컴파일 타임 사이의 델타 값 계산
 	add	r8, r8, r4			@ PHYS_OFFSET
+						// 물리 시작 주소 계산해 r8에 저장
 #else
 	ldr	r8, =PHYS_OFFSET		@ always constant in this case
-						// r8 :  0x00800000
 #endif
 
 	/*
@@ -135,7 +137,8 @@ ENTRY(stext)
 	bl	__fixup_pv_table		// __phys_to_virt, __virt_to_phys 에서 사용된 명령의
 						// imm8 값을 현재 델타 값에 맞게 변경시킴
 #endif
-	bl	__create_page_tables
+	bl	__create_page_tables		// 컴파일 타임의 주소를 물리 주소에 매핑하기 위한 section을 설정하였음
+						// section table에 저장됨
 
 	/*
 	 * The following calls CPU specific code in a position independent
@@ -172,21 +175,28 @@ ENDPROC(stext)
  */
 __create_page_tables:
 	pgtbl	r4, r8				@ page table address
+	
+	// add	r4, r8, #TEXT_OFFSET - PG_DIR_SIZE  로 변환됨
+	// TEXT_OFFSET : 0x00008000, PG_DIR_SIZE : 0x00004000
+	// r8 = PHYS_OFFSET : 0x40000000
+	// 그러므로 r4 : 0x40004000 이며 page table의 시작 주소가 됨 
 
 	/*
 	 * Clear the swapper page table
 	 */
-	mov	r0, r4
-	mov	r3, #0
-	add	r6, r0, #PG_DIR_SIZE
+	mov	r0, r4				// r0 : page table 시작 주소
+	mov	r3, #0				// r3 : 0 저장
+	add	r6, r0, #PG_DIR_SIZE		// r6 : r0 + 0x4000
+						// r6 : 0x40008000
+						// 커널의 시작 주소가 됨
 1:	str	r3, [r0], #4
 	str	r3, [r0], #4
 	str	r3, [r0], #4
 	str	r3, [r0], #4
 	teq	r0, r6
-	bne	1b
+	bne	1b				// 이전에 만들었던 모든 페이지 테이블 모두 초기화
 
-#ifdef CONFIG_ARM_LPAE
+#ifdef CONFIG_ARM_LPAE				// 통과
 	/*
 	 * Build the PGD table (first level) to point to the PMD table. A PGD
 	 * entry is 64-bit wide.
@@ -197,7 +207,7 @@ __create_page_tables:
 	mov	r6, #4				@ PTRS_PER_PGD
 	mov	r7, #1 << (55 - 32)		@ L_PGD_SWAPPER
 1:
-#ifdef CONFIG_CPU_ENDIAN_BE8
+#ifdef CONFIG_CPU_ENDIAN_BE8			
 	str	r7, [r0], #4			@ set top PGD entry bits
 	str	r3, [r0], #4			@ set bottom PGD entry bits
 #else
@@ -212,41 +222,60 @@ __create_page_tables:
 #ifdef CONFIG_CPU_ENDIAN_BE8
 	add	r4, r4, #4			@ we only write the bottom word
 #endif
-#endif
+#endif						// 여기까지 통과됨
 
 	ldr	r7, [r10, #PROCINFO_MM_MMUFLAGS] @ mm_mmuflags
+	
+	// r7 : PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_AP_READ | PMD_SECT_AF | PMD_FLAGS_SMP
+	//	PMD_TYPE_SECT : 0b0010, section 형식이라는 것을 알려줌
+	//	PMD_SECT_AP_WRITE : AP[2:0] 건드림, Access Permission 설정, User 모드에서는 읽기만 가능해짐
+	// 	PMD_SECT_AP_READ  : TEX[2:0] 건드림, 캐쉬 형태 설정
+	//	PMD_SECT_AF : 하는 것 없음
+	//	PMD_FLAGS_SMP : TEX[2:0], C, B 건드림, Write Back, Write Allocate 정책 설정
+	//			추가로 nG 비트를 1로 설정 >> 여기에 해당하는 TLB 동작시 ASID를 보고 동작하게 함
 
 	/*
 	 * Create identity mapping to cater for __enable_mmu.
 	 * This identity mapping will be removed by paging_init().
 	 */
-	adr	r0, __turn_mmu_on_loc
-	ldmia	r0, {r3, r5, r6}
+	adr	r0, __turn_mmu_on_loc		// r0에 런타임 주소 값 저장
+	ldmia	r0, {r3, r5, r6}		// r3에 컴파일 타임 주소값 저장
+						// r5 : __turn_mmu_on 주소
+						// r6 : __turn_mmu_on_end 주소
 	sub	r0, r0, r3			@ virt->phys offset
+						// 델타값 계산
 	add	r5, r5, r0			@ phys __turn_mmu_on
 	add	r6, r6, r0			@ phys __turn_mmu_on_end
-	mov	r5, r5, lsr #SECTION_SHIFT
-	mov	r6, r6, lsr #SECTION_SHIFT
+						// 전부 실제 물리 주소로 변환
+	mov	r5, r5, lsr #SECTION_SHIFT	// 20비트 오른쪽으로 밀기
+	mov	r6, r6, lsr #SECTION_SHIFT	// 1MB 단위로 몇 번째인지 확인, 즉 section 번호 계산
 
 1:	orr	r3, r7, r5, lsl #SECTION_SHIFT	@ flags + kernel base
+						// 위에서 만든 플래그와 section 주소를 합침
 	str	r3, [r4, r5, lsl #PMD_ORDER]	@ identity mapping
-	cmp	r5, r6
+						// 만든 section을 section table 내부에 저장
+	cmp	r5, r6				// end까지 도달했는지 확인
 	addlo	r5, r5, #1			@ next section
-	blo	1b
+						// 도달 못했으면 section 한 개가 더 필요한 상황임
+	blo	1b				// 추가 section에 대해 매핑을 함
 
 	/*
 	 * Map our RAM from the start to the end of the kernel .bss section.
 	 */
 	add	r0, r4, #PAGE_OFFSET >> (SECTION_SHIFT - PMD_ORDER)
-	ldr	r6, =(_end - 1)
-	orr	r3, r8, r7
+						// 물리 시작 주소가 몇 번째 section인지 계산 한 뒤
+						// 이를 r4에 더해 section table 내의 위치를 찾아냄
+	ldr	r6, =(_end - 1)			// r6 : 마지막 주소 값
+	orr	r3, r8, r7			// 물리 시작 주소 & 플래그 >> r3 에 section 값이 저장됨
 	add	r6, r4, r6, lsr #(SECTION_SHIFT - PMD_ORDER)
-1:	str	r3, [r0], #1 << PMD_ORDER
-	add	r3, r3, #1 << SECTION_SHIFT
-	cmp	r0, r6
-	bls	1b
+						// 커널의 마지막 위치가 몇 번째 section인지 계산 한 뒤
+						// 이를 r4에 더해 section table 내의 위치를 찾아냄
+1:	str	r3, [r0], #1 << PMD_ORDER	// 해당하는 section table에 section 값 저장
+	add	r3, r3, #1 << SECTION_SHIFT	// section 값의 address base를 1만큼 증가
+	cmp	r0, r6				// 커널에 해당하는 section들에 대해 수행 했는지 확인
+	bls	1b				// 아니면 계속 수행해 모든 section들 값을 변경
 
-#ifdef CONFIG_XIP_KERNEL
+#ifdef CONFIG_XIP_KERNEL			// 통과
 	/*
 	 * Map the kernel image separately as it is not located in RAM.
 	 */
@@ -269,17 +298,18 @@ __create_page_tables:
 	 * Then map boot params address in r2 if specified.
 	 * We map 2 sections in case the ATAGs/DTB crosses a section boundary.
 	 */
-	mov	r0, r2, lsr #SECTION_SHIFT
-	movs	r0, r0, lsl #SECTION_SHIFT
-	subne	r3, r0, r8
-	addne	r3, r3, #PAGE_OFFSET
+	mov	r0, r2, lsr #SECTION_SHIFT	// DTB 시작 주소의 섹션 번호를 알아냄
+	movs	r0, r0, lsl #SECTION_SHIFT	// 다시 원래대로 위치시킴(하위 비트 삭제)
+	subne	r3, r0, r8			// 물리 시작 섹션 번호를 빼서 r3에 넣음
+	addne	r3, r3, #PAGE_OFFSET		// 다시 복구
 	addne	r3, r4, r3, lsr #(SECTION_SHIFT - PMD_ORDER)
-	orrne	r6, r7, r0
-	strne	r6, [r3], #1 << PMD_ORDER
-	addne	r6, r6, #1 << SECTION_SHIFT
-	strne	r6, [r3]
+						// 해당 섹션의 섹션 테이블 상 위치를 알아냄
+	orrne	r6, r7, r0			// r6에 섹션 값을 만듬
+	strne	r6, [r3], #1 << PMD_ORDER	// 만든 섹션 값을 해당 위치에 저장
+	addne	r6, r6, #1 << SECTION_SHIFT	// 섹션 값 내의 address base를 하나 증가
+	strne	r6, [r3]			// 해당 위치에 저장
 
-#if defined(CONFIG_ARM_LPAE) && defined(CONFIG_CPU_ENDIAN_BE8)
+#if defined(CONFIG_ARM_LPAE) && defined(CONFIG_CPU_ENDIAN_BE8)		// 통과
 	sub	r4, r4, #4			@ Fixup page table pointer
 						@ for 64-bit descriptors
 #endif
@@ -292,6 +322,14 @@ __create_page_tables:
 	 * via a serial console before paging_init.
 	 */
 	addruart r7, r3, r0
+	// .macro addruart, rp, rv, tmp
+	// mrc		p15, 0, r0, c0, c0, 0
+	// and		r0, r0, #0xf0
+	// teq		r0, #0xf0		@@ A15
+	// ldreq	r7, =EXYNOS5_PA_UART
+	// movne	r7, #EXYNOS4_PA_UART	@@ EXYNOS4
+	// ldr		r3, =S3C_VA_UART
+	// 여기서는 위의 명령으로 치환된다.
 
 	mov	r3, r3, lsr #SECTION_SHIFT
 	mov	r3, r3, lsl #PMD_ORDER
@@ -300,7 +338,7 @@ __create_page_tables:
 	mov	r3, r7, lsr #SECTION_SHIFT
 	ldr	r7, [r10, #PROCINFO_IO_MMUFLAGS] @ io_mmuflags
 	orr	r3, r7, r3, lsl #SECTION_SHIFT
-#ifdef CONFIG_ARM_LPAE
+#ifdef CONFIG_ARM_LPAE				// 통과
 	mov	r7, #1 << (54 - 32)		@ XN
 #ifdef CONFIG_CPU_ENDIAN_BE8
 	str	r7, [r0], #4
@@ -309,9 +347,9 @@ __create_page_tables:
 	str	r3, [r0], #4
 	str	r7, [r0], #4
 #endif
-#else
+#else						// 여기까지
 	orr	r3, r3, #PMD_SECT_XN
-	str	r3, [r0], #4
+	str	r3, [r0], #4			// UART용 메모리 위치에 대한 섹션 설정을 수행함
 #endif
 
 #else /* CONFIG_DEBUG_ICEDCC || CONFIG_DEBUG_SEMIHOSTING */
@@ -345,7 +383,7 @@ __create_page_tables:
 	sub	r4, r4, #0x1000		@ point to the PGD table
 	mov	r4, r4, lsr #ARCH_PGD_SHIFT
 #endif
-	mov	pc, lr
+	mov	pc, lr			// 복귀
 ENDPROC(__create_page_tables)
 	.ltorg
 	.align
