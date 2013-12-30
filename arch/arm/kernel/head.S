@@ -151,7 +151,10 @@ ENTRY(stext)
 						@ mmu has been enabled
 	adr	lr, BSYM(1f)			@ return (PIC) address
 	mov	r8, r4				@ set TTBR1 to swapper_pg_dir
+						// section table의 시작 주소를 r8로 저장
  ARM(	add	pc, r10, #PROCINFO_INITFUNC	)
+						// PROCINFO_INITFUNC : offsetof(struct proc_info_list, __cpu_flush)
+						// __v7_ca15mp_setup 함수로 이동
  THUMB(	add	r12, r10, #PROCINFO_INITFUNC	)
  THUMB(	mov	pc, r12				)
 1:	b	__enable_mmu
@@ -226,13 +229,14 @@ __create_page_tables:
 
 	ldr	r7, [r10, #PROCINFO_MM_MMUFLAGS] @ mm_mmuflags
 	
+	// r10 : proc_info
 	// r7 : PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_AP_READ | PMD_SECT_AF | PMD_FLAGS_SMP
 	//	PMD_TYPE_SECT : 0b0010, section 형식이라는 것을 알려줌
-	//	PMD_SECT_AP_WRITE : AP[2:0] 건드림, Access Permission 설정, User 모드에서는 읽기만 가능해짐
-	// 	PMD_SECT_AP_READ  : TEX[2:0] 건드림, 캐쉬 형태 설정
+	//	PMD_SECT_AP_WRITE : AP[0] 건드림, Access Permission 설정
+	// 	PMD_SECT_AP_READ  : AP[1] 건드림, Access Permission 설정, 결국 Full Access 설정됨.
 	//	PMD_SECT_AF : 하는 것 없음
 	//	PMD_FLAGS_SMP : TEX[2:0], C, B 건드림, Write Back, Write Allocate 정책 설정
-	//			추가로 nG 비트를 1로 설정 >> 여기에 해당하는 TLB 동작시 ASID를 보고 동작하게 함
+	//			추가로 S 비트를 1로 설정함
 
 	/*
 	 * Create identity mapping to cater for __enable_mmu.
@@ -263,7 +267,7 @@ __create_page_tables:
 	 * Map our RAM from the start to the end of the kernel .bss section.
 	 */
 	add	r0, r4, #PAGE_OFFSET >> (SECTION_SHIFT - PMD_ORDER)
-						// 물리 시작 주소가 몇 번째 section인지 계산 한 뒤
+						// 가상 시작 주소가 몇 번째 section인지 계산 한 뒤
 						// 이를 r4에 더해 section table 내의 위치를 찾아냄
 	ldr	r6, =(_end - 1)			// r6 : 마지막 주소 값
 	orr	r3, r8, r7			// 물리 시작 주소 & 플래그 >> r3 에 section 값이 저장됨
@@ -467,7 +471,7 @@ __enable_mmu:
 #if defined(CONFIG_ALIGNMENT_TRAP) && __LINUX_ARM_ARCH__ < 6
 	orr	r0, r0, #CR_A
 #else
-	bic	r0, r0, #CR_A
+	bic	r0, r0, #CR_A		// A 비트를 0으로 설정
 #endif
 #ifdef CONFIG_CPU_DCACHE_DISABLE
 	bic	r0, r0, #CR_C
@@ -483,8 +487,11 @@ __enable_mmu:
 		      domain_val(DOMAIN_KERNEL, DOMAIN_MANAGER) | \
 		      domain_val(DOMAIN_TABLE, DOMAIN_MANAGER) | \
 		      domain_val(DOMAIN_IO, DOMAIN_CLIENT))
+						// r5 : 1 << 2 | 1 << 0 | 1 << 0 | 1 << 4
 	mcr	p15, 0, r5, c3, c0, 0		@ load domain access register
+						// Domain 0, 1, 2에서 접근 권한은 page table 내용에 있는 AP 비트에 따라감
 	mcr	p15, 0, r4, c2, c0, 0		@ load page table pointer
+						// TTBR0 반영
 #endif
 	b	__turn_mmu_on
 ENDPROC(__enable_mmu)
@@ -507,13 +514,23 @@ ENDPROC(__enable_mmu)
 	.pushsection	.idmap.text, "ax"
 ENTRY(__turn_mmu_on)
 	mov	r0, r0
-	instr_sync
+	instr_sync				// ISB
 	mcr	p15, 0, r0, c1, c0, 0		@ write control reg
+
+						//   AT
+						//  TFR   EV X F   I D LR    S
+						// .EEE ..EE PUI. .T.T 4RVI ZWRS BLDP WCAM
+						// rxxx rrxx xxx0 0101 xxxx xxxx x111 xxxx < forced
+						//   01    0 110       0011 1000 .111 1101 < we want
+						
+						// 위의 값으로 SCTLR 반영
+						// MMU 켜짐
 	mrc	p15, 0, r3, c0, c0, 0		@ read id reg
-	instr_sync
+						// MIDR 을 r3에 저장
+	instr_sync				// ISB
 	mov	r3, r3
 	mov	r3, r13
-	mov	pc, r3
+	mov	pc, r3				// __mmap_switched 로 점프
 __turn_mmu_on_end:
 ENDPROC(__turn_mmu_on)
 	.popsection

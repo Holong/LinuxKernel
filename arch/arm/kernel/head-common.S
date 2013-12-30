@@ -87,13 +87,14 @@ __mmap_switched:
 
 	ldmia	r3!, {r4, r5, r6, r7}
 	cmp	r4, r5				@ Copy data segment if needed
+						// XIP가 켜져 있을때 필요함
 1:	cmpne	r5, r6
 	ldrne	fp, [r4], #4
 	strne	fp, [r5], #4
 	bne	1b
 
 	mov	fp, #0				@ Clear BSS (and zero fp)
-1:	cmp	r6, r7
+1:	cmp	r6, r7				// bss 섹션 전부 0으로 만듬
 	strcc	fp, [r6],#4
 	bcc	1b
 
@@ -103,9 +104,12 @@ __mmap_switched:
 	str	r9, [r4]			@ Save processor ID
 	str	r1, [r5]			@ Save machine type
 	str	r2, [r6]			@ Save atags pointer
+						// 지금까지 가져온 값들을 전역변수에 저장함.
 	cmp	r7, #0
 	bicne	r4, r0, #CR_A			@ Clear 'A' bit
 	stmneia	r7, {r0, r4}			@ Save control register values
+						// r0는 cr_alignment 변수에 저장
+						// r4는 cr_no_alignment 변수에 저장
 	b	start_kernel
 ENDPROC(__mmap_switched)
 
