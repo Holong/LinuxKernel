@@ -186,15 +186,18 @@ __v7_cr7mp_setup:
 	b	1f
 __v7_ca7mp_setup:
 __v7_ca15mp_setup:
-	mov	r10, #0
+	mov	r10, #0				// r10 : 0
 1:
 #ifdef CONFIG_SMP
-	ALT_SMP(mrc	p15, 0, r0, c1, c0, 1)
+	ALT_SMP(mrc	p15, 0, r0, c1, c0, 1)	// ACTLR 값을 r0에 저장
 	ALT_UP(mov	r0, #(1 << 6))		@ fake it for UP
 	tst	r0, #(1 << 6)			@ SMP/nAMP mode enabled?
+						// SMP 비트를 확인
 	orreq	r0, r0, #(1 << 6)		@ Enable SMP/nAMP mode
+						// SMP가 0으로 되어 있었으면 1로 세팅함
+						// 명령 캐쉬, BTB, TLB 명령을 다른 프로세서에서 받을 수 있도록 함
 	orreq	r0, r0, r10			@ Enable CPU-specific SMP bits
-	mcreq	p15, 0, r0, c1, c0, 1
+	mcreq	p15, 0, r0, c1, c0, 1		// r0를 ACTLR에 저장
 #endif
 	b	__v7_setup
 
@@ -256,18 +259,23 @@ __v7_pj4b_setup:
 
 __v7_setup:
 	adr	r12, __v7_setup_stack		@ the local stack
-	stmia	r12, {r0-r5, r7, r9, r11, lr}
-	bl      v7_flush_dcache_louis
-	ldmia	r12, {r0-r5, r7, r9, r11, lr}
+						// r12에 주소값 저장
+	stmia	r12, {r0-r5, r7, r9, r11, lr}	// 레지스터 값 몽창 r12에 저장
+	bl      v7_flush_dcache_louis		// L1 데이터 캐쉬 털고 옴
+	ldmia	r12, {r0-r5, r7, r9, r11, lr}	// 레지스터 복구
 
 	mrc	p15, 0, r0, c0, c0, 0		@ read main ID register
+						// MIDR 값을 r0에 저장
 	and	r10, r0, #0xff000000		@ ARM?
-	teq	r10, #0x41000000
-	bne	3f
+						// Implementer 비트 확인
+	teq	r10, #0x41000000		// ARM Limited 인지 확인
+	bne	3f				// 아니면 3으로 이동
 	and	r5, r0, #0x00f00000		@ variant
 	and	r6, r0, #0x0000000f		@ revision
 	orr	r6, r6, r5, lsr #20-4		@ combine variant and revision
+						// variant, revision을 r6에 합쳐서 저장
 	ubfx	r0, r0, #4, #12			@ primary part number
+						// primary part 번호를 r0에 저장
 
 	/* Cortex-A8 Errata */
 	ldr	r10, =0x00000c08		@ Cortex-A8 primary part number
@@ -330,16 +338,63 @@ __v7_setup:
 1:
 #endif
 
-3:	mov	r10, #0
+3:	mov	r10, #0				// r10에 0 저장
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate
-	dsb
+						// 명령 캐쉬 Invalidate
+	dsb					// 위에 명령 완료 될 때까지 대기
 #ifdef CONFIG_MMU
 	mcr	p15, 0, r10, c8, c7, 0		@ invalidate I + D TLBs
+						// 모든 TLB 전부 invalidate
 	v7_ttb_setup r10, r4, r8, r5		@ TTBCR, TTBRx setup
+		
+	// 아래와 같이 바뀜
+	// mcr	p15, 0, r10, c2, c0, 2		TTBCR 레지스터 값에 r10 대입
+	//					N 값이 0이 되어, TTBR0만 사용함
+	// orr	r4, r4, #TTB_FLAGS_SMP		r4 : section table의 시작 주소
+	// orr	r8, r8, #TTB_FLAGS_SMP		r8 : section table의 시작 주소
+	// 					TTB_FLAGS_SMP :	TTB_IRGN_WBWA|TTB_S|TTB_NOS|TTB_RGN_OC_WBWA
+	//					IRGN[1:0] : 10	Inner Write-Through Cacheable
+	//					NOS : 1		Inner Shareable
+	//					S : 1		Shareable
+	//					RGN[1:0] : 01	Outer Write-Back, Write-Allocate Cacheable
+	//					그 외엔 전부 0
+	// mcr	p15, 0, r8, c2, c0, 1		TTBR1에 r8 값 대입
+
+
 	ldr	r5, =PRRR			@ PRRR
 	ldr	r6, =NMRR			@ NMRR
+						// r5 : PRRR 0xff0a81a8
+						// r6 :	NMRR 0x40e040e0
 	mcr	p15, 0, r5, c10, c2, 0		@ write PRRR
 	mcr	p15, 0, r6, c10, c2, 1		@ write NMRR
+						/*
+						 * Memory region attributes with SCTLR.TRE=1
+						 *
+						 *   n = TEX[0],C,B
+						 *   TR = PRRR[2n+1:2n]		- memory type
+						 *   IR = NMRR[2n+1:2n]		- inner cacheable property
+						 *   OR = NMRR[2n+17:2n+16]	- outer cacheable property
+						 *
+						 *			n	TR	IR	OR
+						 *   UNCACHED		000	00
+						 *   BUFFERABLE		001	10	00	00
+						 *   WRITETHROUGH	010	10	10	10
+						 *   WRITEBACK		011	10	11	11
+						 *   reserved		110
+						 *   WRITEALLOC		111	10	01	01
+						 *   DEV_SHARED		100	01
+						 *   DEV_NONSHARED	100	01
+						 *   DEV_WC		001	10
+						 *   DEV_CACHED		011	10
+						 *
+						 * Other attributes:
+						 *
+						 *   DS0 = PRRR[16] = 0		- device shareable property
+						 *   DS1 = PRRR[17] = 1		- device shareable property
+						 *   NS0 = PRRR[18] = 0		- normal shareable property
+						 *   NS1 = PRRR[19] = 1		- normal shareable property
+						 *   NOS = PRRR[24+n] = 1	- not outer shareable
+						 */
 #endif
 #ifndef CONFIG_ARM_THUMBEE
 	mrc	p15, 0, r0, c0, c1, 0		@ read ID_PFR0 for ThumbEE
@@ -354,17 +409,27 @@ __v7_setup:
 1:
 #endif
 	adr	r5, v7_crval
-	ldmia	r5, {r5, r6}
+	ldmia	r5, {r5, r6}			// r5 : clear=0x2120c302
+						// r6 : mmuset=0x10c03c7d
 #ifdef CONFIG_CPU_ENDIAN_BE8
 	orr	r6, r6, #1 << 25		@ big-endian page tables
 #endif
 #ifdef CONFIG_SWP_EMULATE
 	orr     r5, r5, #(1 << 10)              @ set SW bit in "clear"
 	bic     r6, r6, #(1 << 10)              @ clear it in "mmuset"
+						// SW bit를 0으로 만듬
 #endif
    	mrc	p15, 0, r0, c1, c0, 0		@ read control register
 	bic	r0, r0, r5			@ clear bits them
 	orr	r0, r0, r6			@ set them
+
+						/*   AT
+						 *  TFR   EV X F   I D LR    S
+						 * .EEE ..EE PUI. .T.T 4RVI ZWRS BLDP WCAM
+						 * rxxx rrxx xxx0 0101 xxxx xxxx x111 xxxx < forced
+						 *   01    0 110       0011 1000 .111 1101 < we want
+						 */
+
  THUMB(	orr	r0, r0, #1 << 30	)	@ Thumb exceptions
 	mov	pc, lr				@ return to head.S:__ret
 ENDPROC(__v7_setup)

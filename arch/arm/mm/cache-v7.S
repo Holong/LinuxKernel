@@ -89,10 +89,17 @@ ENDPROC(v7_flush_icache_all)
 
 ENTRY(v7_flush_dcache_louis)
 	dmb					@ ensure ordering with previous memory accesses
+						// 메모리 접근 연산 전부 수행됨
 	mrc	p15, 1, r0, c0, c0, 1		@ read clidr, r0 = clidr
+						// r0에 CLIDR 레지스터 저장함
 	ALT_SMP(ands	r3, r0, #(7 << 21))	@ extract LoUIS from clidr
+						// r3에 LoUIS 값 저장
+						// Cortex-A15 : 0b001
+						// LoC : 모든 디바이스가 동일 값으로 보는 것이 보장된 메모리 레벨
+						// LoUU : 프로세서의 I/D/TLB가 동일 값으로 보는 것이 보장된 메모리 레벨
+						// LoUIS : 멀티 프로세서의 I/D/TLB가 동일 값으로 보는 것이 보장된 메모리 레벨
 	ALT_UP(ands	r3, r0, #(7 << 27))	@ extract LoUU from clidr
-#ifdef CONFIG_ARM_ERRATA_643719
+#ifdef CONFIG_ARM_ERRATA_643719			// 통과
 	ALT_SMP(mrceq	p15, 0, r2, c0, c0, 0)	@ read main ID register
 	ALT_UP(moveq	pc, lr)			@ LoUU is zero, so nothing to do
 	ldreq	r1, =0x410fc090                 @ ID of ARM Cortex A9 r0p?
@@ -101,6 +108,8 @@ ENTRY(v7_flush_dcache_louis)
 	orreqs	r3, #(1 << 21)			@   fix LoUIS value (and set flags state to 'ne')
 #endif
 	ALT_SMP(mov	r3, r3, lsr #20)	@ r3 = LoUIS * 2
+						// r3에 LoUIS * 2가 저장됨
+						// 0x2가 됨
 	ALT_UP(mov	r3, r3, lsr #26)	@ r3 = LoUU * 2
 	moveq	pc, lr				@ return if level == 0
 	mov	r10, #0				@ r10 (starting level) = 0
