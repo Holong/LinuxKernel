@@ -479,17 +479,23 @@ asmlinkage void __init start_kernel(void)
 	 * lockdep hash:
 	 */
 	lockdep_init();
+	// Null 함수 (디버깅용)
 	smp_setup_processor_id();
+	// 현재 돌아가는 CPU를 표시해둠
 	debug_objects_early_init();
+	// Null 함수 (디버깅용)
 
 	/*
 	 * Set up the the initial canary ASAP:
 	 */
 	boot_init_stack_canary();
+	// Null 함수
 
 	cgroup_init_early();
+	// Null 함수
 
 	local_irq_disable();
+	// irq 끄기
 	early_boot_irqs_disabled = true;
 
 /*
@@ -498,6 +504,8 @@ asmlinkage void __init start_kernel(void)
  */
 	boot_cpu_init();
 	page_address_init();
+	// page_address_htable[128] 을 초기화
+	// Hash 테이블로 쓰임 (나중에)
 	pr_notice("%s", linux_banner);
 
 	// command_line에는 뭐가 옵니까

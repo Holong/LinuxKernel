@@ -857,7 +857,7 @@ void __init setup_arch(char **cmdline_p)
 
 	setup_processor();
 
-	// atags 주소를 받아서 device tree를 생성하는 작업을 수행해 줌.
+	// DTB 내용을 mdesc에 저장하고, memory bank 정보를 설정함
 	mdesc = setup_machine_fdt(__atags_pointer);
 	if (!mdesc)
 		mdesc = setup_machine_tags(__atags_pointer, __machine_arch_type);
