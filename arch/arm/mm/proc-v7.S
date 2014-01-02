@@ -261,7 +261,7 @@ __v7_setup:
 	adr	r12, __v7_setup_stack		@ the local stack
 						// r12에 주소값 저장
 	stmia	r12, {r0-r5, r7, r9, r11, lr}	// 레지스터 값 몽창 r12에 저장
-	bl      v7_flush_dcache_louis		// L1 데이터 캐쉬 털고 옴
+	bl      v7_flush_dcache_louis		// L1 데이터 캐쉬 clean/invalidate
 	ldmia	r12, {r0-r5, r7, r9, r11, lr}	// 레지스터 복구
 
 	mrc	p15, 0, r0, c0, c0, 0		@ read main ID register
@@ -353,7 +353,8 @@ __v7_setup:
 	// orr	r4, r4, #TTB_FLAGS_SMP		r4 : section table의 시작 주소
 	// orr	r8, r8, #TTB_FLAGS_SMP		r8 : section table의 시작 주소
 	// 					TTB_FLAGS_SMP :	TTB_IRGN_WBWA|TTB_S|TTB_NOS|TTB_RGN_OC_WBWA
-	//					IRGN[1:0] : 10	Inner Write-Through Cacheable
+	//					테이블 변환 시 방문하는 메모리 영역의 특성을 지정해 줘야 함.
+	//					IRGN[1:0] : 01 	Inner Write-Back, Write-Allocate Cacheable
 	//					NOS : 1		Inner Shareable
 	//					S : 1		Shareable
 	//					RGN[1:0] : 01	Outer Write-Back, Write-Allocate Cacheable

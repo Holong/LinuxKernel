@@ -236,6 +236,7 @@ __create_page_tables:
 	// 	PMD_SECT_AP_READ  : AP[1] 건드림, Access Permission 설정, 결국 Full Access 설정됨.
 	//	PMD_SECT_AF : 하는 것 없음
 	//	PMD_FLAGS_SMP : TEX[2:0], C, B 건드림, Write Back, Write Allocate 정책 설정
+	//			0b00111
 	//			추가로 S 비트를 1로 설정함
 
 	/*
