@@ -276,16 +276,21 @@ void __init setup_dma_zone(struct machine_desc *mdesc)
 #endif
 }
 
+// min      : 뱅크 0 시작 주소의 물리 small page 번호		(0x20000)
+// max_low  : 뱅크 0의 마지막 주소의 물리 small page 번호	(0x4f800)
+// max_high : 뱅크 1의 마지막 주소의 물리 small page 번호	(0xA0000)
 static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 	unsigned long max_high)
 {
 	unsigned long zone_size[MAX_NR_ZONES], zhole_size[MAX_NR_ZONES];
+	// MAX_NR_ZONES : 3
 	struct memblock_region *reg;
 
 	/*
 	 * initialise the zones.
 	 */
 	memset(zone_size, 0, sizeof(zone_size));
+	// zone_size를 0으로 초기화
 
 	/*
 	 * The memory size has already been determined.  If we need
@@ -293,8 +298,10 @@ static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 	 * to the zones, now is the time to do it.
 	 */
 	zone_size[0] = max_low - min;
+	// zone_size[0] : 0x2f800
 #ifdef CONFIG_HIGHMEM
 	zone_size[ZONE_HIGHMEM] = max_high - max_low;
+	// zone_size[1] = : 0x50800
 #endif
 
 	/*
@@ -302,13 +309,19 @@ static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 	 *  holes = node_size - sum(bank_sizes)
 	 */
 	memcpy(zhole_size, zone_size, sizeof(zhole_size));
+	// zone_size 값을 zhole_size 로 모두 복사
 	for_each_memblock(memory, reg) {
 		unsigned long start = memblock_region_memory_base_pfn(reg);
 		unsigned long end = memblock_region_memory_end_pfn(reg);
+		// start : 0x20000
+		// end : 0xA0000
 
+		// max_low : 0x4F800
 		if (start < max_low) {
 			unsigned long low_end = min(end, max_low);
+			// low_end : 0x4F800
 			zhole_size[0] -= low_end - start;
+			// zhole_size[0] : 0
 		}
 #ifdef CONFIG_HIGHMEM
 		if (end > max_low) {
@@ -317,6 +330,8 @@ static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 		}
 #endif
 	}
+	// hole 크기를 계산하는 동작을 수행함
+	// 현재는 모든 메모리가 연속적이기 때문에 hole 값이 0임
 
 #ifdef CONFIG_ZONE_DMA
 	/*
@@ -327,7 +342,7 @@ static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 		arm_adjust_dma_zone(zone_size, zhole_size,
 			arm_dma_zone_size >> PAGE_SHIFT);
 #endif
-
+	// min : 0x20000
 	free_area_init_node(0, zone_size, min, zhole_size);
 }
 

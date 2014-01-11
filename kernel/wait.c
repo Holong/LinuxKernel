@@ -10,10 +10,13 @@
 #include <linux/wait.h>
 #include <linux/hash.h>
 
+// q : &pgdat->kswapd_wait, name : "&pgdat->kswapd_wait", key : ??
 void __init_waitqueue_head(wait_queue_head_t *q, const char *name, struct lock_class_key *key)
 {
+	// q 안에 spinlock과 list head 한개 존재
 	spin_lock_init(&q->lock);
 	lockdep_set_class_and_name(&q->lock, key, name);
+	// 통과
 	INIT_LIST_HEAD(&q->task_list);
 }
 
