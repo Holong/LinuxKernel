@@ -669,6 +669,7 @@ const struct cpumask *const cpu_possible_mask = to_cpumask(cpu_possible_bits);
 EXPORT_SYMBOL(cpu_possible_mask);
 
 static DECLARE_BITMAP(cpu_online_bits, CONFIG_NR_CPUS) __read_mostly;
+// unsigned long cpu_online_bits[1]
 const struct cpumask *const cpu_online_mask = to_cpumask(cpu_online_bits);
 EXPORT_SYMBOL(cpu_online_mask);
 
@@ -700,6 +701,8 @@ void set_cpu_online(unsigned int cpu, bool online)
 {
 	if (online)
 		cpumask_set_cpu(cpu, to_cpumask(cpu_online_bits));
+		// unsigned long cpu_online_bits[1]
+		// to_cpumask(cpu_online_bits) >> cpu_online_bits
 	else
 		cpumask_clear_cpu(cpu, to_cpumask(cpu_online_bits));
 }

@@ -187,7 +187,7 @@ extern int _find_next_bit_be(const unsigned long *p, int size, int offset);
 /*
  * Native endian atomic definitions.
  */
-#define set_bit(nr,p)			ATOMIC_BITOP(set_bit,nr,p)
+#define set_bit(nr,p)			ATOMIC_BITOP(set_bit,nr,p)		// _set_bit
 #define clear_bit(nr,p)			ATOMIC_BITOP(clear_bit,nr,p)
 #define change_bit(nr,p)		ATOMIC_BITOP(change_bit,nr,p)
 #define test_and_set_bit(nr,p)		ATOMIC_BITOP(test_and_set_bit,nr,p)	// _test_and_set_bit

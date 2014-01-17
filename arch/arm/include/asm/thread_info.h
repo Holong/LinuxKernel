@@ -97,6 +97,7 @@ static inline struct thread_info *current_thread_info(void)
 {
 	register unsigned long sp asm ("sp");
 	return (struct thread_info *)(sp & ~(THREAD_SIZE - 1));
+	// 8K 단위로 sp를 자른 뒤, 그 주소를 반환
 }
 
 #define thread_saved_pc(tsk)	\

@@ -469,11 +469,31 @@ void __init smp_setup_processor_id(void)
 {
 	int i;
 	u32 mpidr = is_smp() ? read_cpuid_mpidr() & MPIDR_HWID_BITMASK : 0;
+	// 현재 실제 SMP 시스템인지 확인하는 동작임
+	// config만 가지고 확인하지 않고 레지스터를 뜯어서 실제 SMP인지 확인함.
+	// MPIDR의 MSB를 보면 확인할 수 있음
+	// SMP이면 Aff2~Aff0까지 가져오고 아니면 0을 mpidr에 설정
+	// Cortex-A15의 경우 AFF0는 CPUID, AFF1은 클러스터 ID 번호가 저장되어 있음
+
 	u32 cpu = MPIDR_AFFINITY_LEVEL(mpidr, 0);
+	// cpu에 현재 동작하는 코어의 Aff0 값을 저장함
 
 	cpu_logical_map(0) = cpu;
+	// __cpu_logical_map[0] 에 현재 동작하는 코어의 Aff0 값을 저장
 	for (i = 1; i < nr_cpu_ids; ++i)
 		cpu_logical_map(i) = i == cpu ? 0 : i;
+
+	// if cpu=0
+	//	__cpu_logical_map[0] = 0    // current
+	//	__cpu_logical_map[1] = 1    // others
+	//	__cpu_logical_map[2] = 2    // others
+	//	__cpu_logical_map[3] = 3    // others
+	// if cpu=1
+	//	__cpu_logical_map[0] = 1    // current
+	//	__cpu_logical_map[1] = 0    // others
+	//	__cpu_logical_map[2] = 2    // others
+	//	__cpu_logical_map[3] = 3    // others
+	// 무조건 현재 동작하는 코어의 AFF0 값은 __cpu_logical_map[0] 번에 저장하게 되어 있음
 
 	/*
 	 * clear __my_cpu_offset on boot CPU to avoid hang caused by
@@ -481,6 +501,8 @@ void __init smp_setup_processor_id(void)
 	 * access percpu variable inside lock_release
 	 */
 	set_my_cpu_offset(0);
+	// TPIDRPRW 레지스터에 0 값을 저장함.
+	// Thread ID 값이라고 하는데 어디에 쓰는지는 아직 모름
 
 	printk(KERN_INFO "Booting Linux on physical CPU 0x%x\n", mpidr);
 }

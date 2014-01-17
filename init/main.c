@@ -435,7 +435,10 @@ void __init parse_early_param(void)
 static void __init boot_cpu_init(void)
 {
 	int cpu = smp_processor_id();
+	// cpu : 0 이 저장됨
 	/* Mark the boot cpu "present", "online" etc for SMP and UP case */
+
+	// cpu : 0
 	set_cpu_online(cpu, true);
 	set_cpu_active(cpu, true);
 	set_cpu_present(cpu, true);
@@ -482,6 +485,10 @@ asmlinkage void __init start_kernel(void)
 	// Null 함수 (디버깅용)
 	smp_setup_processor_id();
 	// 현재 돌아가는 CPU를 표시해둠
+	// __cpu_logical_map[0] = 0	// current
+	// __cpu_logical_map[1] = 1	// others
+	// __cpu_logical_map[2] = 2	// others
+	// __cpu_logical_map[3] = 3	// others
 	debug_objects_early_init();
 	// Null 함수 (디버깅용)
 
