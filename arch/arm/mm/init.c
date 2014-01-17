@@ -298,7 +298,7 @@ static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 	 * to the zones, now is the time to do it.
 	 */
 	zone_size[0] = max_low - min;
-	// zone_size[0] : 0x2f800
+	// zone_size[0] : 0x2F800
 #ifdef CONFIG_HIGHMEM
 	zone_size[ZONE_HIGHMEM] = max_high - max_low;
 	// zone_size[1] = : 0x50800
@@ -320,13 +320,19 @@ static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 		if (start < max_low) {
 			unsigned long low_end = min(end, max_low);
 			// low_end : 0x4F800
+			// 중간에 끊어져 있는 경우 end 값이 max_low 값보다 더 작을 수 있음
 			zhole_size[0] -= low_end - start;
 			// zhole_size[0] : 0
+			// 중간이 끊긴 경우 hole이 아닌 곳의 크기가 low_end - start 가 됨
 		}
 #ifdef CONFIG_HIGHMEM
 		if (end > max_low) {
+			// end > max_low 이면 hole이 high mem 중간 어딘가에 있다는 뜻이므로
+			// 이를 처리해 주어야 함.
 			unsigned long high_start = max(start, max_low);
+			// high mem의 시작 주소를 저장
 			zhole_size[ZONE_HIGHMEM] -= end - high_start;
+			// hole이 아닌 곳의 크기가 end - high_start가 됨
 		}
 #endif
 	}
@@ -343,6 +349,8 @@ static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 			arm_dma_zone_size >> PAGE_SHIFT);
 #endif
 	// min : 0x20000
+	// zone_size[0] = 0x2F800, zone_size[1] = 0x50800
+	// zhole_size[0] = 0, zhole_size[1] = 0
 	free_area_init_node(0, zone_size, min, zhole_size);
 }
 
