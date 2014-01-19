@@ -252,9 +252,47 @@ int cpumask_any_but(const struct cpumask *mask, unsigned int cpu);
  * @cpu: cpu number (< nr_cpu_ids)
  * @dstp: the cpumask pointer
  */
+// cpu : 0, dstp : cpu_online_bits
 static inline void cpumask_set_cpu(unsigned int cpu, struct cpumask *dstp)
 {
 	set_bit(cpumask_check(cpu), cpumask_bits(dstp));
+	// cpumask_check(0) : 하는 일 없음, 그냥 cpu 값 반환
+	// cpumask_bits(cpu_online_bits) : cpu_online_bits->bits
+	// _set_bit(0, cpu_online_bits->bits) 가 호출됨
+
+	/*
+	r0 : 0, r1 : cpu_online_bits->bits
+
+	ENTRY(	_set_bit	)
+	UNWIND(	.fnstart	)
+		ands	ip, r1, #3		// r1의 하위 2비트만 살리고 전부 클리어 후
+						// r12에 저장
+		strneb	r1, [ip]		@ assert word-aligned
+						// 만약 r12가 0이 아니면 abort가 발생하게 됨
+						// 그러므로 r1에 들어온 값이 4바이트 정렬이 되어 있는지 확인 됨
+		mov	r2, #1			// r2에 1 대입
+		and	r3, r0, #31		@ Get bit offset
+						// r0에서 bit offset만 뽑아 r3에 저장
+		mov	r0, r0, lsr #5		// r0에서 bit offset 부분을 밀어버림
+						// r0에 몇 번째 word 인지 저장됨
+		add	r1, r1, r0, lsl #2	@ Get word offset
+						// 2비트 왼쪽으로 밀면 실제 바이트 위치가 나옴
+						// 이를 r1과 and 하여 실제 위치 계산
+		mov	r3, r2, lsl r3		// bit offset에 맞게 마스킹용 bit 생성
+	1:	ldrex	r2, [r1]		// r1 값을 뽑아서 r2에 저장
+						// monitor에 등록
+		orr	r2, r2, r3		// 가져온 값에 bit 설정
+		strex	r0, r2, [r1]		// monitor를 보고 수행여부 판단
+						// 만약 아무도 r1 자리를 건드리지 않았으면 성공적으로
+						// 저장이 수행됨
+		cmp	r0, #0			// 저장 성공 시 r0에 0이 저장되고 실패 시 1이 저장됨
+		bne	1b			// 실패시 다시 수행
+						// 누군가 메모리를 건드렸기 때문에 atomic이 실패한 것임
+		bx	lr			// 성공 시 리턴
+	UNWIND(	.fnend		)
+	ENDPROC(_set_bit	)
+
+	*/
 }
 
 /**

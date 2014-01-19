@@ -702,7 +702,7 @@ void set_cpu_online(unsigned int cpu, bool online)
 	if (online)
 		cpumask_set_cpu(cpu, to_cpumask(cpu_online_bits));
 		// unsigned long cpu_online_bits[1]
-		// to_cpumask(cpu_online_bits) >> cpu_online_bits
+		// to_cpumask(cpu_online_bits) >> struct cpumask* cpu_online_bits
 	else
 		cpumask_clear_cpu(cpu, to_cpumask(cpu_online_bits));
 }

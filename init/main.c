@@ -443,6 +443,10 @@ static void __init boot_cpu_init(void)
 	set_cpu_active(cpu, true);
 	set_cpu_present(cpu, true);
 	set_cpu_possible(cpu, true);
+	// cpu_online_bits[0] 의 0번 비트를 1로 설정
+	// cpu_active_bits[0] 의 0번 비트를 1로 설정
+	// cpu_present_bits[0] 의 0번 비트를 1로 설정
+	// cpu_possible_bits[0] 의 0번 비트를 1로 설정
 }
 
 void __init __weak smp_setup_processor_id(void)
@@ -510,6 +514,11 @@ asmlinkage void __init start_kernel(void)
  * enable them
  */
 	boot_cpu_init();
+	// cpu_online_bits[0] 의 0번 비트를 1로 설정
+	// cpu_active_bits[0] 의 0번 비트를 1로 설정
+	// cpu_present_bits[0] 의 0번 비트를 1로 설정
+	// cpu_possible_bits[0] 의 0번 비트를 1로 설정
+
 	page_address_init();
 	// page_address_htable[128] 을 초기화
 	// Hash 테이블로 쓰임 (나중에)
