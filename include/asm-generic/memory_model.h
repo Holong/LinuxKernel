@@ -61,7 +61,10 @@
 	int __sec = page_to_section(__pg);			\
 	(unsigned long)(__pg - __section_mem_map_addr(__nr_to_section(__sec)));	\
 })
-
+// pfn : 0x20000
+// __sec : &mem_section[0][2]
+// __section_mem_map_addr(__sec) + __pfn
+// 이전에 인코딩해 둔 값에 오프셋을 더해 pfn에 해당하는 struct page 공간의 주소를 뽑아냄
 #define __pfn_to_page(pfn)				\
 ({	unsigned long __pfn = (pfn);			\
 	struct mem_section *__sec = __pfn_to_section(__pfn);	\

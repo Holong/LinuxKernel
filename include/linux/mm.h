@@ -744,13 +744,17 @@ static inline void set_page_node(struct page *page, unsigned long node)
 	page->flags |= (node & NODES_MASK) << NODES_PGSHIFT;
 }
 
+// page : ?, zone : 0, node : 0, pfn : 0x20000
 static inline void set_page_links(struct page *page, enum zone_type zone,
 	unsigned long node, unsigned long pfn)
 {
 	set_page_zone(page, zone);
+	// page->flags에 zone 번호를 저장
 	set_page_node(page, node);
+	// page->flags에 node 번호를 저장
 #ifdef SECTION_IN_PAGE_FLAGS
 	set_page_section(page, pfn_to_section_nr(pfn));
+	// page->flags에 section 번호를 저장
 #endif
 }
 

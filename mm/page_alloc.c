@@ -3922,18 +3922,23 @@ static void setup_zone_migrate_reserve(struct zone *zone)
  * up by free_all_bootmem() once the early boot process is
  * done. Non-atomic initialization, single-pass.
  */
+// size : 0x2F800, nid : 0, zone : 0, start_pfn : 0x20000, context : MEMMAP_EARLY
 void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
 		unsigned long start_pfn, enum memmap_context context)
 {
 	struct page *page;
 	unsigned long end_pfn = start_pfn + size;
+	// end_pfn : 0x4F800
 	unsigned long pfn;
 	struct zone *z;
 
 	if (highest_memmap_pfn < end_pfn - 1)
 		highest_memmap_pfn = end_pfn - 1;
+		// highest_memmap_pfn : 0x4F7FF
 
 	z = &NODE_DATA(nid)->node_zones[zone];
+	// z : &contig_page_data.node_zones[ZONE_NORMAL]
+	// start_pfn : 0x20000, end_pfn : 0x4F800
 	for (pfn = start_pfn; pfn < end_pfn; pfn++) {
 		/*
 		 * There can be holes in boot-time mem_map[]s
@@ -3941,18 +3946,29 @@ void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
 		 * exist on hotplugged memory.
 		 */
 		if (context == MEMMAP_EARLY) {
-			if (!early_pfn_valid(pfn))
+			if (!early_pfn_valid(pfn))	// memblock에 포함되는지 확인함
 				continue;
-			if (!early_pfn_in_nid(pfn, nid))
+			if (!early_pfn_in_nid(pfn, nid))	// 항상 거짓임
 				continue;
 		}
 		page = pfn_to_page(pfn);
+		// pfn : 0x20000
+		// page : pfn에 해당하는 struct page의 주소
 		set_page_links(page, zone, nid, pfn);
+		// page : ?, zone : 0, nid : 0, pfn : 0x20000
+		// page->flags에 zone, node, section 정보를 저장함 (0x20000000)
 		mminit_verify_page_links(page, zone, nid, pfn);
+		// page : ?, zone : 0, nid : 0, pfn : 0x20000
+		// page->flags에 정보가 제대로 저장되었는지 확인함
 		init_page_count(page);
+		// page->_count.counter : 1
 		page_mapcount_reset(page);
+		// page->_mapcount.counter : -1
 		page_nid_reset_last(page);
+		// null 함수
 		SetPageReserved(page);
+		// page->flags의 10(PG_reserved)번째 비트를 1로 atomic set 함
+
 		/*
 		 * Mark the block movable so that blocks are reserved for
 		 * movable at startup. This will force kernel allocations
@@ -3967,6 +3983,11 @@ void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
 		 * check here not to call set_pageblock_migratetype() against
 		 * pfn out of zone.
 		 */
+
+		// zone_start_pfn : 0x20000, pfn : 0x20000
+		// zone_end_pfn : 0x4F800
+		// pageblock_nr_pages : 0x400
+		// MIGRATE_MOVABLE : 2
 		if ((z->zone_start_pfn <= pfn)
 		    && (pfn < zone_end_pfn(z))
 		    && !(pfn & (pageblock_nr_pages - 1)))
@@ -4835,6 +4856,7 @@ static void __paginginit free_area_init_core(struct pglist_data *pgdat,
 						size, MEMMAP_EARLY);
 		// zone->wait_table, zone->free_area를 초기화
 		BUG_ON(ret);
+		// size : 0x2F800, nid : 0, j : 0, zone_start_pfn : 0x20000
 		memmap_init(size, nid, j, zone_start_pfn);
 		zone_start_pfn += size;
 	}

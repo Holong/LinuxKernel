@@ -1185,8 +1185,10 @@ static inline int valid_section_nr(unsigned long nr)
 	return valid_section(__nr_to_section(nr));
 }
 
+// pfn : 0x20000
 static inline struct mem_section *__pfn_to_section(unsigned long pfn)
 {
+	// &mem_section[0][2] 가 반환됨
 	return __nr_to_section(pfn_to_section_nr(pfn));
 }
 
