@@ -483,6 +483,66 @@ void __init bootmem_init(void)
 	 * for memmap_init_zone(), otherwise all PFNs are invalid.
 	 */
 	arm_bootmem_free(min, max_low, max_high);
+	// contig_page_data 내부 값과 내부 멤버  node_zones[ZONE_NORMAL], node_zones[ZONE_HIGHMEM], node_zones[ZONE_MOVABLE] 값을
+	// 설정하였음
+	// 
+		/*
+		이 함수 내부에서 초기화 되는 값들
+		struct pglist_data contig_page_data {
+			struct zone node_zones[MAX_NR_ZONES];
+				// node_zones[ZONE_NORMAL]
+				// 	.spanned_pages : 0x2F800 (zone에 해당하는 4KB 페이지 갯수)
+				//	.present_pages : 0x2F800 (hole을 제외한 4KB 페이지 갯수)
+				//	.managed_pages : 0x2EFD6 (struct page용 공간을 제외한 갯수)
+				//	.name : "Normal"
+				//	.lock : 초기화됨
+				//	.lru_lock : 초기화됨
+				//	.zone_pgdat : &contig_page_data (현재 pglist_data 구조체의 시작 주소)
+				//	.pageset : &boot_pageset (전역변수)
+				//	.lruvec : lruvec.lists[0] ~ lruvec.lists[4] 리스트를 전부 초기화됨
+				//	.wait_table_hash_nr_entries : 0x400 (hash 테이블의 pivot 칸 수)
+				//	.wait_table_bits : 10	(1 << wait_table_bits 하면 hash의 pivot 칸 수를 뽑아낼 수 있음)
+				//	.wait_table : hash의 pivot을 할당 받은 뒤, 시작 주소가 저장됨
+						      현재는 1024개의 wait_queue_head_t를 저장할 수 있는 공간이 할당되며
+						      초기화 작업까지 수행되었음
+				//	.zone_start_pfn : 0x20000 (normal zone의 시작 프레임 번호)
+				//	.free_area[0] ~ .free_area[MAX_ORDER] 까지 11개 배열에 대해 내부의
+				//		.free_list[0] ~ .free_list[MIGRATE_TYPES] 리스트가 초기화되고, .nr_free 값은 전부 0으로 초기화
+				
+				// node_zones[ZONE_HIGHMEM]
+				// 	.spanned_pages : 0x50800 (zone에 해당하는 4KB 페이지 갯수)
+				//	.present_pages : 0x50800 (hole을 제외한 4KB 페이지 갯수)
+				//	.managed_pages : 0x50800 (struct page용 공간을 제외한 갯수)
+				//	.name : "HighMem"
+				//	.lock : 초기화됨
+				//	.lru_lock : 초기화됨
+				//	.zone_pgdat : &contig_page_data (현재 pglist_data 구조체의 시작 주소)
+				//	.pageset : &boot_pageset (전역변수)
+				//	.lruvec : lruvec.lists[0] ~ lruvec.lists[4] 리스트를 전부 초기화됨
+				//	.wait_table_hash_nr_entries : 0x800 (hash 테이블의 pivot 칸 수)
+				//	.wait_table_bits : 11	(1 << wait_table_bits 하면 hash의 pivot 칸 수를 뽑아낼 수 있음)
+				//	.wait_table : hash의 pivot을 할당 받은 뒤, 시작 주소가 저장됨
+						      현재는 2048개의 wait_queue_head_t를 저장할 수 있는 공간이 할당되며
+						      초기화 작업까지 수행되었음
+				//	.zone_start_pfn : 0x4F8000 (HighMem zone의 시작 프레임 번호)
+				//	.free_area[0] ~ .free_area[MAX_ORDER] 까지 11개 배열에 대해 내부의
+				//		.free_list[0] ~ .free_list[MIGRATE_TYPES] 리스트가 초기화되고, .nr_free 값은 전부 0으로 초기화
+									
+			struct zonelist node_zonelists[MAX_ZONELISTS];
+			int nr_zones;					// 2 : 현재 몇 번째 node_zones 배열까지 처리했는지 기록됨(시작 인덱스가 1)
+			struct bootmem_data *bdata;			// 현재 bootmem 정보가 들어 있음
+			unsigned long node_start_pfn;			// 0x20000 : 시작 4KB 페이지 번호
+			unsigned long node_present_pages; 		// 0x80000 : 모든 zone에 포함되는 4KB 페이지 갯수
+			unsigned long node_spanned_pages; 		// 0x80000 : hole을 제외한 4KB 페이지 갯수
+			int node_id;					// 0 : NUMA 구조에서만 사용됨
+			nodemask_t reclaim_nodes;
+			wait_queue_head_t kswapd_wait;			// 리스트 1개 연결
+			wait_queue_head_t pfmemalloc_wait;		// 리스트 1개 연결
+			struct task_struct *kswapd;
+			int kswapd_max_order;
+			enum zone_type classzone_idx;
+		} pg_data_t;
+		*/
 
 	/*
 	 * This doesn't seem to be used by the Linux memory manager any
@@ -492,8 +552,13 @@ void __init bootmem_init(void)
 	 * Note: max_low_pfn and max_pfn reflect the number of _pages_ in
 	 * the system, not the maximum PFN.
 	 */
+
 	max_low_pfn = max_low - PHYS_PFN_OFFSET;
+	// max_low : 0x4F800, PHYS_PFN_OFFSET : 0x20000
+	// max_low_pfn : 0x2F800
 	max_pfn = max_high - PHYS_PFN_OFFSET;
+	// max_high : 0xA0000, PHYS_PFN_OFFSET : 0x20000
+	// max_pfn : 0x80000
 }
 
 /*

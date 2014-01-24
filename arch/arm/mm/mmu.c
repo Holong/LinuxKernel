@@ -1613,7 +1613,9 @@ void __init paging_init(struct machine_desc *mdesc)
 	// zero_page에 reserved 되지 않았던 4KB 영역 할당(가상 주소 반환)
 	
 	bootmem_init();
-
+	// contig_page_data 자료 값 설정 및 struct page 값들 초기화
+	
 	empty_zero_page = virt_to_page(zero_page);
+	// zero_page 가상 주소의 물리 페이지 번호를 empty_zero_page에 저장
 	__flush_dcache_page(NULL, empty_zero_page);
 }
