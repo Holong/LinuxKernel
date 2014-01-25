@@ -357,16 +357,27 @@ ENDPROC(v7_coherent_user_range)
  */
 ENTRY(v7_flush_kern_dcache_area)
 	dcache_line_size r2, r3
-	add	r1, r0, r1
-	sub	r3, r2, #1
-	bic	r0, r0, r3
+	/*
+		.macro	dcache_line_size, reg, tmp
+		mrc	p15, 0, r3, c0, c0, 1		@ read ctr
+		lsr	r3, r3, #16
+		and	r3, r3, #0xf		@ cache line size encoding
+		mov	r2, #4			@ bytes per word
+		mov	r2, r2, lsl r3		@ actual cache line size
+		.endm
+	*/
+	// r2 : 0x40, r3 : 0x4
+	add	r1, r0, r1			// r1 = 가상주소 + 4096
+	sub	r3, r2, #1			// r3 : 0x40 - 0x1 = 0x3F
+	bic	r0, r0, r3			// 하위 6비트 클리어
+						// 64바이트 정렬을 검
 #ifdef CONFIG_ARM_ERRATA_764369
 	ALT_SMP(W(dsb))
 	ALT_UP(W(nop))
 #endif
 1:
 	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D line / unified line
-	add	r0, r0, r2
+	add	r0, r0, r2			// 4KB 영역에 대한 D 캐쉬를 clean, invalidate
 	cmp	r0, r1
 	blo	1b
 	dsb

@@ -721,26 +721,44 @@ static void __init request_standard_resources(struct machine_desc *mdesc)
 	struct memblock_region *region;
 	struct resource *res;
 
+	// kernel_code : mem_res[1]
+	// kernel_data : mem_res[2]
+	// 전역변수임
 	kernel_code.start   = virt_to_phys(_text);
 	kernel_code.end     = virt_to_phys(_etext - 1);
 	kernel_data.start   = virt_to_phys(_sdata);
 	kernel_data.end     = virt_to_phys(_end - 1);
+	// 커널의 text 영역과 data 영역에 대한 정보를
+	// 전역 변수 멤버에 적절한 값을 저장함
 
 	for_each_memblock(memory, region) {
+		// sizeof(*res) : 28바이트
 		res = alloc_bootmem_low(sizeof(*res));
+		// res : 4KB 영역을 할당 받은 뒤 시작 주소를 반환
 		res->name  = "System RAM";
+		// name : "System RAM" 저장
 		res->start = __pfn_to_phys(memblock_region_memory_base_pfn(region));
+		// res->start : 0x20000000
 		res->end = __pfn_to_phys(memblock_region_memory_end_pfn(region)) - 1;
+		// res->end : 0x9FFFFFFF
 		res->flags = IORESOURCE_MEM | IORESOURCE_BUSY;
+		// IORESOURCE_MEM : 0x00000200
+		// IORESOURCE_BUSY : 0x80000000
 
 		request_resource(&iomem_resource, res);
+		// iomem_resource를 root로 하는 트리에 res를 노드로 등록함
 
+		// res->start : 0x20000000, res->end : 0x9FFFFFFF
 		if (kernel_code.start >= res->start &&
 		    kernel_code.end <= res->end)
 			request_resource(res, &kernel_code);
+			// res의 자식으로 kernel_code 노드를 등록
 		if (kernel_data.start >= res->start &&
 		    kernel_data.end <= res->end)
 			request_resource(res, &kernel_data);
+			// res의 자식으로 kernel_data 노드를 등록
+			// 결론적으로 res의 자식 1번에 kernel_code가 들어가고
+			// kernel_code의 sibiling에 kernel_data가 등록됨
 	}
 
 	if (mdesc->video_start) {
@@ -748,6 +766,7 @@ static void __init request_standard_resources(struct machine_desc *mdesc)
 		video_ram.end   = mdesc->video_end;
 		request_resource(&iomem_resource, &video_ram);
 	}
+	// mdesc->video_start는 0임
 
 	/*
 	 * Some machines don't have the possibility of ever
@@ -907,7 +926,8 @@ void __init setup_arch(char **cmdline_p)
 	arm_memblock_init(&meminfo, mdesc);
 
 	paging_init(mdesc);
-	// page 관련 설정
+	// mmu용 변환 테이블인 pgd, pte 설정
+	// zone memory map 설정, zero_page 설정
 	request_standard_resources(mdesc);
 
 	if (mdesc->restart)

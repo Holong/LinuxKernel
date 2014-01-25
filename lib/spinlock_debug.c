@@ -223,9 +223,12 @@ void do_raw_read_unlock(rwlock_t *lock)
 	arch_read_unlock(&lock->raw_lock);
 }
 
+// lock : &resource_lock
 static inline void debug_write_lock_before(rwlock_t *lock)
 {
 	RWLOCK_BUG_ON(lock->magic != RWLOCK_MAGIC, lock, "bad magic");
+	// if(unlikely(lock->magic != RWLOCK_MAGIC)
+	//	rwlock_bug(lock, "bad magic");
 	RWLOCK_BUG_ON(lock->owner == current, lock, "recursion");
 	RWLOCK_BUG_ON(lock->owner_cpu == raw_smp_processor_id(),
 							lock, "cpu recursion");
@@ -273,6 +276,7 @@ static void __write_lock_debug(rwlock_t *lock)
 }
 #endif
 
+// lock : &resource_lock
 void do_raw_write_lock(rwlock_t *lock)
 {
 	debug_write_lock_before(lock);

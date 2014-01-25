@@ -161,6 +161,7 @@ void copy_to_user_page(struct vm_area_struct *vma, struct page *page,
 #endif
 }
 
+// mapping : NULL, page : ??
 void __flush_dcache_page(struct address_space *mapping, struct page *page)
 {
 	/*
@@ -168,9 +169,18 @@ void __flush_dcache_page(struct address_space *mapping, struct page *page)
 	 * page.  This ensures that data in the physical page is mutually
 	 * coherent with the kernels mapping.
 	 */
+	// PageHighMem : 0
+	// 현재 page가 ZONE_NORMAL 영역임
 	if (!PageHighMem(page)) {
 		size_t page_size = PAGE_SIZE << compound_order(page);
+		// PAGE_SIZE : 4K
+		// compound_order(page) : 0
+		// page_size는 4K가 됨
+
 		__cpuc_flush_dcache_area(page_address(page), page_size);
+		// page_address(page)는 page가 관리하는 페이지 프레임의 시작 가상 주소를 반환
+		// v7_flush_kern_dcache_area(프레임 주소, 4096)
+		// page가 관리하는 페이지 프레임에 해당하는 D-cache를 clean, invalidate
 	} else {
 		unsigned long i;
 		if (cache_is_vipt_nonaliasing()) {
@@ -195,6 +205,7 @@ void __flush_dcache_page(struct address_space *mapping, struct page *page)
 	 * we only need to do one flush - which would be at the relevant
 	 * userspace colour, which is congruent with page->index.
 	 */
+	// mapping : NULL
 	if (mapping && cache_is_vipt_aliasing())
 		flush_pfn_alias(page_to_pfn(page),
 				page->index << PAGE_CACHE_SHIFT);

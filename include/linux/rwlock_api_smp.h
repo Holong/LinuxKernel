@@ -206,11 +206,17 @@ static inline void __raw_write_lock_bh(rwlock_t *lock)
 	LOCK_CONTENDED(lock, do_raw_write_trylock, do_raw_write_lock);
 }
 
+// lock : &resource_lock
 static inline void __raw_write_lock(rwlock_t *lock)
 {
 	preempt_disable();
+
 	rwlock_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+	// null 함수
+
 	LOCK_CONTENDED(lock, do_raw_write_trylock, do_raw_write_lock);
+	// do_raw_write_lock(lock) 이 호출됨
+	// &resource_lock 락 변수를 가지고 락을 설정하였음
 }
 
 #endif /* CONFIG_PREEMPT */
@@ -218,6 +224,8 @@ static inline void __raw_write_lock(rwlock_t *lock)
 static inline void __raw_write_unlock(rwlock_t *lock)
 {
 	rwlock_release(&lock->dep_map, 1, _RET_IP_);
+	// null 함수
+
 	do_raw_write_unlock(lock);
 	preempt_enable();
 }

@@ -148,6 +148,7 @@ static inline int arch_spin_is_contended(arch_spinlock_t *lock)
  * just write zero since the lock is exclusively held.
  */
 
+// rw : &resource_lock->raw_lock
 static inline void arch_write_lock(arch_rwlock_t *rw)
 {
 	unsigned long tmp;

@@ -132,7 +132,7 @@ extern struct cpu_cache_fns cpu_cache;
 #define __cpuc_flush_user_range		cpu_cache.flush_user_range
 #define __cpuc_coherent_kern_range	cpu_cache.coherent_kern_range
 #define __cpuc_coherent_user_range	cpu_cache.coherent_user_range
-#define __cpuc_flush_dcache_area	cpu_cache.flush_kern_dcache_area
+#define __cpuc_flush_dcache_area	cpu_cache.flush_kern_dcache_area	// v7_flush_kern_dcache_area
 
 /*
  * These are private to the dma-mapping API.  Do not use directly.

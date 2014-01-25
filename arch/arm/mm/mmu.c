@@ -1616,6 +1616,7 @@ void __init paging_init(struct machine_desc *mdesc)
 	// contig_page_data 자료 값 설정 및 struct page 값들 초기화
 	
 	empty_zero_page = virt_to_page(zero_page);
-	// zero_page 가상 주소의 물리 페이지 번호를 empty_zero_page에 저장
+	// zero_page에 해당하는 struct page 주소를 empty_zero_page에 저장
 	__flush_dcache_page(NULL, empty_zero_page);
+	// zero_page에 해당하는 D 캐쉬를 클리어
 }

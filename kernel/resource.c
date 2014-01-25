@@ -195,31 +195,51 @@ static struct resource *alloc_resource(gfp_t flags)
 }
 
 /* Return the conflict entry if you can't request it */
+// root : &iomem_resource, new : res
 static struct resource * __request_resource(struct resource *root, struct resource *new)
 {
 	resource_size_t start = new->start;
+	// start : 0x20000000
 	resource_size_t end = new->end;
+	// end : 0x9FFFFFFF
 	struct resource *tmp, **p;
 
 	if (end < start)
 		return root;
+
+	// start : 0x20000000, root->start : 0
 	if (start < root->start)
 		return root;
+
+	// end : 0x9FFFFFFF, root->end : -1
 	if (end > root->end)
 		return root;
+	// 전부 통과됨
+
 	p = &root->child;
+	// p : &iomem_resource.child
+
 	for (;;) {
 		tmp = *p;
-		if (!tmp || tmp->start > end) {
+		// tmp : 0
+
+		if (!tmp || tmp->start > end) { 
+			// child가 없거나 child의 시작점이 현재 점검하는 값의 끝이 겹치지 않는 경우
+			// 기존에 등록한 resource와 충돌이 안나는 것임 (메모리 겹침)
+
 			new->sibling = tmp;
+			// res->sibling : tmp, NULL 대입
 			*p = new;
+			// &iomem_resource.child : res
 			new->parent = root;
+			// res->parent : iomem_resource
 			return NULL;
 		}
 		p = &tmp->sibling;
-		if (tmp->end < start)
+		if (tmp->end < start)	// child가 존재하는 경우 child의 마지막 값이 현재 점검하는 값의 시작
+					// 아래에 존재하는지 확인함
 			continue;
-		return tmp;
+		return tmp;		// 겹치는 경우 문제 되는 부분을 반환
 	}
 }
 
@@ -279,13 +299,19 @@ void release_child_resources(struct resource *r)
  *
  * Returns 0 for success, conflict resource on error.
  */
+// root : &iomem_resource, new : res
 struct resource *request_resource_conflict(struct resource *root, struct resource *new)
 {
 	struct resource *conflict;
 
 	write_lock(&resource_lock);
+	// __raw_write_lock(&resource_lock);
+	// resource_lock 변수를 이용해 락을 걸었음
 	conflict = __request_resource(root, new);
+	// root에 새로운 인자를 추가함(충돌이 안난 경우)
 	write_unlock(&resource_lock);
+	// __raw_write_unlock(&resouce_lock);
+	// resouce_lock을 해제함
 	return conflict;
 }
 
@@ -296,11 +322,14 @@ struct resource *request_resource_conflict(struct resource *root, struct resourc
  *
  * Returns 0 for success, negative error code on error.
  */
+// root : &iomem_resource, new : res
 int request_resource(struct resource *root, struct resource *new)
 {
 	struct resource *conflict;
 
 	conflict = request_resource_conflict(root, new);
+	// conflict : NULL
+	// 즉 iomem_resource에 new 노드를 등록할 때 주소 겹침이 일어나지 않았음
 	return conflict ? -EBUSY : 0;
 }
 

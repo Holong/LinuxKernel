@@ -698,6 +698,7 @@ static void * __init alloc_bootmem_core(unsigned long size,
 }
 
 // size : 4 * 16, align : 64, goal : 0x5FFFFFFF, limit : 0
+// size : 28, align : 64, goal : 0, limit : 0xFFFFFFFF
 static void * __init ___alloc_bootmem_nopanic(unsigned long size,
 					      unsigned long align,
 					      unsigned long goal,
@@ -739,6 +740,7 @@ void * __init __alloc_bootmem_nopanic(unsigned long size, unsigned long align,
 }
 
 // size : 4 * 16, align : 64, goal : 0x5FFFFFFF, limit : 0
+// size : 28, align : 64, goal : 0, limit : 0xFFFFFFFF
 static void * __init ___alloc_bootmem(unsigned long size, unsigned long align,
 					unsigned long goal, unsigned long limit)
 {
@@ -911,9 +913,11 @@ void * __init __alloc_bootmem_node_high(pg_data_t *pgdat, unsigned long size,
  *
  * The function panics if the request can not be satisfied.
  */
+// size : 28, align : 64, goal : 0
 void * __init __alloc_bootmem_low(unsigned long size, unsigned long align,
 				  unsigned long goal)
 {
+	// size : 28, align : 64, goal : 0, ARCH_LOW_ADDRESS_LIMIT : 0xFFFFFFFF
 	return ___alloc_bootmem(size, align, goal, ARCH_LOW_ADDRESS_LIMIT);
 }
 

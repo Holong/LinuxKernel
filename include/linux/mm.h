@@ -482,6 +482,7 @@ static inline compound_page_dtor *get_compound_page_dtor(struct page *page)
 	return (compound_page_dtor *)page[1].lru.next;
 }
 
+// page : empty_zero_page
 static inline int compound_order(struct page *page)
 {
 	if (!PageHead(page))
@@ -713,7 +714,7 @@ static inline void page_nid_reset_last(struct page *page)
 {
 }
 #endif
-
+// page에 해당하는 node_zones를 반환
 static inline struct zone *page_zone(const struct page *page)
 {
 	return &NODE_DATA(page_to_nid(page))->node_zones[page_zonenum(page)];

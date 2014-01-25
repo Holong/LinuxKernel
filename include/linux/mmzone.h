@@ -875,10 +875,16 @@ static inline int is_highmem_idx(enum zone_type idx)
  *              to ZONE_{DMA/NORMAL/HIGHMEM/etc} in general code to a minimum.
  * @zone - pointer to struct zone variable
  */
+
+// zone : &contig_page_data.node_zones[ZONE_NORMAL]
 static inline int is_highmem(struct zone *zone)
 {
 #ifdef CONFIG_HIGHMEM
 	int zone_off = (char *)zone - (char *)zone->zone_pgdat->node_zones;
+	// zone_off : 0
+	
+	// zone이 ZONE_HIGHMEM, ZONE_MOVABLE 이면 1을 반환
+	// 현재는 0을 반환함
 	return zone_off == ZONE_HIGHMEM * sizeof(*zone) ||
 	       (zone_off == ZONE_MOVABLE * sizeof(*zone) &&
 		zone_movable_is_highmem());
