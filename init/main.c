@@ -521,7 +521,7 @@ asmlinkage void __init start_kernel(void)
 
 	page_address_init();
 	// page_address_htable[128] 을 초기화
-	// Hash 테이블로 쓰임 (나중에)
+	// Hash 테이블로 쓰일 것으로 예상됨
 	pr_notice("%s", linux_banner);
 
 	// command_line에는 뭐가 옵니까

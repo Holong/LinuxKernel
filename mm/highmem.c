@@ -332,6 +332,7 @@ static struct page_address_map page_address_maps[LAST_PKMAP];
 static struct page_address_slot {
 	struct list_head lh;			/* List of page_address_maps */
 	spinlock_t lock;			/* Protect this bucket's list */
+						// lock멤버 안에는 ticket, magic, owner_cpu 정보가 들어 있음
 } ____cacheline_aligned_in_smp page_address_htable[1<<PA_HASH_ORDER];
 
 static struct page_address_slot *page_slot(const struct page *page)
@@ -417,7 +418,14 @@ void __init page_address_init(void)
 
 	for (i = 0; i < ARRAY_SIZE(page_address_htable); i++) {
 		INIT_LIST_HEAD(&page_address_htable[i].lh);
+		// page_address_htable[i].lh의 next, prev 멤버를 자기 자신에게 연결함.
+		// 리스트 초기화 작업이 수행됨
 		spin_lock_init(&page_address_htable[i].lock);
+		// lock->raw_lock = (arch_spinlock_t)__ARCH_SPIN_LOCK_UNLOCKED : ticket 번호 0으로 초기화
+		// lock->magic = SPINLOCK_MAGIC : 0xdead4ead로 초기화
+		// lock->owner = SPINLOCK_OWNER_INIT : -1로 초기화
+		// lock->owner_cpu = -1;
+		// spinlock 변수를 초기화 하였음
 	}
 }
 

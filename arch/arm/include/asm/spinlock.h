@@ -86,11 +86,23 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
 	: "=&r" (lockval), "=&r" (newval), "=&r" (tmp)
 	: "r" (&lock->slock), "I" (1 << TICKET_SHIFT)
 	: "cc");
+	
+	/*
+1:	ldrex	lockval, [&lock->slock]
+	add	newval, lockval, 0x10000
+	strex	tmp, newval, [&lock->slock]
+	teq	tmp, #0
+	bne	1b
+	*/
+	// 위 어셈블리에서 하는 동작은 lockval에 ticket 값을 발급 받는 것임
 
 	while (lockval.tickets.next != lockval.tickets.owner) {
-		wfe();
+		wfe();	// wait for event
 		lockval.tickets.owner = ACCESS_ONCE(lock->tickets.owner);
 	}
+	// arch_spin_unlock 함수에서 owner 멤버를 1 증가시키는데,
+	// 증가한 owner 값이 위 어셈블리에서 획득한 ticket의 next 번호와 맞아야 락 획득 가능.
+	// 그러므로 먼저 next 값을 얻어온 프로세서부터 while 구문을 탈출 할 수 있음
 
 	smp_mb();
 }
