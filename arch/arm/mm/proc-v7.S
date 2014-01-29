@@ -31,8 +31,14 @@ ENDPROC(cpu_v7_proc_init)
 
 ENTRY(cpu_v7_proc_fin)
 	mrc	p15, 0, r0, c1, c0, 0		@ ctrl register
+						// SCTLR 레지스터를 r0에 저장
 	bic	r0, r0, #0x1000			@ ...i............
+						// I 비트를 클리어
+						// I 캐쉬 disable
 	bic	r0, r0, #0x0006			@ .............ca.
+						// C, A 비트를 클리어
+						// D 캐쉬 disable
+						// alignment check 끔
 	mcr	p15, 0, r0, c1, c0, 0		@ disable caches
 	mov	pc, lr
 ENDPROC(cpu_v7_proc_fin)
