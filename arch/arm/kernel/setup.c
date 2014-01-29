@@ -219,12 +219,12 @@ static const char *proc_arch[] = {
 	"?(17)",
 };
 
-#ifdef CONFIG_CPU_V7M
+#ifdef CONFIG_CPU_V7M	// n
 static int __get_cpu_architecture(void)
 {
 	return CPU_ARCH_ARMv7M;
 }
-#else
+#else	// y
 static int __get_cpu_architecture(void)
 {
 	int cpu_arch;
@@ -583,6 +583,9 @@ static void __init setup_processor(void)
 	 * entries in arch/arm/mm/proc-*.S
 	 */
 	list = lookup_processor_type(read_cpuid_id());
+	// read_cpuid_id() : MIDR 레지스터 값을 반환
+	// list = &__v7_ca15mp_proc_info
+	
 	if (!list) {
 		printk("CPU configuration botched (ID %08x), unable "
 		       "to continue.\n", read_cpuid_id());
@@ -590,7 +593,10 @@ static void __init setup_processor(void)
 	}
 
 	cpu_name = list->cpu_name;
+	// cpu_name : "ARMv7 Processor"
+	
 	__cpu_architecture = __get_cpu_architecture();
+	// __cpu_architecture = CPU_ARCH_ARMv7;
 
 #ifdef MULTI_CPU
 	processor = *list->proc;
