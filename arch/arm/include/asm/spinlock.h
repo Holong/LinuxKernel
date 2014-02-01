@@ -94,6 +94,7 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
 	teq	tmp, #0
 	bne	1b
 	*/
+
 	// 위 어셈블리에서 하는 동작은 lockval에 ticket 값을 발급 받는 것임
 
 	while (lockval.tickets.next != lockval.tickets.owner) {
