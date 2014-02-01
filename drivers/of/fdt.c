@@ -35,14 +35,17 @@ char *of_fdt_get_string(struct boot_param_header *blob, u32 offset)
  * of_fdt_get_property - Given a node in the given flat blob, return
  * the property ptr
  */
+// blob : DTB 시작 주소, node : 루트 노드, name : "compatible", size : 저장할 공간
 void *of_fdt_get_property(struct boot_param_header *blob,
 		       unsigned long node, const char *name,
 		       unsigned long *size)
 {
 	unsigned long p = node;
+	// 탐색할 노드의 시작 주소를 p에 저장
 
 	do {
 		u32 tag = be32_to_cpup((__be32 *)p);
+		// tag : p가 가리키는 주소에서 값을 빼옴
 		u32 sz, noff;
 		const char *nstr;
 
@@ -51,25 +54,42 @@ void *of_fdt_get_property(struct boot_param_header *blob,
 			continue;
 		if (tag != OF_DT_PROP)
 			return NULL;
+		// 노드의 시작 주소에 OF_DT_PROP 값이 없으면 아예 property가 없는 것임
 
 		sz = be32_to_cpup((__be32 *)p);
+		// property 값의 길이를 sz에 저장
+		// DTB 파일 포맷 상 OF_DT_PROP 다음에
+		// property 데이터의 길이가 word 크기로 저장되어 있음
+
 		noff = be32_to_cpup((__be32 *)(p + 4));
-		p += 8;
-		if (be32_to_cpu(blob->version) < 0x10)
+		// property 이름의 offset 값을 noff에 저장
+		// DTB 파일 포맷 상 property 데이터의 길이 다음에
+		// property 이름의 offset 값이 word 크기로 저장되어 있음
+		// offset의 시작은 DTB string block의 시작 주소로, string block은
+		// DTB 헤더에서 뽑아낼 수 있음
+
+		p += 8;	// property 데이터가 저장된 부분으로 이동
+		if (be32_to_cpu(blob->version) < 0x10)	// DTB 버전이 16보다 낮은 경우
 			p = ALIGN(p, sz >= 8 ? 8 : 4);
 
 		nstr = of_fdt_get_string(blob, noff);
+		// property의 이름 string을 nstr이 가리키게 함
+
 		if (nstr == NULL) {
 			pr_warning("Can't find property index name !\n");
 			return NULL;
 		}
-		if (strcmp(name, nstr) == 0) {
+		if (strcmp(name, nstr) == 0) {	// compatible property에 도달했는지 확인
+			// 현재 p가 가리키는 곳이 compatible property인 경우 진입함
 			if (size)
 				*size = sz;
+				// size 변수에 property 데이터의 길이를 저장
 			return (void *)p;
+				// property 데이터의 시작 주소를 반환
 		}
 		p += sz;
 		p = ALIGN(p, 4);
+		// 다음 property로 이동
 	} while (1);
 }
 
@@ -83,6 +103,7 @@ void *of_fdt_get_property(struct boot_param_header *blob,
  * On match, returns a non-zero value with smaller values returned for more
  * specific compatible values.
  */
+// blob : DTB 시작 주소, node : 루트 노드, compat : 비교할 리스트
 int of_fdt_is_compatible(struct boot_param_header *blob,
 		      unsigned long node, const char *compat)
 {
@@ -90,15 +111,26 @@ int of_fdt_is_compatible(struct boot_param_header *blob,
 	unsigned long cplen, l, score = 0;
 
 	cp = of_fdt_get_property(blob, node, "compatible", &cplen);
+	// node에서 compatible property를 찾아낸다.
+	// cp : 찾아낸 property의 데이터 부분이 저장된 시작 주소
+	// cplen : 찾아낸 property의 데이터 길이를 담음.
+
 	if (cp == NULL)
-		return 0;
+		return 0;	// 못 찾은 경우
 	while (cplen > 0) {
 		score++;
 		if (of_compat_cmp(cp, compat, strlen(compat)) == 0)
+			// cp와 compat이 동일한 경우
+			// 즉 compatible property와 비교 문자열이 동일한 경우 진입
 			return score;
 		l = strlen(cp) + 1;
 		cp += l;
 		cplen -= l;
+		// compatible property에 여러 값이 존재할 경우
+		// 우선순위가 높은 값부터 검사하는데, 높은 값이 비교 문자열과 다를 경우
+		// 스코어 값을 1씩 올리면서 다음 값과 비교하도록 만듬.
+		// 그러므로 스코어가 1로 반환되면 일치
+		// 1보다 큰 값이면 호환 가능한 보드라는 뜻임`
 	}
 
 	return 0;
@@ -458,40 +490,66 @@ int __init of_scan_flat_dt(int (*it)(unsigned long node,
 {
 	unsigned long p = ((unsigned long)initial_boot_params) +
 		be32_to_cpu(initial_boot_params->off_dt_struct);
+	// p에 로드해온 DTB의 structure block의 시작 주소를 저장
+
 	int rc = 0;
 	int depth = -1;
 
 	do {
 		u32 tag = be32_to_cpup((__be32 *)p);
+		// property 단위로 계속 이동됨
+
 		const char *pathp;
 
 		p += 4;
-		if (tag == OF_DT_END_NODE) {
-			depth--;
+		if (tag == OF_DT_END_NODE) {		// 노드 끝인지 확인
+			depth--;			// 끝이면 depth를 하나 감소
 			continue;
 		}
-		if (tag == OF_DT_NOP)
+		if (tag == OF_DT_NOP)			// NOP이면 계속 통과
 			continue;
-		if (tag == OF_DT_END)
+		if (tag == OF_DT_END)			// DTB 끝이면 탈출
 			break;
-		if (tag == OF_DT_PROP) {
+		if (tag == OF_DT_PROP) {		// property가 걸릴 경우
 			u32 sz = be32_to_cpup((__be32 *)p);
+			// property 데이터 길이를 sz에 저장
+
 			p += 8;
-			if (be32_to_cpu(initial_boot_params->version) < 0x10)
+			// property 데이터 시작 위치로 p 이동
+
+			if (be32_to_cpu(initial_boot_params->version) < 0x10)	// DTB 버전이 16보다 낮을 때
 				p = ALIGN(p, sz >= 8 ? 8 : 4);
+
 			p += sz;
+			// property 데이터 종료 위치로 p 이동
+
 			p = ALIGN(p, 4);
+			// 4바이트 정렬
+
 			continue;
 		}
+
+		// 여기까지 오는 경우는 tag가 새로운 NODE의 시작인 경우 밖에 없음
 		if (tag != OF_DT_BEGIN_NODE) {
 			pr_err("Invalid tag %x in flat device tree!\n", tag);
 			return -EINVAL;
 		}
+
 		depth++;
+		// 하위 노드가 존재하므로 depth를 하나 증가
+
 		pathp = (char *)p;
+		// 하위 노드의 이름 문자열 주소가 pathp에 저장
+
 		p = ALIGN(p + strlen(pathp) + 1, 4);
+		// 하위 노드의 이름을 건너 뛴 뒤, property 시작부로 p가 이동
+
 		if (*pathp == '/')
 			pathp = kbasename(pathp);
+		// 경로 주소명은 전부 날리고, 마지막 실제 이름만 살림
+
+		// p : property의 시작부, pathp : 노드의 이름
+		// depth : 노드의 깊이, data : 정보를 저장해올 공간
 		rc = it(p, pathp, depth, data);
 		if (rc != 0)
 			break;
@@ -507,12 +565,20 @@ unsigned long __init of_get_flat_dt_root(void)
 {
 	unsigned long p = ((unsigned long)initial_boot_params) +
 		be32_to_cpu(initial_boot_params->off_dt_struct);
+	// DTB 시작 주소에 struct offset을 더해
+	// structure 블록의 시작 주소를 찾아 p에 저장
 
 	while (be32_to_cpup((__be32 *)p) == OF_DT_NOP)
 		p += 4;
+	// structure 블록의 시작에서
+	// OF_DT_NOP 이 발견되면 쭉 생략하게 됨
+
 	BUG_ON(be32_to_cpup((__be32 *)p) != OF_DT_BEGIN_NODE);
+	// OF_DT_NOP이 아닌 값이 나왔을 때, 그 값이 OF_DT_BEGIN_NODE가 아니면
+	// 전달된 DTB에 문제가 있는 것임.
 	p += 4;
 	return ALIGN(p + strlen((char *)p) + 1, 4);
+	// property 서술 시작 부분 위치를 반환
 }
 
 /**
@@ -532,8 +598,10 @@ void *__init of_get_flat_dt_prop(unsigned long node, const char *name,
  * @node: node to test
  * @compat: compatible string to compare with compatible list.
  */
+// node : 테스트할 노드 (현재는 루트 노드), compat : 비교할 리스트
 int __init of_flat_dt_is_compatible(unsigned long node, const char *compat)
 {
+	// initial_boot_params : 부팅 과정에 끌어온 DTB 시작 주소
 	return of_fdt_is_compatible(initial_boot_params, node, compat);
 }
 
@@ -558,8 +626,13 @@ void __init early_init_dt_check_for_initrd(unsigned long node)
 	pr_debug("Looking for initrd properties... ");
 
 	prop = of_get_flat_dt_prop(node, "linux,initrd-start", &len);
+	// prop : linux,initrd-start property의 데이터 시작 주소
+	// len : property의 데이터 길이
+	// 로 반환됨
+
 	if (!prop)
 		return;
+
 	start = of_read_ulong(prop, len/4);
 
 	prop = of_get_flat_dt_prop(node, "linux,initrd-end", &len);
@@ -579,25 +652,36 @@ inline void early_init_dt_check_for_initrd(unsigned long node)
 /**
  * early_init_dt_scan_root - fetch the top level address and size cells
  */
+// node : property의 시작부, uname : 노드의 이름
+// depth : 노드의 깊이, data : 정보를 저장해올 공간
 int __init early_init_dt_scan_root(unsigned long node, const char *uname,
 				   int depth, void *data)
 {
 	__be32 *prop;
 
 	if (depth != 0)
-		return 0;
+		return 0;	// root 노드가 아니면 0 반환
 
 	dt_root_size_cells = OF_ROOT_NODE_SIZE_CELLS_DEFAULT;
 	dt_root_addr_cells = OF_ROOT_NODE_ADDR_CELLS_DEFAULT;
+	// #size-cells, #address-cells property가 없는 경우 1로 저장됨
 
 	prop = of_get_flat_dt_prop(node, "#size-cells", NULL);
-	if (prop)
+	// #size-cells property의 데이터 시작 주소를 prop에 저장
+
+	if (prop)	// #size-cells property가 존재할 경우
 		dt_root_size_cells = be32_to_cpup(prop);
+		// property의 데이터를 변수에 저장함
+
 	pr_debug("dt_root_size_cells = %x\n", dt_root_size_cells);
 
 	prop = of_get_flat_dt_prop(node, "#address-cells", NULL);
-	if (prop)
+	// #address-cells property의 데이터 시작 주소를 prop에 저장
+
+	if (prop)	// #address-cells property가 존재하는 경우
 		dt_root_addr_cells = be32_to_cpup(prop);
+		// property의 데이터를 변수에 저장
+
 	pr_debug("dt_root_addr_cells = %x\n", dt_root_addr_cells);
 
 	/* break now */
@@ -615,10 +699,15 @@ u64 __init dt_mem_next_cell(int s, __be32 **cellp)
 /**
  * early_init_dt_scan_memory - Look for an parse memory nodes
  */
+// node : property의 시작부, uname : 노드의 이름
+// depth : 노드의 깊이, data : 정보를 저장해올 공간
 int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 				     int depth, void *data)
 {
 	char *type = of_get_flat_dt_prop(node, "device_type", NULL);
+	// device_type property가 존재하는지 확인하고 있으면 property의 데이터 시작 주소를
+	// type에 저장.
+	// 찾지 못한 경우 NULL을 저장함
 	__be32 *reg, *endp;
 	unsigned long l;
 
@@ -632,14 +721,24 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 			return 0;
 	} else if (strcmp(type, "memory") != 0)
 		return 0;
+	// device_type이 memory가 아니거나 node 이름이 memory@0이 아니면 이 노드는
+	// 무조건 메모리 관련 정보가 없는 것임
 
+	// 이 노드에는 memory 관련 정보가 있는 경우만 여기까지 도달.
+	// device_type property 가 memory 이거나 노드 이름 자체가 memory@0 인 경우
 	reg = of_get_flat_dt_prop(node, "linux,usable-memory", &l);
+	// linux,usable-memory property가 존재하면 property 데이터 시작 주소를 reg에 저장
+	// 없는 경우 NULL 반환
+
 	if (reg == NULL)
 		reg = of_get_flat_dt_prop(node, "reg", &l);
+		// reg property가 존재하면 데이터 시작 주소를 reg에 저장하고 데이터 길이를 l에 저장
+		// 없으면 NULL 반환
 	if (reg == NULL)
-		return 0;
+		return 0;	// reg 정보가 아예 없는 경우 실패
 
 	endp = reg + (l / sizeof(__be32));
+	// reg 정보의 마지막 주소 + 1을 endp에 저장
 
 	pr_debug("memory scan node %s, reg size %ld, data: %x %x %x %x,\n",
 	    uname, l, reg[0], reg[1], reg[2], reg[3]);
@@ -648,19 +747,30 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 		u64 base, size;
 
 		base = dt_mem_next_cell(dt_root_addr_cells, &reg);
+		// #address-cells 크기를 이용해 reg 값에서 주소 base 값을 뽑아냄
+		// #address-cells 크기가 2이면 64바이트로 표현되며,
+		// 1인 경우는 32바이트로 base 주소가 표현되게 됨.
+
 		size = dt_mem_next_cell(dt_root_size_cells, &reg);
+		// #size-cells를 위와 동일한 방법으로 뽑아냄
 
 		if (size == 0)
 			continue;
 		pr_debug(" - %llx ,  %llx\n", (unsigned long long)base,
 		    (unsigned long long)size);
 
+		// base : 0x20000000, size : 0x80000000
 		early_init_dt_add_memory_arch(base, size);
 	}
+	// while 문을 수행하지 않는 경우 #size-cells, #address-cells와 reg 정보 크기가 서로
+	// 안 맞는 것임.
+	// 그러므로 그냥 0 반환
 
 	return 0;
 }
 
+// node : property의 시작부, uname : 노드의 이름
+// depth : 노드의 깊이, data : 정보를 저장해올 공간
 int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 				     int depth, void *data)
 {
@@ -671,14 +781,22 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 
 	if (depth != 1 || !data ||
 	    (strcmp(uname, "chosen") != 0 && strcmp(uname, "chosen@0") != 0))
-		return 0;
+		return 0;	// node 이름이 chosen이 아니면 무조건 0 반환
 
+	// node 이름이 chosen, chosen@0이 되어야 이 쪽까지 도달 가능
 	early_init_dt_check_for_initrd(node);
+	// 만약 chosen 노드에 initrd 시작 주소와 마지막 주소에 대한 property가 존재하는 경우
+	// 이를 전역 변수에 저장하고 돌아옴
+	// 그러한 property가 없는 경우 그냥 복귀
 
 	/* Retrieve command line */
 	p = of_get_flat_dt_prop(node, "bootargs", &l);
+	// p : bootargs property의 데이터 시작 주소
+	// l : bootargs property의 데이터 길이
+
 	if (p != NULL && l > 0)
 		strlcpy(data, p, min((int)l, COMMAND_LINE_SIZE));
+	// data에 찾아낸 property의 데이터를 복사함
 
 	/*
 	 * CONFIG_CMDLINE is meant to be a default in case nothing else
@@ -691,6 +809,8 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 #endif
 		strlcpy(data, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
 #endif /* CONFIG_CMDLINE */
+	// DTB에서 뽑아온 cmdline 데이터가 없는 경우 미리 config에 지정해둔 값이 저장됨.
+	// DTB에서 뽑아온 데이터가 존재하는 경우 이를 사용함
 
 	pr_debug("Command line is: %s\n", (char*)data);
 

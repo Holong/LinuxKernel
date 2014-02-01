@@ -703,9 +703,12 @@ void __init dump_machine_table(void)
 		/* can't use cpu_relax() here as it may require MMU setup */;
 }
 
+// base : 0x20000000, size : 0x80000000
 int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
 {
 	struct membank *bank = &meminfo.bank[meminfo.nr_banks];
+	// meminfo.nr_banks : 0 (초기화만 되어 있음)
+	// bank : &meminfo.bank[0]
 
 	if (meminfo.nr_banks >= NR_BANKS) {
 		printk(KERN_CRIT "NR_BANKS too low, "
@@ -718,7 +721,12 @@ int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
 	 * Size is appropriately rounded down, start is rounded up.
 	 */
 	size -= start & ~PAGE_MASK;
+	// PAGE_MASK : 0xFFFFF000
+	// size 정렬
 	bank->start = PAGE_ALIGN(start);
+	// start 정렬
+	
+	// 즉, start는 4KB 단위로 올리고, size는 내림
 
 #ifndef CONFIG_ARM_LPAE
 	if (bank->start + size < bank->start) {
@@ -731,9 +739,11 @@ int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
 		 */
 		size = ULONG_MAX - bank->start;
 	}
+	// 문제 발생 시에만 진입
 #endif
 
 	bank->size = size & ~(phys_addr_t)(PAGE_SIZE - 1);
+	// 4KB 단위로 size도 정렬시킴
 
 	/*
 	 * Check whether this memory region has non-zero size or
@@ -743,6 +753,10 @@ int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
 		return -EINVAL;
 
 	meminfo.nr_banks++;
+	// meminfo.nr_banks : 1
+	// meminfo.bank[0].base : 0x20000000
+	// meminfo.bank[0].size : 0x80000000
+
 	return 0;
 }
 
@@ -963,14 +977,20 @@ void __init setup_arch(char **cmdline_p)
 	// cache_id 값을 설정함(PIPT), elf_hwcap 설정
 	// FIQ, IRQ, UND 모드의 FIQ, IRQ를 끄고, SP를 설정함.
 
-	// DTB 내용을 mdesc에 저장하고, memory bank 정보를 설정함
 	mdesc = setup_machine_fdt(__atags_pointer);
+	// DTB에 저장되어 있는 보드 명과 가장 일치하는 machine_desc 정보를 찾아 mdesc에 저장
+	// boot_coommand_line 정보 설정 및 메모리 뱅크 정보를 설정
+
 	if (!mdesc)
 		mdesc = setup_machine_tags(__atags_pointer, __machine_arch_type);
 	machine_desc = mdesc;
+	// machine_desc :  __mach_desc_EXYNOS5_DT_name
+	// 		   mach-exynos5-dt.c에 선언되어 있음
 	machine_name = mdesc->name;
+	// machine_name : "SAMSUNG EXYNOS5 (Flattened Device Tree)"
 
 	setup_dma_zone(mdesc);
+	// NULL 함수
 
 	if (mdesc->reboot_mode != REBOOT_HARD)
 		reboot_mode = mdesc->reboot_mode;
