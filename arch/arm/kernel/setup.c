@@ -668,7 +668,7 @@ static void __init setup_processor(void)
 	// elf_hwcap : HWCAP_SWP | HWCAP_HALF | HWCAP_THUMB | HWCAP_FAST_MULT | HWCAP_EDSP | HWCAP_TLS
 
 	cpuid_init_hwcaps();
-	// elf_hwcap |= HWCAP_IDIVA | HWCAP_IDIVT
+	// elf_hwcap |= HWCAP_IDIVA | HWCAP_IDIVT | HWCAP_LPAE
 
 #ifndef CONFIG_ARM_THUMB	// 아래 수행 안함
 	elf_hwcap &= ~(HWCAP_THUMB | HWCAP_IDIVT);
@@ -975,7 +975,7 @@ void __init setup_arch(char **cmdline_p)
 	setup_processor();
 	// cpu_tlb, cpu_user, cpu_cache를 현재 아키텍쳐에 맞는 구조체로 설정해줌
 	// cache_id 값을 설정함(PIPT), elf_hwcap 설정
-	// FIQ, IRQ, UND 모드의 FIQ, IRQ를 끄고, SP를 설정함.
+	// IRQ, ABT, UND 모드의 FIQ, IRQ를 끄고, SP를 설정함.
 
 	mdesc = setup_machine_fdt(__atags_pointer);
 	// DTB에 저장되어 있는 보드 명과 가장 일치하는 machine_desc 정보를 찾아 mdesc에 저장
