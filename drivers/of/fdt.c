@@ -579,6 +579,7 @@ unsigned long __init of_get_flat_dt_root(void)
 	p += 4;
 	return ALIGN(p + strlen((char *)p) + 1, 4);
 	// property 서술 시작 부분 위치를 반환
+	// 노드 이름이 저장된 부분을 건너뜀
 }
 
 /**
