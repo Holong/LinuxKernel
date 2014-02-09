@@ -157,14 +157,20 @@ int of_fdt_match(struct boot_param_header *blob, unsigned long node,
 	return score;
 }
 
+// [First] mem : &mem, size : 0x3C + 0x2, align : 4
 static void *unflatten_dt_alloc(unsigned long *mem, unsigned long size,
 				       unsigned long align)
 {
 	void *res;
 
 	*mem = ALIGN(*mem, align);
+	// [First] *mem : 0
+
 	res = (void *)*mem;
+	// [First] res : 0
+
 	*mem += size;
+	// [First] *mem : 0x3D
 
 	return res;
 }
@@ -178,6 +184,10 @@ static void *unflatten_dt_alloc(unsigned long *mem, unsigned long size,
  * @allnextpp: pointer to ->allnext from last allocated device_node
  * @fpsize: Size of the node path up at the current depth.
  */
+// [First] blob : DTB의 struct 시작 주소, mem : 0, p : &start
+//	   dad : NULL, allnextpp : NULL, fpsize : 0
+// [Second] blob : DTB의 struct 시작 주소, mem : 할당받은 공간의 시작 주소, p : &start
+// 	    dad : NULL, allnextpp : &allnextp, fpsize : 0
 static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 				unsigned long mem,
 				unsigned long *p,
@@ -194,22 +204,38 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 	int new_format = 0;
 
 	tag = be32_to_cpup((__be32 *)(*p));
+	// [First] tag : OF_DT_BEGIN_NODE
+	// [Second.root] tag : OF_DT_BEGIN_NODE
+
 	if (tag != OF_DT_BEGIN_NODE) {
 		pr_err("Weird tag at start of node: %x\n", tag);
 		return mem;
 	}
 	*p += 4;
 	pathp = (char *)*p;
+	// [First] pathp : '\0'
+	// [Second.root] pathp : '\0'
+
 	l = allocl = strlen(pathp) + 1;
+	// [First] l, allocl : 1
+	// [Second.root] l, allocl : 1
+
 	*p = ALIGN(*p + l, 4);
+	// [First] p : 첫 번째 property 시작 주소
+	// [Second.root] p : 첫 번째 property 시작 주소
 
 	/* version 0x10 has a more compact unit name here instead of the full
 	 * path. we accumulate the full path size using "fpsize", we'll rebuild
 	 * it later. We detect this because the first character of the name is
 	 * not '/'.
 	 */
+	// [First] *pathp : '\0'
+	// [Second.root] *pathp : '\0'
 	if ((*pathp) != '/') {
 		new_format = 1;
+
+		// [First] fpsize : 0
+		// [Second.root] fpsize : 0
 		if (fpsize == 0) {
 			/* root node: special case. fpsize accounts for path
 			 * plus terminating zero. root node only has '/', so
@@ -228,17 +254,37 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 			allocl = fpsize;
 		}
 	}
+	// [First] fpsize : 1, allocl : 2, l : 1, *pathp : '\0'
+	// [Second.root] fpsize : 1, allocl : 2, l : 1, *pathp : '\0'
+	// fpsize : 절대 경로명 + 노드 이름의 길이
 
+	// [First] mem : 0, sizeof(struct device_node) + allocl : 0x3C + 0x2, __alignof__(struct device_node) : 4
+	// [Second.root] mem : 0, sizeof(struct device_node) + allocl : 0x3C + 0x2, __alignof__(struct device_node) : 4
 	np = unflatten_dt_alloc(&mem, sizeof(struct device_node) + allocl,
 				__alignof__(struct device_node));
+	// [First] 현재 노드를 관리하기 위한 struct device_node + 이름 공간을 위한 크기를 전체 크기(mem)에 더해줌
+	// [Second] 현재 노드를 관리하기 위한 struct device_node + 이름 공간의 시작 주소를 np에 저장
+	//	    mem은 그 만큼 이동시킴
+
+	// [First] allnextpp : NULL
+	// [Second.root] allnextpp : &allnextp
 	if (allnextpp) {
 		char *fn;
 		memset(np, 0, sizeof(*np));
+		// np 공간을 전부 0으로 초기화
+
 		np->full_name = fn = ((char *)np) + sizeof(*np);
+		// np->full_name : struct device_node 바로 뒷 주소
+		//		   이 공간에 이름 문자열을 저장할 예정임
+
+		// new_format이 1인 경우는 노드 이름에 절대 경로명이 없는 최신 DTB 형식으로 되어 있는 경우임
 		if (new_format) {
 			/* rebuild full path for new format */
 			if (dad && dad->parent) {
 				strcpy(fn, dad->full_name);
+				// 현재 노드의 할아버지 노드가 있는 경우 부모의 노드이름을 복사함 
+				// 할아버지까지 검사하는 이유는 루트의 자식 노드일 경우 부모 노드(루트)의 이름이
+				// 아예 존재하지 않기 때문임.
 #ifdef DEBUG
 				if ((strlen(fn) + l + 1) != allocl) {
 					pr_debug("%s: p: %d, l: %d, a: %d\n",
@@ -249,52 +295,94 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 				fn += strlen(fn);
 			}
 			*(fn++) = '/';
+			// 부모 노드 이름의 마지막에 '/'을 추가함
 		}
 		memcpy(fn, pathp, l);
+		// 만들어온 절대 경로명 뒤에 자신 노드의 이름을 추가함
+		// 결론적으로 위의 if 문을 통해 "/절대경로/자신 노드의 이름" 이 full_name 멤버에 저장됨
 
 		prev_pp = &np->properties;
+		// prev_pp에 properties 멤버의 주소를 저장함.
+		// properties 멤버에 첫 번째 property의 struct property 주소를 저장해야 하기 때문임.
+
 		**allnextpp = np;
+		// 이전에 처리했던 노드의 allnext 멤버에 현재 노드의 struct device_node 주소를 저장
+		// 루트 노드일 경우 of_allnodes 변수에 struct device_node의 주소가 저장됨
+
 		*allnextpp = &np->allnext;
+		// **allnextpp가 현재 노드의 allnext 멤버를 지정하게 만듬.
+		// 다음 재귀 호출시 바로 위 명령을 수행하기 위해 조작하는 동작임.
+
+		// 부모 노드가 있는 경우 처리
 		if (dad != NULL) {
 			np->parent = dad;
+			// 부모 노드를 저장함.
+
 			/* we temporarily use the next field as `last_child'*/
-			if (dad->next == NULL)
+			// dad->next 멤버에는 부모 노드의 마지막 자식의 주소가 저장되어 있음
+
+			if (dad->next == NULL)		// 첫 번째로 추가되는 자식일 경우
 				dad->child = np;
-			else
-				dad->next->sibling = np;
-			dad->next = np;
+			else				// 이미 자식이 있는 경우
+				dad->next->sibling = np;	// 형제로 연결
+			dad->next = np;			// 마지막 자식의 주소를 next 멤버에 저장
 		}
 		kref_init(&np->kref);
+		// kref 멤버의 refcount를 1로 설정
 	}
+
 	/* process properties */
 	while (1) {
 		u32 sz, noff;
 		char *pname;
 
 		tag = be32_to_cpup((__be32 *)(*p));
+		// [First] tag : OF_DT_PROP
+
 		if (tag == OF_DT_NOP) {
 			*p += 4;
 			continue;
 		}
 		if (tag != OF_DT_PROP)
-			break;
+			break;		// OF_DT_PROP이 아닐 경우 현재 노드의 모든 property 처리가 완료된 것임
+
+
 		*p += 4;
 		sz = be32_to_cpup((__be32 *)(*p));
+		// sz : 현재 property의 value의 크기
+
 		noff = be32_to_cpup((__be32 *)((*p) + 4));
+		// noff : 현재 property의 이름이 위치한 오프셋
+
 		*p += 8;
+		// *p가 property의 value가 위치한 공간을 가리키게 함
+
 		if (be32_to_cpu(blob->version) < 0x10)
 			*p = ALIGN(*p, sz >= 8 ? 8 : 4);
+		// DTB 버전이 낮을 경우 처리
 
 		pname = of_fdt_get_string(blob, noff);
+		// pname : 현재 property의 이름 문자열이 위치한 곳을 가리킴
+
 		if (pname == NULL) {
 			pr_info("Can't find property name in list !\n");
 			break;
 		}
 		if (strcmp(pname, "name") == 0)
 			has_name = 1;
+		// name property가 DTB에 존재하는 경우, 존재함을 기록해둠
+
 		l = strlen(pname) + 1;
+		// l은 property 문자열 + NULL 길이를 저장
+
 		pp = unflatten_dt_alloc(&mem, sizeof(struct property),
 					__alignof__(struct property));
+		// [First] 현재 property를 관리하기 위한 struct property용 공간 크기를 전체 크기(mem)에 더해줌
+		// [Second] 현재 property를 관리하기 위한 struct property 공간의 시작 주소를 pp에 저장
+		//	    mem은 그 만큼 이동시킴
+
+		// [First] allnextpp : NULL
+		// [Second.root] allnextpp : &allnextp
 		if (allnextpp) {
 			/* We accept flattened tree phandles either in
 			 * ePAPR-style "phandle" properties, or the
@@ -311,17 +399,33 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 			 * stuff */
 			if (strcmp(pname, "ibm,phandle") == 0)
 				np->phandle = be32_to_cpup((__be32 *)*p);
+
+			// property의 값을 struct property에 설정해 줌
 			pp->name = pname;
+			// 이름 문자열의 시작을 저장
 			pp->length = sz;
+			// property 값의 길이를 저장
 			pp->value = (void *)*p;
+			// property 값이 저장된 시작 위치를 저장
 			*prev_pp = pp;
+			// 현재 property 주소를 이전 property의 next 멤버에 저장
 			prev_pp = &pp->next;
+			// prev_pp 값을 현재 property의 next 멤버의 주소로 바꿈
+			// 위 두 문장을 통해 현재 노드의 모든 property가 리스트로 연결됨
 		}
 		*p = ALIGN((*p) + sz, 4);
+		// 다음 property의 시작으로 이동
 	}
+	// [First]  현재 노드의 모든 property를 저장하기 위한 struct property의 총 크기 계산
+	// [Second] 현재 노드의 모든 property에 대한 struct property의 값을 설정.
+	//	    첫 번째 property는 노드의 properties 멤버에 저장하고,
+	//	    두 번째 property부터는 이전 property의 next 멤버에 저장함.
+
 	/* with version 0x10 we may not have the name property, recreate
 	 * it here from the unit name if absent
 	 */
+	// has_name이 1인 경우는 name property가 존재하는 경우임
+	// DTB에 name property가 없는 경우는 여기서 따로 만들어 줌.
 	if (!has_name) {
 		char *p1 = pathp, *ps = pathp, *pa = NULL;
 		int sz;
@@ -335,9 +439,20 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 		}
 		if (pa < ps)
 			pa = p1;
+		// 노드 이름에 '/' 가 존재하는 경우 그 다음자리를 ps가 가리키게 함.
+		// 노드 이름에 '@'(unit name)이 존재하는 경우 그 시작을 pa가 가리키게 함.
+
 		sz = (pa - ps) + 1;
+		// 실제 이름(unit name, 경로 제외)의 크기가 sz에 들어감
+
 		pp = unflatten_dt_alloc(&mem, sizeof(struct property) + sz,
 					__alignof__(struct property));
+		// [First] name property를 관리하기 위한 struct property용 공간과 이름 문자열의 크기를 전체 크기(mem)에 더해줌
+		// [Second] name property를 관리하기 위한 struct property, 이름 공간의 시작 주소를 pp에 저장
+		//	    mem은 그 만큼 이동시킴
+
+		// [First] allnextpp : NULL
+		// [Second] allnextpp : &allnextp
 		if (allnextpp) {
 			pp->name = "name";
 			pp->length = sz;
@@ -348,22 +463,34 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 			((char *)pp->value)[sz - 1] = 0;
 			pr_debug("fixed up name for %s -> %s\n", pathp,
 				(char *)pp->value);
+			// name property에 대한 struct property를 생성하고 이전 property의 next에 연결
+			// property의 값은 현재 노드의 이름 문자열임(절대 경로, unit name은 제외)
 		}
 	}
+
+	// [First] allnextpp : NULL
+	// [Second] allnextpp : &allnextp
 	if (allnextpp) {
 		*prev_pp = NULL;
+		// 마지막 property의 next 멤버를 null로 만듬
+
 		np->name = of_get_property(np, "name", NULL);
 		np->type = of_get_property(np, "device_type", NULL);
+		// name, device_type property가 존재할 경우 이 property의 데이터 시작 주소를 노드의 멤버에 각각 저장
 
 		if (!np->name)
 			np->name = "<NULL>";
 		if (!np->type)
 			np->type = "<NULL>";
+		// 없는 경우 "<NULL>" 문자열로 저장
 	}
+
+	// 현재 노드에 자식 노드가 존재하는 경우 진입
 	while (tag == OF_DT_BEGIN_NODE || tag == OF_DT_NOP) {
 		if (tag == OF_DT_NOP)
 			*p += 4;
 		else
+			// 자식 노드에 대해서도 똑같은 작업을 수행함
 			mem = unflatten_dt_node(blob, mem, p, np, allnextpp,
 						fpsize);
 		tag = be32_to_cpup((__be32 *)(*p));
@@ -374,6 +501,19 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 	}
 	*p += 4;
 	return mem;
+	// [First] DTB를 트리 구조로 만들기 위해서는 다음 공간이 필요
+	//	   1. 각 노드당 struct device_node, 이름 용 공간이 필요함.
+	//	   2. 각 property마다 struct property 공간이 필요함.
+	//	   3. name property의 경우 name 문자열을 저장할 공간이 추가로 필요.
+	//	   DTB를 전부 돌면서 존재하는 모든 노드와 property를 관리하기 위해 필요한 공간의 크기를
+	//	   계산한 후 이를 반환함
+	// [Second] DTB를 실제 DT로 제작함
+	//	    노드는 child, parent, sibling, next 멤버를 이용해 트리 구조로 연결
+	//	    추가적으로 allnext 멤버를 이용해 일렬로도 연결해둠
+	//	    각 노드의 property의 경우
+	//	    노드의 첫 번째 property는 노드의 properties 멤버에 연결되어 있고
+	//	    그 이후 property는 이전 property의 next 멤버에 연결되어 있음
+	//	    루트 노드는 of_allnodes가 가리킴
 }
 
 /**
@@ -388,6 +528,7 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
  * @dt_alloc: An allocator that provides a virtual address to memory
  * for the resulting tree
  */
+// blob : DTB 시작 주소, mynodes : &of_allnodes, dt_alloc : early_init_dt_alloc_memory_arch
 static void __unflatten_device_tree(struct boot_param_header *blob,
 			     struct device_node **mynodes,
 			     void * (*dt_alloc)(u64 size, u64 align))
@@ -404,8 +545,11 @@ static void __unflatten_device_tree(struct boot_param_header *blob,
 
 	pr_debug("Unflattening device tree:\n");
 	pr_debug("magic: %08x\n", be32_to_cpu(blob->magic));
+	// magic : 0xDOODFEED
 	pr_debug("size: %08x\n", be32_to_cpu(blob->totalsize));
+	// size : 0x00003236
 	pr_debug("version: %08x\n", be32_to_cpu(blob->version));
+	// version : 0x00000011
 
 	if (be32_to_cpu(blob->magic) != OF_DT_HEADER) {
 		pr_err("Invalid device tree blob header\n");
@@ -415,31 +559,59 @@ static void __unflatten_device_tree(struct boot_param_header *blob,
 	/* First pass, scan for size */
 	start = ((unsigned long)blob) +
 		be32_to_cpu(blob->off_dt_struct);
+	// start : DTB의 struct 시작 주소
+
 	size = unflatten_dt_node(blob, 0, &start, NULL, NULL, 0);
+	// DTB를 트리 구조로 만들기 위해서는 다음 공간이 필요
+	// 	1. 각 노드당 struct device_node, 이름 용 공간이 필요함.
+	//	2. 각 property마다 struct property 공간이 필요함.
+	//	3. name property의 경우 name 문자열을 저장할 공간이 추가로 필요.
+	// DTB를 전부 돌면서 존재하는 모든 노드와 property를 관리하기 위해 필요한 공간의 크기를
+	// 계산한 후 이를 size에 저장
+
 	size = (size | 3) + 1;
+	// size를 4바이트 정렬 수행
 
 	pr_debug("  size is %lx, allocating...\n", size);
 
 	/* Allocate memory for the expanded device tree */
 	mem = (unsigned long)
 		dt_alloc(size + 4, __alignof__(struct device_node));
+	// 위에서 계산한 공간 크기 + 4 만큼의 메모리를 할당받음
 
 	memset((void *)mem, 0, size);
+	// 모든 공간을 0으로 초기화
 
 	((__be32 *)mem)[size / 4] = cpu_to_be32(0xdeadbeef);
+	// 마지막 위치에 매직 넘버 0xdeadbeef 저장
 
 	pr_debug("  unflattening %lx...\n", mem);
 
 	/* Second pass, do actual unflattening */
+	// 위에서는 DT를 저장할 공간의 크기를 계산하고 할당 받는 동작을 수행하였음
+	// 그 공간에 실제 데이터를 집어넣는 동작이 이제부터 수행됨
+
 	start = ((unsigned long)blob) +
 		be32_to_cpu(blob->off_dt_struct);
+	// DTB의 struct 시작 위치를 start에 저장
+
 	unflatten_dt_node(blob, mem, &start, NULL, &allnextp, 0);
+	// DT 생성, 루트 노드는 of_allnodes가 가리킴
+	// DTB를 실제 DT로 제작함
+	// 노드는 child, parent, sibling, next 멤버를 이용해 트리 구조로 연결
+	// 추가적으로 allnext 멤버를 이용해 일렬로도 연결해둠
+	// 각 노드의 property의 경우
+	// 노드의 첫 번째 property는 노드의 properties 멤버에 연결되어 있고
+	// 그 이후 property는 이전 property의 next 멤버에 연결되어 있음
+	// 루트 노드는 of_allnodes가 가리킴
+
 	if (be32_to_cpup((__be32 *)start) != OF_DT_END)
 		pr_warning("Weird tag at end of tree: %08x\n", *((u32 *)start));
 	if (be32_to_cpu(((__be32 *)mem)[size / 4]) != 0xdeadbeef)
 		pr_warning("End of tree marker overwritten: %08x\n",
 			   be32_to_cpu(((__be32 *)mem)[size / 4]));
 	*allnextp = NULL;
+	// 마지막 노드의 allnext 멤버를 NULL로 설정
 
 	pr_debug(" <- unflatten_device_tree()\n");
 }
@@ -829,8 +1001,11 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
  */
 void __init unflatten_device_tree(void)
 {
+	// initial_boot_params : DTB의 시작 주소
 	__unflatten_device_tree(initial_boot_params, &of_allnodes,
 				early_init_dt_alloc_memory_arch);
+	// DTB를 실제 DT로 제작함.
+	// 루트 노드는 of_allnodes에 저장
 
 	/* Get pointer to "/chosen" and "/aliases" nodes for use everywhere */
 	of_alias_scan(early_init_dt_alloc_memory_arch);
