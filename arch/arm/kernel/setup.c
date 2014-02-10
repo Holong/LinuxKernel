@@ -835,6 +835,13 @@ static void __init request_standard_resources(struct machine_desc *mdesc)
 			// res의 자식으로 kernel_data 노드를 등록
 			// 결론적으로 res의 자식 1번에 kernel_code가 들어가고
 			// kernel_code의 sibiling에 kernel_data가 등록됨
+			//
+			//            res
+			//     /      /          \
+			// parent  child       parent
+			//  /      /               \
+			// kernel_code  ------->  kernel_data ------> null
+			//                sibling
 	}
 
 	if (mdesc->video_start) {
