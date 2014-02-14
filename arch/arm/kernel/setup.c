@@ -1020,7 +1020,15 @@ void __init setup_arch(char **cmdline_p)
 	paging_init(mdesc);
 	// mmu용 변환 테이블인 pgd, pte 설정
 	// zone memory map 설정, zero_page 설정
+
 	request_standard_resources(mdesc);
+	// iomem_resource를 root로 하는 트리에 res를 노드로 등록함
+	//            res
+	//     /      /          \
+	// parent  child       parent
+	//  /      /               \
+	// kernel_code  ------->  kernel_data ------> null
+	//                sibling
 
 	if (mdesc->restart)
 		arm_pm_restart = mdesc->restart;
