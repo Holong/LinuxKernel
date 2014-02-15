@@ -167,11 +167,13 @@ static inline unsigned int cpumask_first(const struct cpumask *srcp)
  *
  * Returns >= nr_cpu_ids if no further cpus set.
  */
+// n : -1, srcp : cpu_possible_mask
 static inline unsigned int cpumask_next(int n, const struct cpumask *srcp)
 {
 	/* -1 is a legal arg here. */
 	if (n != -1)
 		cpumask_check(n);
+	// cpumask_bits(cpu_possible_mask) : &cpu_possible_bits, nr_cpumask_bits : 4, n+1 : 0
 	return find_next_bit(cpumask_bits(srcp), nr_cpumask_bits, n+1);
 }
 

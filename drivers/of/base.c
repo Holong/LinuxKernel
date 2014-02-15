@@ -393,6 +393,7 @@ EXPORT_SYMBOL(of_get_next_parent);
  *	Returns a node pointer with refcount incremented, use
  *	of_node_put() on it when done.
  */
+// node : cpus, prev : NULL
 struct device_node *of_get_next_child(const struct device_node *node,
 	struct device_node *prev)
 {
@@ -404,7 +405,10 @@ struct device_node *of_get_next_child(const struct device_node *node,
 	for (; next; next = next->sibling)
 		if (of_node_get(next))
 			break;
+	// 연결된 자식 노드 중 한개를 뽑아옴
+
 	of_node_put(prev);
+	// NULL 함수
 	raw_spin_unlock_irqrestore(&devtree_lock, flags);
 	return next;
 }
@@ -762,10 +766,13 @@ EXPORT_SYMBOL(of_find_node_by_phandle);
  * property data isn't large enough.
  *
  */
+// np : cpu@0의 노드 주소, propname : "reg", len : 4
 static void *of_find_property_value_of_size(const struct device_node *np,
 			const char *propname, u32 len)
 {
+	// np : cpu@0의 노드 주소, propname : "reg"
 	struct property *prop = of_find_property(np, propname, NULL);
+	// prop : 현재 노드의 reg에 해당하는 struct property 주소를 가져옴
 
 	if (!prop)
 		return ERR_PTR(-EINVAL);
@@ -889,12 +896,15 @@ EXPORT_SYMBOL_GPL(of_property_read_u16_array);
  *
  * The out_values is modified only if a valid u32 value can be decoded.
  */
+// np : cpu@0의 노드 주소, propname : "reg", out_value : &hwid, sz : 1
 int of_property_read_u32_array(const struct device_node *np,
 			       const char *propname, u32 *out_values,
 			       size_t sz)
 {
+	// np : cpu@0의 노드 주소, propname : "reg", sz * sizeof(*out_values) : 4
 	const __be32 *val = of_find_property_value_of_size(np, propname,
 						(sz * sizeof(*out_values)));
+	// val : reg property의 데이터가 저장된 곳의 주소
 
 	if (IS_ERR(val))
 		return PTR_ERR(val);
@@ -1566,6 +1576,8 @@ int of_detach_node(struct device_node *np)
 }
 #endif /* defined(CONFIG_OF_DYNAMIC) */
 
+// ap : 할당받은 메모리 시작 주소, np : 찾은 struct device_node의 시작 주소
+// id : 0, stem : "pinctrl0", stem_len : 7
 static void of_alias_add(struct alias_prop *ap, struct device_node *np,
 			 int id, const char *stem, int stem_len)
 {
@@ -1573,7 +1585,11 @@ static void of_alias_add(struct alias_prop *ap, struct device_node *np,
 	ap->id = id;
 	strncpy(ap->stem, stem, stem_len);
 	ap->stem[stem_len] = 0;
+	// struct alias_prop에 값을 설정해 줌
+
 	list_add_tail(&ap->link, &aliases_lookup);
+	// 전역 변수 aliases_lookup에 연결시킴
+
 	pr_debug("adding DT alias:%s: stem=%s id=%i node=%s\n",
 		 ap->alias, ap->stem, ap->id, of_node_full_name(np));
 }
@@ -1593,9 +1609,11 @@ void of_alias_scan(void * (*dt_alloc)(u64 size, u64 align))
 	struct property *pp;
 
 	of_chosen = of_find_node_by_path("/chosen");
+	// of_chosen : chosen 노드의 struct device_node 주소
 	if (of_chosen == NULL)
 		of_chosen = of_find_node_by_path("/chosen@0");
 	of_aliases = of_find_node_by_path("/aliases");
+	// of_aliases : aliases 노드의 struct device_node 주소
 	if (!of_aliases)
 		return;
 
@@ -1613,6 +1631,7 @@ void of_alias_scan(void * (*dt_alloc)(u64 size, u64 align))
 			continue;
 
 		np = of_find_node_by_path(pp->value);
+		// np : pinctrl@13400000 노드의 struct device_node 주소
 		if (!np)
 			continue;
 
@@ -1621,16 +1640,26 @@ void of_alias_scan(void * (*dt_alloc)(u64 size, u64 align))
 		while (isdigit(*(end-1)) && end > start)
 			end--;
 		len = end - start;
+		// 숫자 값은 빼고 이름 길이만 남김
 
 		if (kstrtoint(end, 10, &id) < 0)
+			// id : 0
 			continue;
 
 		/* Allocate an alias_prop with enough space for the stem */
+		// sizeof(*ap) + len + 1 : 32
 		ap = dt_alloc(sizeof(*ap) + len + 1, 4);
+		// ap : 할당받은 메모리 시작 주소
 		if (!ap)
 			continue;
+
 		ap->alias = start;
+		// ap->alias : pp->name ("pinctrl0")
+
+		// ap : 할당받은 메모리 시작 주소, np : 찾은 struct device_node의 시작 주소
+		// id : 0, start : "pinctrl0", len : 7
 		of_alias_add(ap, np, id, start, len);
+		// struct aliase_prop에 값을 설정한 후, 전역 변수 aliases_lookup에 연결시킴
 	}
 }
 

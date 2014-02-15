@@ -71,6 +71,7 @@ static void write_pen_release(int val)
 static void __iomem *scu_base_addr(void)
 {
 	return (void __iomem *)(S5P_VA_SCU);
+	// S5P_VA_SCU : 0xF8800000
 }
 
 static DEFINE_SPINLOCK(boot_lock);
@@ -180,11 +181,14 @@ static int exynos_boot_secondary(unsigned int cpu, struct task_struct *idle)
 static void __init exynos_smp_init_cpus(void)
 {
 	void __iomem *scu_base = scu_base_addr();
+	// scu_base : 0xF8800000
 	unsigned int i, ncores;
 
 	if (read_cpuid_part_number() == ARM_CPU_PART_CORTEX_A9)
+		// read_cpuid_part_number : Primary Part Number를 반환(MIDR[15:4])
+		// 			    0xC0F
 		ncores = scu_base ? scu_get_core_count(scu_base) : 1;
-	else
+	else	// 이쪽으로 들어감
 		/*
 		 * CPU Nodes are passed thru DT and set_cpu_possible
 		 * is set by "arm_dt_init_cpu_maps".

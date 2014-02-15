@@ -81,17 +81,24 @@ void __init arm_dt_init_cpu_maps(void)
 	struct device_node *cpu, *cpus;
 	u32 i, j, cpuidx = 1;
 	u32 mpidr = is_smp() ? read_cpuid_mpidr() & MPIDR_HWID_BITMASK : 0;
+	// mpidr : MPIDR의 AFF0, AFF1, AFF2 값을 가져옴
 
+	// NR_CPUS : 4
+	// MPIDR_INVALID : 0xFF000000
 	u32 tmp_map[NR_CPUS] = { [0 ... NR_CPUS-1] = MPIDR_INVALID };
 	bool bootcpu_valid = false;
 	cpus = of_find_node_by_path("/cpus");
+	// cpus : cpus 노드의 struct device_node 주소
 
 	if (!cpus)
 		return;
 
 	for_each_child_of_node(cpus, cpu) {
+	// for (cpu = of_get_next_child(cpus, NULL); cpu != NULL; cpu = of_get_next_child(cpus, cpu))
+		// cpu : cpu@0 노드의 struct device_node 주소
 		u32 hwid;
 
+		// cpu->type : "cpu"
 		if (of_node_cmp(cpu->type, "cpu"))
 			continue;
 
@@ -101,7 +108,7 @@ void __init arm_dt_init_cpu_maps(void)
 		 * properties is considered invalid to build the
 		 * cpu_logical_map.
 		 */
-		if (of_property_read_u32(cpu, "reg", &hwid)) {
+		if (of_property_read_u32(cpu, "reg", &hwid)) {  // hwid : 0x0
 			pr_debug(" * %s missing reg property\n",
 				     cpu->full_name);
 			return;
@@ -111,7 +118,7 @@ void __init arm_dt_init_cpu_maps(void)
 		 * 8 MSBs must be set to 0 in the DT since the reg property
 		 * defines the MPIDR[23:0].
 		 */
-		if (hwid & ~MPIDR_HWID_BITMASK)
+		if (hwid & ~MPIDR_HWID_BITMASK)	// 통과
 			return;
 
 		/*
@@ -121,7 +128,10 @@ void __init arm_dt_init_cpu_maps(void)
 		 * temp values were initialized to UINT_MAX
 		 * to avoid matching valid MPIDR[23:0] values.
 		 */
+
+		// cpuidx : 1
 		for (j = 0; j < cpuidx; j++)
+			// tmp_map[0] : 0xFF000000
 			if (WARN(tmp_map[j] == hwid, "Duplicate /cpu reg "
 						     "properties in the DT\n"))
 				return;
@@ -150,6 +160,18 @@ void __init arm_dt_init_cpu_maps(void)
 		}
 
 		tmp_map[i] = hwid;
+
+		// bootcpu의 CPUID가 0인 경우
+		// tmp_map[0] : 0
+		// tmp_map[1] : 1
+		// tmp_map[2] : 2
+		// tmp_map[3] : 3
+
+		// bootcpu의 CPUID가 1인 경우
+		// tmp_map[0] : 1
+		// tmp_map[1] : 0
+		// tmp_map[2] : 2
+		// tmp_map[3] : 3
 	}
 
 	if (!bootcpu_valid) {
@@ -167,6 +189,17 @@ void __init arm_dt_init_cpu_maps(void)
 		cpu_logical_map(i) = tmp_map[i];
 		pr_debug("cpu logical map 0x%x\n", cpu_logical_map(i));
 	}
+	// __cpu_logical_map[0] : 0
+	// __cpu_logical_map[1] : 1
+	// __cpu_logical_map[2] : 2
+	// __cpu_logical_map[3] : 3
+
+	// cpu_possible_bits[0] 의 0번 비트를 1로 설정
+	// cpu_possible_bits[0] 의 1번 비트를 1로 설정
+	// cpu_possible_bits[0] 의 2번 비트를 1로 설정
+	// cpu_possible_bits[0] 의 3번 비트를 1로 설정
+	
+	// __cpu_logical_map[0]에 무조건 부팅 cpu 번호가 들어감
 }
 
 /**

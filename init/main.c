@@ -524,7 +524,6 @@ asmlinkage void __init start_kernel(void)
 	// Hash 테이블로 쓰일 것으로 예상됨
 	pr_notice("%s", linux_banner);
 
-	// command_line에는 뭐가 옵니까
 	setup_arch(&command_line);
 	// setup_arch : archtecture 관련 설정 수행
 	mm_init_owner(&init_mm, &init_task);

@@ -566,23 +566,37 @@ static void __init smp_build_mpidr_hash(void)
 	 * not contribute to affinity levels, ie they never toggle.
 	 */
 	for_each_possible_cpu(i)
+	// for (i = -1; i = cpumask_next(i, cpu_possible_mask), i < nr_cpu_ids; )
+		// i = 0 부터 시작
 		mask |= (cpu_logical_map(i) ^ cpu_logical_map(0));
+	// mask : 0x3
 	pr_debug("mask of set bits 0x%x\n", mask);
+
 	/*
 	 * Find and stash the last and first bit set at all affinity levels to
 	 * check how many bits are required to represent them.
 	 */
 	for (i = 0; i < 3; i++) {
 		affinity = MPIDR_AFFINITY_LEVEL(mask, i);
+		// [0] affinity : mask의 하위 8비트가 저장됨
+
 		/*
 		 * Find the MSB bit and LSB bits position
 		 * to determine how many bits are required
 		 * to express the affinity level.
 		 */
 		ls = fls(affinity);
+		// [0] ls : 2
+
 		fs[i] = affinity ? ffs(affinity) - 1 : 0;
+		// fls : MSB, ffs : LSB
+		// [0] fs[0] : 0
 		bits[i] = ls - fs[i];
+		// [0] bits[0] : 2
 	}
+	// fs[0] : 0, fs[1] : 0, fs[2] : 0
+	// bits[0] : 2, bits[1] : 0, bits[2] : 0
+
 	/*
 	 * An index can be created from the MPIDR by isolating the
 	 * significant bits at each affinity level and by shifting
@@ -594,11 +608,18 @@ static void __init smp_build_mpidr_hash(void)
 	 * representation might contain holes, eg MPIDR[7:0] = {0x2, 0x80}.
 	 */
 	mpidr_hash.shift_aff[0] = fs[0];
+	// mpidr_hash.shift_aff[0] : 0
 	mpidr_hash.shift_aff[1] = MPIDR_LEVEL_BITS + fs[1] - bits[0];
+	// mpidr_hash.shift_aff[1] : 6
 	mpidr_hash.shift_aff[2] = 2*MPIDR_LEVEL_BITS + fs[2] -
 						(bits[1] + bits[0]);
+	// mpidr_hash.shift_aff[2] : 14
+
 	mpidr_hash.mask = mask;
+	// mpidr_hash.mask : 0x3
+
 	mpidr_hash.bits = bits[2] + bits[1] + bits[0];
+	// mpidr_hash.bits : 2
 	pr_debug("MPIDR hash: aff0[%u] aff1[%u] aff2[%u] mask[0x%x] bits[%u]\n",
 				mpidr_hash.shift_aff[0],
 				mpidr_hash.shift_aff[1],
@@ -612,6 +633,8 @@ static void __init smp_build_mpidr_hash(void)
 	if (mpidr_hash_size() > 4 * num_possible_cpus())
 		pr_warn("Large number of MPIDR hash buckets detected\n");
 	sync_cache_w(&mpidr_hash);
+	// __sync_cache_range_w(&mpidr_hash, sizeof(mpidr_hash))
+	// mpidr_hash 내용을 cache flush 수행
 }
 #endif
 
@@ -1034,19 +1057,44 @@ void __init setup_arch(char **cmdline_p)
 		arm_pm_restart = mdesc->restart;
 
 	unflatten_device_tree();
+	// DTB를 struct device_node, struct property를 이용하여 실제 트리로 만듬
+	// of_allnodes : DTB의 루트 노드
+	// of_chosen : chosen 노드
+	// of_aliases : aliases 노드
+	// alias 특성은 전역 변수 aliases_lookup에 연결시킴
 
 	arm_dt_init_cpu_maps();
+	// DT에서 cpu 노드 정보를 가져와 현재 부팅 동작을 수행 중인 cpu와 값을 비교
+
+	// __cpu_logical_map[0] : 0
+	// __cpu_logical_map[1] : 1
+	// __cpu_logical_map[2] : 2
+	// __cpu_logical_map[3] : 3
+	// cpu_possible_bits[0] 의 0번 비트를 1로 설정
+	// cpu_possible_bits[0] 의 1번 비트를 1로 설정
+	// cpu_possible_bits[0] 의 2번 비트를 1로 설정
+	// cpu_possible_bits[0] 의 3번 비트를 1로 설정
+	// __cpu_logical_map[0]에 무조건 부팅 cpu 번호가 들어감
+	
 	psci_init();
+	// NULL 함수
+
 #ifdef CONFIG_SMP
 	if (is_smp()) {
+		// mdesc->smp_init : NULL
 		if (!mdesc->smp_init || !mdesc->smp_init()) {
-			if (psci_smp_available())
+			if (psci_smp_available())	// psci_smp_available() : false
 				smp_set_ops(&psci_smp_ops);
-			else if (mdesc->smp)
+			else if (mdesc->smp)		 // .smp = smp_ops(exynos_smp_ops)
+				// mdesc->smp : &exynos_smp_ops
 				smp_set_ops(mdesc->smp);
+				// 전역 변수 smp_ops : &exynos_smp_ops
 		}
-		smp_init_cpus();
+		smp_init_cpus();	// exynos_smp_init_cpus() 호출
+		// Cortex-A15에서는 따로 하는 일이 없음
+		// cpu_possible_bits를 수정하는데, 이 작업은 arm_dt_init_cpu_maps()에서 수행하였음
 		smp_build_mpidr_hash();
+		// mpidr_hash 구조체 값을 설정함
 	}
 #endif
 
@@ -1054,20 +1102,22 @@ void __init setup_arch(char **cmdline_p)
 		hyp_mode_check();
 
 	reserve_crashkernel();
+	// Null 함수
 
 #ifdef CONFIG_MULTI_IRQ_HANDLER
 	handle_arch_irq = mdesc->handle_irq;
+	// handle_arch_irq : NULL
 #endif
 
 #ifdef CONFIG_VT
-#if defined(CONFIG_VGA_CONSOLE)
+#if defined(CONFIG_VGA_CONSOLE)		// 통과
 	conswitchp = &vga_con;
-#elif defined(CONFIG_DUMMY_CONSOLE)
+#elif defined(CONFIG_DUMMY_CONSOLE)	// 이쪽으로 들어옴
 	conswitchp = &dummy_con;
 #endif
 #endif
 
-	if (mdesc->init_early)
+	if (mdesc->init_early)		// NULL
 		mdesc->init_early();
 }
 

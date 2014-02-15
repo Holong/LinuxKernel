@@ -1009,6 +1009,8 @@ void __init unflatten_device_tree(void)
 
 	/* Get pointer to "/chosen" and "/aliases" nodes for use everywhere */
 	of_alias_scan(early_init_dt_alloc_memory_arch);
+	// alias 정보를 실제 노드와 연결해 주는 작업을 진행
+	// struct aliase_prop에 값을 설정한 후, 전역 변수 aliases_lookup에 연결시킴
 }
 
 #endif /* CONFIG_OF_EARLY_FLATTREE */

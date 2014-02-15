@@ -552,11 +552,13 @@ static inline int of_property_read_u16(const struct device_node *np,
 	return of_property_read_u16_array(np, propname, out_value, 1);
 }
 
+// device_node : cpu@0의 노드 주소, propname : "reg", out_value : &hwid
 static inline int of_property_read_u32(const struct device_node *np,
 				       const char *propname,
 				       u32 *out_value)
 {
 	return of_property_read_u32_array(np, propname, out_value, 1);
+	// out_value에 reg 데이터 값을 저장
 }
 
 #if defined(CONFIG_PROC_FS) && defined(CONFIG_PROC_DEVICETREE)
