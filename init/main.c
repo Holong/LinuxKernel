@@ -343,12 +343,15 @@ static inline void smp_prepare_cpus(unsigned int maxcpus) { }
  * parsing is performed in place, and we should allow a component to
  * store reference of name/value for future reference.
  */
+// command_line : "console=ttySAC2,115200 init=/linuxrc"
 static void __init setup_command_line(char *command_line)
 {
 	saved_command_line = alloc_bootmem(strlen (boot_command_line)+1);
 	static_command_line = alloc_bootmem(strlen (command_line)+1);
 	strcpy (saved_command_line, boot_command_line);
 	strcpy (static_command_line, command_line);
+	// saved_command_line, static_command_line에 
+	// "console=ttySAC2,115200 init=/linuxrc" 문자열을 저장
 }
 
 /*
@@ -525,11 +528,24 @@ asmlinkage void __init start_kernel(void)
 	pr_notice("%s", linux_banner);
 
 	setup_arch(&command_line);
-	// setup_arch : archtecture 관련 설정 수행
+	// setup_arch : 한 일은 내부를 볼 것
+
 	mm_init_owner(&init_mm, &init_task);
+	// NULL 함수
+
 	mm_init_cpumask(&init_mm);
+	// NULL 함수
+
 	setup_command_line(command_line);
+	// saved_command_line, static_command_line에 
+	// "console=ttySAC2,115200 init=/linuxrc" 문자열을 저장
+	// saved_command_line : 보관용
+	// static_command_line : 변경 가능성 있음
+
 	setup_nr_cpu_ids();
+	// nr_cpu_ids : cpu_possible_bit에 저장되어 있던 값을 이용해 현재 동작 가능한 cpu 갯수를 추출
+	//		4가 됨
+
 	setup_per_cpu_areas();
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
 

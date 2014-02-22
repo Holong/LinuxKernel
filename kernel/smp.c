@@ -532,7 +532,10 @@ EXPORT_SYMBOL(nr_cpu_ids);
 /* An arch may set nr_cpu_ids earlier if needed, so this would be redundant */
 void __init setup_nr_cpu_ids(void)
 {
+	// cpumask_bits(cpu_possible_mask) : &cpu_possible_mask[1]
 	nr_cpu_ids = find_last_bit(cpumask_bits(cpu_possible_mask),NR_CPUS) + 1;
+	// nr_cpu_ids : cpu_possible_bit에 저장되어 있던 값을 이용해 현재 동작 가능한 cpu 갯수를 추출
+	//		4가 됨
 }
 
 /* Called by boot processor to activate the rest. */

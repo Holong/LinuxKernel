@@ -17,6 +17,7 @@
 
 #ifndef find_last_bit
 
+// addr : &cpu_possible_mask[1], size : 4
 unsigned long find_last_bit(const unsigned long *addr, unsigned long size)
 {
 	unsigned long words;
