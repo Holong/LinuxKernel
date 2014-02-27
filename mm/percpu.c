@@ -1098,7 +1098,7 @@ struct pcpu_alloc_info * __init pcpu_alloc_alloc_info(int nr_groups,
 	// ai->groups[0].cpu_map[3] : 4
 
 	ai->nr_groups = nr_groups;
-	// ai->nr_groups : 4
+	// ai->nr_groups : 1
 	ai->__ai_size = PFN_ALIGN(ai_size);
 	// ai->__ai_size : 0x1000
 
@@ -1606,7 +1606,7 @@ static struct pcpu_alloc_info * __init pcpu_build_alloc_info(
 	// ai->groups[0].cpu_map[1] : 4
 	// ai->groups[0].cpu_map[2] : 4
 	// ai->groups[0].cpu_map[3] : 4
-	// ai->nr_groups : 4
+	// ai->nr_groups : 1
 	// ai->__ai_size : 0x1000
 
 	if (!ai)
@@ -1614,7 +1614,7 @@ static struct pcpu_alloc_info * __init pcpu_build_alloc_info(
 	cpu_map = ai->groups[0].cpu_map;
 	// cpu_map : 위에서 할당 받은 cpu_map 배열의 시작 주소
 
-	// nr_groups : 4
+	// nr_groups : 1
 	for (group = 0; group < nr_groups; group++) {
 		ai->groups[group].cpu_map = cpu_map;
 		// ai->groups[x].cpu_map에 각 그룹의 cpu_map 시작 주소를 대입
@@ -1661,7 +1661,7 @@ static struct pcpu_alloc_info * __init pcpu_build_alloc_info(
 	}
 	BUG_ON(unit != nr_units);
 
-	// ai->nr_groups : 4
+	// ai->nr_groups : 1
 	// ai->__ai_size : 0x1000
 	// ai->static_size :  __per_cpu_end - __per_cpu_start;
 	// ai->reserved_size : 0x2000
