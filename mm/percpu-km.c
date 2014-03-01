@@ -98,7 +98,10 @@ static int __init pcpu_verify_alloc_info(const struct pcpu_alloc_info *ai)
 	}
 
 	nr_pages = (ai->groups[0].nr_units * ai->unit_size) >> PAGE_SHIFT;
+	// nr_pages : 32
+
 	alloc_pages = roundup_pow_of_two(nr_pages);
+	// alloc_pages : 32
 
 	if (alloc_pages > nr_pages)
 		printk(KERN_WARNING "percpu: wasting %zu pages per chunk\n",

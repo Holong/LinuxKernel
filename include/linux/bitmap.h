@@ -166,9 +166,12 @@ static inline void bitmap_zero(unsigned long *dst, int nbits)
 	}
 }
 
+// nbits : unit_size 페이지 수
 static inline void bitmap_fill(unsigned long *dst, int nbits)
 {
 	size_t nlongs = BITS_TO_LONGS(nbits);
+	// nlongs : 1
+
 	if (!small_const_nbits(nbits)) {
 		int len = (nlongs - 1) * sizeof(unsigned long);
 		memset(dst, 0xff,  len);

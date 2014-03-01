@@ -579,9 +579,11 @@ static inline void cpumask_copy(struct cpumask *dstp,
  * If len is zero, returns zero.  Otherwise returns the length of the
  * (nul-terminated) @buf string.
  */
+// buf : cpus_buf, len : 4096, srcp : 0b1111
 static inline int cpumask_scnprintf(char *buf, int len,
 				    const struct cpumask *srcp)
 {
+	// buf : cpus_buf, len : 4096, cpumask_bits(srcp) : 0b1111, nr_cpumask_bits : 4
 	return bitmap_scnprintf(buf, len, cpumask_bits(srcp), nr_cpumask_bits);
 }
 
