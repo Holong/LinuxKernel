@@ -843,9 +843,11 @@ unsigned long __init node_memmap_size_bytes(int, unsigned long, unsigned long);
  */
 #define zone_idx(zone)		((zone) - (zone)->zone_pgdat->node_zones)
 
+// zone : node_zones[ZONE_MOVABLE]
 static inline int populated_zone(struct zone *zone)
 {
 	return (!!zone->present_pages);
+	// node_zones[ZONE_MOVABLE].present_pages : 0
 }
 
 extern int movable_zone;
@@ -1006,13 +1008,17 @@ struct zoneref *next_zones_zonelist(struct zoneref *z,
  * used to iterate the zonelist with next_zones_zonelist by advancing it by
  * one before calling.
  */
+// zonelist : contig_page_data.node_zonelists, highest_zoneidx : 0, nodes : NULL, zone : zone을 저장할 공간
 static inline struct zoneref *first_zones_zonelist(struct zonelist *zonelist,
 					enum zone_type highest_zoneidx,
 					nodemask_t *nodes,
 					struct zone **zone)
 {
+	// zonelist->_zonerefs : contig_page_data.node_zonelists[0]._zonerefs[0], highest_zoneidx : 0, nodes : NULL
 	return next_zones_zonelist(zonelist->_zonerefs, highest_zoneidx, nodes,
 								zone);
+	// contig_page_data의 node_zones 값이 반환됨
+	// 즉 contig_page_data.node_zones[0]이 반환됨
 }
 
 /**

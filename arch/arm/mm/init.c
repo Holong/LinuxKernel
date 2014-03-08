@@ -528,7 +528,7 @@ void __init bootmem_init(void)
 				//	.free_area[0] ~ .free_area[MAX_ORDER] 까지 11개 배열에 대해 내부의
 				//		.free_list[0] ~ .free_list[MIGRATE_TYPES] 리스트가 초기화되고, .nr_free 값은 전부 0으로 초기화
 									
-			struct zonelist node_zonelists[MAX_ZONELISTS];
+			struct zonelist node_zonelists[MAX_ZONELISTS];	
 			int nr_zones;					// 2 : 현재 몇 번째 node_zones 배열까지 처리했는지 기록됨(시작 인덱스가 1)
 			struct bootmem_data *bdata;			// 현재 bootmem 정보가 들어 있음
 			unsigned long node_start_pfn;			// 0x20000 : 시작 4KB 페이지 번호

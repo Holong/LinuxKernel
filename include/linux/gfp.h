@@ -249,10 +249,12 @@ static inline int allocflags_to_migratetype(gfp_t gfp_flags)
 	| 1 << (___GFP_MOVABLE | ___GFP_DMA32 | ___GFP_DMA | ___GFP_HIGHMEM)  \
 )
 
+// flags : GFP_HIGHUSER_MOVABLE(0x200DA)
 static inline enum zone_type gfp_zone(gfp_t flags)
 {
 	enum zone_type z;
 	int bit = (__force int) (flags & GFP_ZONEMASK);
+	// bit : 0xA
 
 	z = (GFP_ZONE_TABLE >> (bit * ZONES_SHIFT)) &
 					 ((1 << ZONES_SHIFT) - 1);
@@ -267,6 +269,7 @@ static inline enum zone_type gfp_zone(gfp_t flags)
  * virtual kernel addresses to the allocated page(s).
  */
 
+// flags : 0xD0
 static inline int gfp_zonelist(gfp_t flags)
 {
 	if (IS_ENABLED(CONFIG_NUMA) && unlikely(flags & __GFP_THISNODE))
@@ -284,9 +287,12 @@ static inline int gfp_zonelist(gfp_t flags)
  * For the normal case of non-DISCONTIGMEM systems the NODE_DATA() gets
  * optimized to &contig_page_data at compile-time.
  */
+// nid : 0, flags : 0xD0
 static inline struct zonelist *node_zonelist(int nid, gfp_t flags)
 {
+	// gfp_zonelist(0xD0) : 0
 	return NODE_DATA(nid)->node_zonelists + gfp_zonelist(flags);
+	// contig_page_data->node_zonelists 반환 
 }
 
 #ifndef HAVE_ARCH_FREE_PAGE

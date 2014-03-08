@@ -111,9 +111,11 @@ static inline void __node_clear(int node, volatile nodemask_t *dstp)
 }
 
 #define nodes_setall(dst) __nodes_setall(&(dst), MAX_NUMNODES)
+// dstp : &(init_task.mems_allowed), nbits : 1
 static inline void __nodes_setall(nodemask_t *dstp, int nbits)
 {
 	bitmap_fill(dstp->bits, nbits);
+	// init_task.mems_allowed의 0번 비트를 1로 설정
 }
 
 #define nodes_clear(dst) __nodes_clear(&(dst), MAX_NUMNODES)

@@ -547,9 +547,17 @@ asmlinkage void __init start_kernel(void)
 	//		4가 됨
 
 	setup_per_cpu_areas();
+	// 각 코어에서 사용할 percpu(static + dynamic + reserved) 공간을 확보하고
+	// percpu 관련 전역 변수를 설정
+
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
+	// 현재 부팅 CPU의 TPIDRPRW 레지스터에 부팅 cpu의 __per_cpu_offset 값을 저장
 
 	build_all_zonelists(NULL, NULL);
+	// contig_page_data.node_zoneslists의 멤버 값을 설정
+	// 0, 1, 2, 3번 cpu의 boot_pageset에 초기 설정 값을 넣어줌
+	// vm_total_pages 값을 설정
+
 	page_alloc_init();
 
 	pr_notice("Kernel command line: %s\n", boot_command_line);

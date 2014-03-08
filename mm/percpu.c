@@ -1947,8 +1947,10 @@ out_free_areas:
 			ai->groups[group].nr_units * ai->unit_size);
 out_free:
 	pcpu_free_alloc_info(ai);
+	// ai : struct pcpu_alloc_info 구조체를 해제함
 	if (areas)
 		free_bootmem(__pa(areas), areas_size);
+		// areas 전부 해제
 	return rc;
 }
 #endif /* BUILD_EMBED_FIRST_CHUNK */
@@ -2108,12 +2110,21 @@ void __init setup_per_cpu_areas(void)
 	rc = pcpu_embed_first_chunk(PERCPU_MODULE_RESERVE,
 				    PERCPU_DYNAMIC_RESERVE, PAGE_SIZE, NULL,
 				    pcpu_dfl_fc_alloc, pcpu_dfl_fc_free);
+	// cpu마다 static + dynamic + reserved를 하나 씩 확보하고
+	// pcpu 관련 전역 변수 값을 설정해 줌.
+
 	if (rc < 0)
 		panic("Failed to initialize percpu areas.");
 
 	delta = (unsigned long)pcpu_base_addr - (unsigned long)__per_cpu_start;
 	for_each_possible_cpu(cpu)
 		__per_cpu_offset[cpu] = delta + pcpu_unit_offsets[cpu];
+	// __per_cpu_offset[0] = 첫 번째 코어가 사용할 static + dynamic + reserved 의 오프셋
+	// __per_cpu_offset[1] = 두 번째 코어가 사용할 static + dynamic + reserved 의 오프셋
+	// __per_cpu_offset[2] = 세 번째 코어가 사용할 static + dynamic + reserved 의 오프셋
+	// __per_cpu_offset[3] = 네 번째 코어가 사용할 static + dynamic + reserved 의 오프셋
+	// 베이스 주소는 __per_cpu_start가 됨
+	// __per_cpu_start와 __per_cpu_offset을 이용하면 각 코어가 사용하는 공간의 가상 주소를 얻을 수 있음
 }
 #endif	/* CONFIG_HAVE_SETUP_PER_CPU_AREA */
 

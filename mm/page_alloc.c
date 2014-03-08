@@ -2842,6 +2842,7 @@ EXPORT_SYMBOL(free_pages_exact);
  * zone, the number of pages is calculated as:
  *     managed_pages - high_pages
  */
+// offset : 0
 static unsigned long nr_free_zone_pages(int offset)
 {
 	struct zoneref *z;
@@ -2850,14 +2851,27 @@ static unsigned long nr_free_zone_pages(int offset)
 	/* Just pick one node, since fallback list is circular */
 	unsigned long sum = 0;
 
+	// numa_node_id() : 0, GFP_KERNEL : 0xD0
 	struct zonelist *zonelist = node_zonelist(numa_node_id(), GFP_KERNEL);
+	// zonelist : contig_page_data.node_zonelists
 
+	// zone : ?, z : ?, zonelist : contig_page_data.node_zonelists, offset : 0
 	for_each_zone_zonelist(zone, z, zonelist, offset) {
+	// for (z = first_zones_zonelist(zonelist, 0, NULL, &zone); zone; \
+		z = next_zones_zonelist(++z, 0, NULL, &zone))
+		// zone : contig_page_data.node_zonelists._zonerefs[1]
+		// z : contig_page_data.node_zones[ZONE_NORMAL]
+
 		unsigned long size = zone->managed_pages;
+		// size : 0x2EFD6
+		
 		unsigned long high = high_wmark_pages(zone);
+		// high : 0
+
 		if (size > high)
 			sum += size - high;
 	}
+	// sum : 0x2EFD6 + 0x50800 = 0x7F7D6
 
 	return sum;
 }
@@ -2882,7 +2896,11 @@ EXPORT_SYMBOL_GPL(nr_free_buffer_pages);
  */
 unsigned long nr_free_pagecache_pages(void)
 {
+	// GFP_HIGHUSER_MOVABLE : 0x200DA
 	return nr_free_zone_pages(gfp_zone(GFP_HIGHUSER_MOVABLE));
+	// gfp_zone(GFP_HIGHUSER_MOVABLE) : 0
+	// 반환 값 : 0x7F7D6
+	// node_zones[ZONE_NORMAL]과 node_zones[ZONE_HIGHMEM]이 관리하는 페이지 갯수
 }
 
 static inline void show_node(struct zone *zone)
@@ -3143,10 +3161,13 @@ void show_free_areas(unsigned int filter)
 	show_swap_cache_info();
 }
 
+// zone : node_zones[ZONE_HIGHMEM]
+// zoneref : &contig_page_data.node_zoneslists[0]._zonerefs[0]
 static void zoneref_set_zone(struct zone *zone, struct zoneref *zoneref)
 {
 	zoneref->zone = zone;
 	zoneref->zone_idx = zone_idx(zone);
+	// zone_idx(zone) : 1
 }
 
 /*
@@ -3154,19 +3175,32 @@ static void zoneref_set_zone(struct zone *zone, struct zoneref *zoneref)
  *
  * Add all populated zones of a node to the zonelist.
  */
+// pgdat : contig_page_data, zonelist : &pgdat->node_zonelists[0], nr_zones : 0
 static int build_zonelists_node(pg_data_t *pgdat, struct zonelist *zonelist,
 				int nr_zones)
 {
 	struct zone *zone;
 	enum zone_type zone_type = MAX_NR_ZONES;
+	// zone_type : 3
 
 	do {
 		zone_type--;
+		// zone_type : 2 (ZONE_MOVABLE)
 		zone = pgdat->node_zones + zone_type;
+		// zone : node_zones[ZONE_MOVABLE]
+
 		if (populated_zone(zone)) {
+		// node_zones[ZONE_NORMAL], node_zones[ZONE_HIGHMEM] 일 때만 수행됨
+			// zone : node_zones[ZONE_HIGHMEM]
+			// contig_page_data.node_zoneslists[0]._zonerefs[0]
+
 			zoneref_set_zone(zone,
 				&zonelist->_zonerefs[nr_zones++]);
+			// contig_page_data.node_zoneslists[0]._zonerefs[0] 의 멤버 값을 설정(ZONE_HIGHMEM)
+			// contig_page_data.node_zoneslists[0]._zonerefs[1] 의 멤버 값을 설정(ZONE_NORMAL)
+			
 			check_highest_zone(zone_type);
+			// NULL 함수
 		}
 	} while (zone_type);
 
@@ -3574,8 +3608,10 @@ int local_memory_node(int node)
 static void set_zonelist_order(void)
 {
 	current_zonelist_order = ZONELIST_ORDER_ZONE;
+	// current_zonelist_order : 2
 }
 
+// pgdat : contig_page_data
 static void build_zonelists(pg_data_t *pgdat)
 {
 	int node, local_node;
@@ -3583,9 +3619,15 @@ static void build_zonelists(pg_data_t *pgdat)
 	struct zonelist *zonelist;
 
 	local_node = pgdat->node_id;
+	// local_node : 0
 
 	zonelist = &pgdat->node_zonelists[0];
+	// zonelist를 설정
+
 	j = build_zonelists_node(pgdat, zonelist, 0);
+	// j : 2
+	// contig_page_data.node_zoneslists[0]._zonerefs[0] 의 멤버 값을 설정(ZONE_HIGHMEM)
+	// contig_page_data.node_zoneslists[0]._zonerefs[1] 의 멤버 값을 설정(ZONE_NORMAL)
 
 	/*
 	 * Now we build the zonelist so that it contains the zones
@@ -3595,6 +3637,7 @@ static void build_zonelists(pg_data_t *pgdat)
 	 * zones coming right after the local ones are those from
 	 * node N+1 (modulo N)
 	 */
+	// MAX_NUM_NODES : 1
 	for (node = local_node + 1; node < MAX_NUMNODES; node++) {
 		if (!node_online(node))
 			continue;
@@ -3605,9 +3648,11 @@ static void build_zonelists(pg_data_t *pgdat)
 			continue;
 		j = build_zonelists_node(NODE_DATA(node), zonelist, j);
 	}
+	// 둘 다 그냥 통과
 
 	zonelist->_zonerefs[j].zone = NULL;
 	zonelist->_zonerefs[j].zone_idx = 0;
+	// zonelist->_zonerefs[2] 의 멤버 값을 0으로 설정
 }
 
 /* non-NUMA variant of zonelist performance cache - just NULL zlcache_ptr */
@@ -3647,11 +3692,13 @@ static void setup_zone_pageset(struct zone *zone);
 DEFINE_MUTEX(zonelists_mutex);
 
 /* return values int ....just for stop_machine() */
+// data : NULL
 static int __build_all_zonelists(void *data)
 {
 	int nid;
 	int cpu;
 	pg_data_t *self = data;
+	// self : NULL
 
 #ifdef CONFIG_NUMA
 	memset(node_load, 0, sizeof(node_load));
@@ -3663,10 +3710,16 @@ static int __build_all_zonelists(void *data)
 	}
 
 	for_each_online_node(nid) {
+	// for ( (nid) = 0; (nid) == 0; (nid) = 1)
 		pg_data_t *pgdat = NODE_DATA(nid);
+		// pgdat : contig_page_data
 
 		build_zonelists(pgdat);
+		// contig_page_data.node_zoneslists[0]._zonerefs[0] 의 멤버 값을 설정(ZONE_HIGHMEM)
+		// contig_page_data.node_zoneslists[0]._zonerefs[1] 의 멤버 값을 설정(ZONE_NORMAL)
+		// contig_page_data.node_zoneslists[0]._zonerefs[2] 의 멤버 값을 0으로 설정
 		build_zonelist_cache(pgdat);
+		// contig_page_data.node_zoneslists[0].zlcache_ptr 값을 NULL로 설정
 	}
 
 	/*
@@ -3683,7 +3736,11 @@ static int __build_all_zonelists(void *data)
 	 * (a chicken-egg dilemma).
 	 */
 	for_each_possible_cpu(cpu) {
+		// cpu : 0
 		setup_pageset(&per_cpu(boot_pageset, cpu), 0);
+		// per_cpu : *SHIFT_PERCPU_PTR(&(boot_pageset), per_cpu_offset(cpu))
+		// boot_pageset : boot_pageset + __per_cpu_offset[0]
+		// 		  0번(부팅) cpu의 boot_pageset 주소가 저장됨
 
 #ifdef CONFIG_HAVE_MEMORYLESS_NODES
 		/*
@@ -3698,6 +3755,7 @@ static int __build_all_zonelists(void *data)
 			set_cpu_numa_mem(cpu, local_memory_node(cpu_to_node(cpu)));
 #endif
 	}
+	// 0, 1, 2, 3번 cpu의 boot_pageset에 초기 설정 값을 넣어줌
 
 	return 0;
 }
@@ -3706,14 +3764,23 @@ static int __build_all_zonelists(void *data)
  * Called with zonelists_mutex held always
  * unless system_state == SYSTEM_BOOTING.
  */
+// pgdat : NULL, zone : NULL
 void __ref build_all_zonelists(pg_data_t *pgdat, struct zone *zone)
 {
 	set_zonelist_order();
+	// current_zonelint_order : 2 로 설정
 
+	// system_state : SYSTEM_BOOTING
 	if (system_state == SYSTEM_BOOTING) {
 		__build_all_zonelists(NULL);
+		// contig_page_data.node_zoneslists의 멤버 값을 설정
+		// 0, 1, 2, 3번 cpu의 boot_pageset에 초기 설정 값을 넣어줌
+
 		mminit_verify_zonelist();
+		// mminit_loglevel 값 설정에 따라 로그 메세지를 찍어줌
+
 		cpuset_init_current_mems_allowed();
+		// NULL 함수
 	} else {
 #ifdef CONFIG_MEMORY_HOTPLUG
 		if (zone)
@@ -3725,6 +3792,8 @@ void __ref build_all_zonelists(pg_data_t *pgdat, struct zone *zone)
 		/* cpuset refresh routine should be here */
 	}
 	vm_total_pages = nr_free_pagecache_pages();
+	// vm_total_pages : node_zones[ZONE_NORMAL]과 node_zones[ZONE_HIGHMEM]이 관리하는 페이지 갯수
+
 	/*
 	 * Disable grouping by mobility if the number of pages in the
 	 * system is too low to allow the mechanism to work. It would be
@@ -3734,7 +3803,7 @@ void __ref build_all_zonelists(pg_data_t *pgdat, struct zone *zone)
 	 */
 	if (vm_total_pages < (pageblock_nr_pages * MIGRATE_TYPES))
 		page_group_by_mobility_disabled = 1;
-	else
+	else	// 이쪽으로 진입
 		page_group_by_mobility_disabled = 0;
 
 	printk("Built %i zonelists in %s order, mobility grouping %s.  "
@@ -4096,6 +4165,7 @@ static int __meminit zone_batchsize(struct zone *zone)
  * outside of boot time (or some other assurance that no concurrent updaters
  * exist).
  */
+// pcp : boot_pageset->pcp, high : 0, batch : 1
 static void pageset_update(struct per_cpu_pages *pcp, unsigned long high,
 		unsigned long batch)
 {
@@ -4108,31 +4178,47 @@ static void pageset_update(struct per_cpu_pages *pcp, unsigned long high,
 	smp_wmb();
 
 	pcp->batch = batch;
+	// boot_pageset.pcp.batch : 1
+	// boot_pageset.pcp.high : 0
+
 }
 
 /* a companion to pageset_set_high() */
+// p : 0번 cpu의 boot_pageset 주소, batch : 0
 static void pageset_set_batch(struct per_cpu_pageset *p, unsigned long batch)
 {
+	// &p->pcp, 0, 1
 	pageset_update(&p->pcp, 6 * batch, max(1UL, 1 * batch));
 }
 
+// p : 0번 cpu의 boot_pageset 주소
 static void pageset_init(struct per_cpu_pageset *p)
 {
 	struct per_cpu_pages *pcp;
 	int migratetype;
 
 	memset(p, 0, sizeof(*p));
+	// boot_pageset을 0으로 초기화
 
 	pcp = &p->pcp;
 	pcp->count = 0;
+	// boot_pageset.pcp.count : 0
 	for (migratetype = 0; migratetype < MIGRATE_PCPTYPES; migratetype++)
 		INIT_LIST_HEAD(&pcp->lists[migratetype]);
+	// boot_pageset.pcp.lists 전부 초기화
 }
 
+// p : 0번 cpu의 boot_pageset 주소, batch : 0
 static void setup_pageset(struct per_cpu_pageset *p, unsigned long batch)
 {
+	// p : 0번 cpu의 boot_pageset 주소
 	pageset_init(p);
+	// boot_pageset.pcp.count : 0
+	// boot_pageset.pcp.lists 초기화
+
 	pageset_set_batch(p, batch);
+	// boot_pageset.pcp.batch : 1
+	// boot_pageset.pcp.high : 0
 }
 
 /*
