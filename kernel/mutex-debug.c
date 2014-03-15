@@ -27,11 +27,17 @@
 /*
  * Must be called with lock->wait_lock held.
  */
+// lock : &cpu_add_remove_lock, waiter : waiter
 void debug_mutex_lock_common(struct mutex *lock, struct mutex_waiter *waiter)
 {
 	memset(waiter, MUTEX_DEBUG_INIT, sizeof(*waiter));
+	// waiter 내부를 0x11로 전부 세팅함
+
 	waiter->magic = waiter;
+	// magic에 waiter 값을 대입
+
 	INIT_LIST_HEAD(&waiter->list);
+	// 리스트 초기화
 }
 
 void debug_mutex_wake_waiter(struct mutex *lock, struct mutex_waiter *waiter)
@@ -48,13 +54,18 @@ void debug_mutex_free_waiter(struct mutex_waiter *waiter)
 	memset(waiter, MUTEX_DEBUG_FREE, sizeof(*waiter));
 }
 
+// lock : &cpu_add_remove_lock, waiter, ti : init_task의 stack
 void debug_mutex_add_waiter(struct mutex *lock, struct mutex_waiter *waiter,
 			    struct thread_info *ti)
 {
 	SMP_DEBUG_LOCKS_WARN_ON(!spin_is_locked(&lock->wait_lock));
+	// 현재 락이 걸려 있는지 확인함
 
 	/* Mark the current thread as blocked on the lock: */
 	ti->task->blocked_on = waiter;
+	// ti->task : init_task
+	// blocked_on : waiter 값을 대입
+	// 현재 스레드가 스핀락이 걸렸다는 사실을 blocked_on에 저장함
 }
 
 void mutex_remove_waiter(struct mutex *lock, struct mutex_waiter *waiter,

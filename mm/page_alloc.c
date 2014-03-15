@@ -5634,6 +5634,13 @@ static int page_alloc_cpu_notify(struct notifier_block *self,
 void __init page_alloc_init(void)
 {
 	hotcpu_notifier(page_alloc_cpu_notify, 0);
+	
+	// static struct notifier_block page_alloc_cpu_notify_nb = {
+	// 	.notifier_call = page_alloc_cpu_notify,
+	//	.priority = 0
+	// };	
+	//
+	// register_cpu_notifier(&page_alloc_cpu_notify_nb);			
 }
 
 /*

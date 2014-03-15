@@ -91,14 +91,18 @@ __mutex_lock_slowpath(atomic_t *lock_count);
  *
  * This function is similar to (but not equivalent to) down().
  */
+// lock : &cpu_add_remove_lock
 void __sched mutex_lock(struct mutex *lock)
 {
 	might_sleep();
+	// might_resched() 함수가 수행됨 >> NULL 함수임
+
 	/*
 	 * The locking fastpath is the 1->0 transition from
 	 * 'unlocked' into 'locked' state.
 	 */
 	__mutex_fastpath_lock(&lock->count, __mutex_lock_slowpath);
+	// __mutex_lock_slowpath(&lock->count)
 	mutex_set_owner(lock);
 }
 
@@ -405,20 +409,28 @@ ww_mutex_set_context_fastpath(struct ww_mutex *lock,
 /*
  * Lock a mutex (possibly interruptible), slowpath:
  */
+//lock : &cpu_add_remove_lock, state : TASK_UNINTERRUPTIBLE, subclass : 0, nest_lock : NULL, ip : _RET_IP_, ww_ctx : NULL
 static __always_inline int __sched
 __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		    struct lockdep_map *nest_lock, unsigned long ip,
 		    struct ww_acquire_ctx *ww_ctx)
 {
 	struct task_struct *task = current;
+	// task : &init_task
 	struct mutex_waiter waiter;
 	unsigned long flags;
 	int ret;
 
 	preempt_disable();
-	mutex_acquire_nest(&lock->dep_map, subclass, 0, nest_lock, ip);
+	// inc_preempt_count() : 현재 thread_info의 count 1 증가
+	// barrier() : 코드 순서 변경을 막음 (하드웨어 Out-of-order, 컴파일러 최적화)
 
-#ifdef CONFIG_MUTEX_SPIN_ON_OWNER
+	// &lock->dep_map : &cpu_add_remove_lock->dep_map, subclass : 0, 0, nest_lock : NULL, ip : _RET_IP_
+	mutex_acquire_nest(&lock->dep_map, subclass, 0, nest_lock, ip);
+	// mutex_acquire_nest : NULL 매크로
+	// &lock->dep_map 변수는 Syntax 체크 이전에 사라짐
+
+#ifdef CONFIG_MUTEX_SPIN_ON_OWNER	// n
 	/*
 	 * Optimistic spinning.
 	 *
@@ -511,16 +523,46 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	}
 slowpath:
 #endif
+	// 이 쪽으로 들어 옴
+	// &cpu_add_remove_lock->wait_lock, flags
 	spin_lock_mutex(&lock->wait_lock, flags);
+	// struct mutex *l = container_of(&lock->wait_lock, struct mutex, wait_lock);
+	//	l에는 cpu_add_remove_lock 위치가 저장됨
+	//
+	// DEBUG_LOCKS_WARN_ON(in_interrupt());	
+	// 	현재까지 task 정보에 기록된 인터럽트 횟수를 반환
+	//	init_task이므로 0임
+	//
+	// local_irq_save(flags);
+	//	flags에 현재 cpsr 값 저장
+	//
+	// arch_spin_lock(&(&lock->wait_lock)->rlock.raw_lock);
+	// 	스핀락을 걸었음
+	//
+	// DEBUG_LOCKS_WARN_ON(l->magic != l);
 
+	// 현재 cpsr 값을 flags에 저장하고 스핀락을 획득함
+
+	// lock : &cpu_add_remove_lock, waiter
 	debug_mutex_lock_common(lock, &waiter);
+	// magic에 waiter 값을 대입 및 리스트 초기화
+
+	// lock : &cpu_add_remove_lock, waiter, task_thread_info(task) : init_task의 stack
 	debug_mutex_add_waiter(lock, &waiter, task_thread_info(task));
+	// waiter의 위치를 init_task의 blocked_on 위치에 대입
+	// 현재 스레드가 스핀락이 걸렸다는 사실을 blocked_on에 저장함
 
 	/* add waiting tasks to the end of the waitqueue (FIFO): */
 	list_add_tail(&waiter.list, &lock->wait_list);
+	// 뮤텍스 락 변수의 waitqueue에 현재 태스크의 waiter를 연결함
+
 	waiter.task = task;
 
 	if (MUTEX_SHOW_NO_WAITER(lock) && (atomic_xchg(&lock->count, -1) == 1))
+		// MUTEX_SHOW_NO_WAITER(lock) : 1
+		// 현재 lock 변수의 count 값이 1일 때 락을 얻을 수 있음.
+		// 락을 얻으면서 그 값을 -1로 바꾸기 때문에 다른 프로세스에서 락 시도시에는
+		// count 값이 -1이 되기 때문에 락을 절대로 얻을 수 없게 됨
 		goto done;
 
 	lock_contended(&lock->dep_map, ip);
@@ -564,14 +606,25 @@ slowpath:
 
 done:
 	lock_acquired(&lock->dep_map, ip);
+	// NULL 함수
+
 	/* got the lock - rejoice! */
 	mutex_remove_waiter(lock, &waiter, current_thread_info());
-	mutex_set_owner(lock);
+	// lock의 wait queue, init_task의 waiter를 삭제
 
+	mutex_set_owner(lock);
+	// lock의 owner 변수를 &init_task로 설정
+	// 현재 락을 획득한 태스크의 주소를 저장
+	
+	// ww_ctx : NULL
 	if (!__builtin_constant_p(ww_ctx == NULL)) {
+		// __builtin_constant_p : 컴파일 시 인수가 상수이면 1을 반환함 ??/
 		struct ww_mutex *ww = container_of(lock,
 						      struct ww_mutex,
 						      base);
+		// ww : cpu_add_remove_lock을 감싸는 더 큰 ww_mutex 구조체의 시작 주소
+		// wound/wait mutex
+
 		struct mutex_waiter *cur;
 
 		/*
@@ -810,6 +863,10 @@ static __used noinline void __sched
 __mutex_lock_slowpath(atomic_t *lock_count)
 {
 	struct mutex *lock = container_of(lock_count, struct mutex, count);
+	// const typeof( ((struct mutex *)0)->count ) *__mptr = lock_count;
+	// (struct mutex *)( (char *)__mptr - offsetof(struct mutex, count) );
+	//
+	// lock_count를 가지고 있는 구조체의 시작 주로를 lock 변수에 저장 
 
 	__mutex_lock_common(lock, TASK_UNINTERRUPTIBLE, 0,
 			    NULL, _RET_IP_, NULL);

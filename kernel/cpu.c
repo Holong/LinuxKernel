@@ -33,6 +33,7 @@ static DEFINE_MUTEX(cpu_add_remove_lock);
 void cpu_maps_update_begin(void)
 {
 	mutex_lock(&cpu_add_remove_lock);
+	// cpu_map에 해당하는 락 변수의 락을 획득함
 }
 
 void cpu_maps_update_done(void)
@@ -160,6 +161,7 @@ static void cpu_hotplug_done(void) {}
 #endif	/* #else #if CONFIG_HOTPLUG_CPU */
 
 /* Need to know about CPUs going up/down? */
+// nb : &page_alloc_cpu_notify_nb
 int __ref register_cpu_notifier(struct notifier_block *nb)
 {
 	int ret;
