@@ -3742,7 +3742,7 @@ static int __build_all_zonelists(void *data)
 		// boot_pageset : boot_pageset + __per_cpu_offset[0]
 		// 		  0번(부팅) cpu의 boot_pageset 주소가 저장됨
 
-#ifdef CONFIG_HAVE_MEMORYLESS_NODES
+#ifdef CONFIG_HAVE_MEMORYLESS_NODES	// n
 		/*
 		 * We now know the "local memory node" for each node--
 		 * i.e., the node of the first zone in the generic zonelist.
