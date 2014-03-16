@@ -52,16 +52,17 @@ struct mutex {
 	spinlock_t		wait_lock;
 	struct list_head	wait_list;
 #if defined(CONFIG_DEBUG_MUTEXES) || defined(CONFIG_SMP)
-	struct task_struct	*owner;
+	struct task_struct	*owner;		// 포함
 #endif
 #ifdef CONFIG_MUTEX_SPIN_ON_OWNER
 	void			*spin_mlock;	/* Spinner MCS lock */
+						// 빠짐
 #endif
-#ifdef CONFIG_DEBUG_MUTEXES
+#ifdef CONFIG_DEBUG_MUTEXES			// 포함
 	const char 		*name;
 	void			*magic;
 #endif
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_DEBUG_LOCK_ALLOC			// 빠짐
 	struct lockdep_map	dep_map;
 #endif
 };
