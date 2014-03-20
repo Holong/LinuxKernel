@@ -416,13 +416,17 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		    struct ww_acquire_ctx *ww_ctx)
 {
 	struct task_struct *task = current;
-	// task : &init_task
+	// task : current_thread_info()->task
+	//        &init_task
+	//        현재 태스크를 관리하는 struct task_struct의 위치를 가져옴
+	
 	struct mutex_waiter waiter;
 	unsigned long flags;
 	int ret;
 
 	preempt_disable();
-	// inc_preempt_count() : 현재 thread_info의 count 1 증가
+	// inc_preempt_count() : 현재 thread_info의 preempt_count 1 증가
+	// 			 0보다 크면 선점 불가
 	// barrier() : 코드 순서 변경을 막음 (하드웨어 Out-of-order, 컴파일러 최적화)
 
 	// &lock->dep_map : &cpu_add_remove_lock->dep_map, subclass : 0, 0, nest_lock : NULL, ip : _RET_IP_
@@ -545,6 +549,7 @@ slowpath:
 
 	// lock : &cpu_add_remove_lock, waiter
 	debug_mutex_lock_common(lock, &waiter);
+	// waiter 변수 값을 초기화시킴
 	// magic에 waiter 값을 대입 및 리스트 초기화
 
 	// lock : &cpu_add_remove_lock, waiter, task_thread_info(task) : init_task의 stack
@@ -561,10 +566,13 @@ slowpath:
 	if (MUTEX_SHOW_NO_WAITER(lock) && (atomic_xchg(&lock->count, -1) == 1))
 		// MUTEX_SHOW_NO_WAITER(lock) : 1
 		// 현재 lock 변수의 count 값이 1일 때 락을 얻을 수 있음.
-		// 락을 얻으면서 그 값을 -1로 바꾸기 때문에 다른 프로세스에서 락 시도시에는
-		// count 값이 -1이 되기 때문에 락을 절대로 얻을 수 없게 됨
+		// 락을 얻으면서 그 값을 -1로 바꿈.
+		// 그러므로, 다음 프로세스에서 락 시도시에는
+		// 락의 count 값이 -1인 상태이기 때문에 락을 절대로 얻을 수 없게 됨
 		goto done;
+		// 락 획득 시 done으로 이동함
 
+	// 락 획득 실패 시 수행
 	lock_contended(&lock->dep_map, ip);
 
 	for (;;) {
@@ -867,7 +875,8 @@ __mutex_lock_slowpath(atomic_t *lock_count)
 	// (struct mutex *)( (char *)__mptr - offsetof(struct mutex, count) );
 	//
 	// lock_count를 가지고 있는 구조체의 시작 주로를 lock 변수에 저장 
-
+	
+	// lock : &cpu_add_remove_lock, TASK_UNINTERRUPTIBLE : 2, 0, NULL, _RET_IP_ : return address, NULL
 	__mutex_lock_common(lock, TASK_UNINTERRUPTIBLE, 0,
 			    NULL, _RET_IP_, NULL);
 }
