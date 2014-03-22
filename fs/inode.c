@@ -1746,6 +1746,8 @@ void __init inode_init_early(void)
 	/* If hashes are distributed across NUMA nodes, defer
 	 * hash allocation until vmalloc space is available.
 	 */
+	// hashdist : 0
+	// CONFIG_NUMA와 관련됨
 	if (hashdist)
 		return;
 

@@ -18,16 +18,23 @@ BLOCKING_NOTIFIER_HEAD(reboot_notifier_list);
  *	are layered on top of these, with appropriate locking added.
  */
 
+// nl : &(cpu_chain.head)
+// nb : &page_alloc_cpu_notify_nb
 static int notifier_chain_register(struct notifier_block **nl,
 		struct notifier_block *n)
 {
+	// *nl : NULL
 	while ((*nl) != NULL) {
 		if (n->priority > (*nl)->priority)
 			break;
 		nl = &((*nl)->next);
 	}
 	n->next = *nl;
+	// page_alloc_cpu_notify_nb.next 값에 NULL 대입
+
 	rcu_assign_pointer(*nl, n);
+	// 다시 볼것
+
 	return 0;
 }
 
@@ -341,6 +348,8 @@ EXPORT_SYMBOL_GPL(blocking_notifier_call_chain);
  *
  *	Currently always returns zero.
  */
+// struct raw_notifier_head cpu_chain, head 멤버는 NULL로 초기화 되어 있음
+// nb : &page_alloc_cpu_notify_nb
 int raw_notifier_chain_register(struct raw_notifier_head *nh,
 		struct notifier_block *n)
 {

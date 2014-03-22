@@ -103,7 +103,10 @@ void __sched mutex_lock(struct mutex *lock)
 	 */
 	__mutex_fastpath_lock(&lock->count, __mutex_lock_slowpath);
 	// __mutex_lock_slowpath(&lock->count)
+	// cpu_add_remove_lock 뮤텍스 변수의 락을 획득
+	
 	mutex_set_owner(lock);
+	// cpu_add_remove_lock에 현재 태스크를 기록
 }
 
 EXPORT_SYMBOL(mutex_lock);
@@ -240,6 +243,7 @@ static __used noinline void __sched __mutex_unlock_slowpath(atomic_t *lock_count
  *
  * This function is similar to (but not equivalent to) up().
  */
+// lock : &cpu_add_remove_lock
 void __sched mutex_unlock(struct mutex *lock)
 {
 	/*
@@ -254,7 +258,10 @@ void __sched mutex_unlock(struct mutex *lock)
 	 */
 	mutex_clear_owner(lock);
 #endif
+	// &cpu_add_remove_lock->count
 	__mutex_fastpath_unlock(&lock->count, __mutex_unlock_slowpath);
+	// __mutex_unlock_slowpath(&cpu_add_remove_lock->count)
+	// 뮤텍스 변수 cpu_add_remove_lock을 해제함
 }
 
 EXPORT_SYMBOL(mutex_unlock);
@@ -652,15 +659,24 @@ done:
 			wake_up_process(cur->task);
 		}
 	}
+	// 컴파일러 최적화 옵션에 따라 실행 여부가 결정됨
+	// 기본 컴파일 옵션은 O2이므로 == 계산이 자동으로 최적화됨 (피연산자가 상수)
 
 	/* set it to 0 if there are no waiters left: */
 	if (likely(list_empty(&lock->wait_list)))
 		atomic_set(&lock->count, 0);
-
+		// 0으로 만들어 주면, waiter에 등록되지 않았던 것도 락을 잡을 수 있게 됨.
+		// 즉, 락을 가져간 상태일 때 락을 요청한 것들에 대한 서비스가 끝났다는 뜻임.
+	
+	// flags : 스핀락 걸기 전의 cpsr
 	spin_unlock_mutex(&lock->wait_lock, flags);
+	// 스핀 락을 풀고 인터럽트 여부가 이전 상태로 복구 됨
 
 	debug_mutex_free_waiter(&waiter);
+	// waiter 공간 전부를 0x22로 설정
+
 	preempt_enable();
+	// sub_preempt_count() : 현재 thread_info의 preempt_count 1 감소
 
 	return 0;
 
@@ -775,15 +791,23 @@ EXPORT_SYMBOL_GPL(__ww_mutex_lock_interruptible);
 /*
  * Release the lock, slowpath:
  */
+// lock_count : &cpu_add_remove_lock->count, nested : 1
 static inline void
 __mutex_unlock_common_slowpath(atomic_t *lock_count, int nested)
 {
 	struct mutex *lock = container_of(lock_count, struct mutex, count);
+	// lock : &cpu_add_remove_lock
+
 	unsigned long flags;
 
 	spin_lock_mutex(&lock->wait_lock, flags);
+	// 스핀락 걸고, 인터럽트 플래그를 flags에 저장
+
 	mutex_release(&lock->dep_map, nested, _RET_IP_);
+	// NULL 함수
+
 	debug_mutex_unlock(lock);
+	// cpu_add_remove_lock에 저장된 owner를 NULL로 만듬
 
 	/*
 	 * some architectures leave the lock unlocked in the fastpath failure
@@ -792,6 +816,7 @@ __mutex_unlock_common_slowpath(atomic_t *lock_count, int nested)
 	 */
 	if (__mutex_slowpath_needs_to_unlock())
 		atomic_set(&lock->count, 1);
+	// cpu_add_remove_lock.count 값을 1로 변경
 
 	if (!list_empty(&lock->wait_list)) {
 		/* get the first entry from the wait-list: */
@@ -803,17 +828,21 @@ __mutex_unlock_common_slowpath(atomic_t *lock_count, int nested)
 
 		wake_up_process(waiter->task);
 	}
+	// 현재는 wait_queue에 기다리는 것이 없으므로 그냥 통과됨
 
 	spin_unlock_mutex(&lock->wait_lock, flags);
+	// 스핀락 해제
 }
 
 /*
  * Release the lock, slowpath:
  */
+// lock_count : &cpu_add_remove_lock->count
 static __used noinline void
 __mutex_unlock_slowpath(atomic_t *lock_count)
 {
 	__mutex_unlock_common_slowpath(lock_count, 1);
+	// 뮤텍스 cpu_add_remove_lock을 해제함
 }
 
 #ifndef CONFIG_DEBUG_LOCK_ALLOC

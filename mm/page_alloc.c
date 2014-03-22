@@ -207,7 +207,7 @@ int min_free_kbytes = 1024;
 int user_min_free_kbytes;
 
 static unsigned long __meminitdata nr_kernel_pages;			// 0x2EFD6 (0x2F800에서 struct page용 공간을 뺀 갯수)
-static unsigned long __meminitdata nr_all_pages;			// 0x2EFD6
+static unsigned long __meminitdata nr_all_pages;			// 0x7EA00
 static unsigned long __meminitdata dma_reserve;
 
 #ifdef CONFIG_HAVE_MEMBLOCK_NODE_MAP
@@ -5999,6 +5999,13 @@ __setup("hashdist=", set_hashdist);
  *   quantity of entries
  * - limit is the number of hash buckets, not the total allocation size
  */
+// tablename : "PID", bucketsize : sizeof(*pid_hash), numentries : 0, scale : 18
+// flags : HASH_EARLY | HASH_SMALL, _hash_shift : &pidhash_shift, _hash_mask : NULL,
+// low_limit : 0, high_limit : 4096
+
+// tablename : "Dentry cache", bucketsize : sizeof(struct hlist_bl_head), numentries : dhash_entries, scale : 13
+// flags : HASH_EARLY,	_hash_shift : &d_hash_shift, _hash_mask : &d_hash_mask,
+// low_limit : 0, high_limit : 0  
 void *__init alloc_large_system_hash(const char *tablename,
 				     unsigned long bucketsize,
 				     unsigned long numentries,
@@ -6010,54 +6017,80 @@ void *__init alloc_large_system_hash(const char *tablename,
 				     unsigned long high_limit)
 {
 	unsigned long long max = high_limit;
+	// max : 4096
 	unsigned long log2qty, size;
 	void *table = NULL;
 
 	/* allow the kernel cmdline to have a say */
+	// [PID] numentries : 0
 	if (!numentries) {
 		/* round applicable memory size up to nearest megabyte */
 		numentries = nr_kernel_pages;
+		// numentries : 0x2EFD6
+		// low mem에서 struct page 공간을 뺀 것
 		numentries += (1UL << (20 - PAGE_SHIFT)) - 1;
+		// numentries : 0xFF + 0x2EFD6 : 0x2F0D5
 		numentries >>= 20 - PAGE_SHIFT;
 		numentries <<= 20 - PAGE_SHIFT;
+		// numentries : 0x2F000
+		// 1MB로 정렬
 
 		/* limit to 1 bucket per 2^scale bytes of low memory */
+		// scale : 18, PAGE_SHIFT : 12
 		if (scale > PAGE_SHIFT)
 			numentries >>= (scale - PAGE_SHIFT);
+			// numentries : 0xBC0
+			// bucket 하나 당 2^18바이트를 담아두게 됨
 		else
 			numentries <<= (PAGE_SHIFT - scale);
 
 		/* Make sure we've got at least a 0-order allocation.. */
+		// flags : HASH_EARLY | HASH_SMALL
 		if (unlikely(flags & HASH_SMALL)) {
+			// 이 쪽으로 진입
 			/* Makes no sense without HASH_EARLY */
 			WARN_ON(!(flags & HASH_EARLY));
-			if (!(numentries >> *_hash_shift)) {
+			
+			// numentries : 0xBC0, *_hash_shift : 4
+			if (!(numentries >> *_hash_shift)) {	// 통과
 				numentries = 1UL << *_hash_shift;
 				BUG_ON(!numentries);
 			}
 		} else if (unlikely((numentries * bucketsize) < PAGE_SIZE))
 			numentries = PAGE_SIZE / bucketsize;
 	}
+	// numentries : 0xBC0
 	numentries = roundup_pow_of_two(numentries);
+	// numentries : 0x1000
 
 	/* limit allocation size to 1/16 total memory by default */
+	// max : 4096
 	if (max == 0) {
 		max = ((unsigned long long)nr_all_pages << PAGE_SHIFT) >> 4;
 		do_div(max, bucketsize);
 	}
 	max = min(max, 0x80000000ULL);
+	// max : 4096
 
 	if (numentries < low_limit)
 		numentries = low_limit;
 	if (numentries > max)
 		numentries = max;
+	// numentries : 0x1000(4096)
 
 	log2qty = ilog2(numentries);
+	// log2qty : 12
 
 	do {
+		// bucketsize : sizeof(*pid_hash) : 4, log2qty : 12
 		size = bucketsize << log2qty;
+		// size : 16K
+		// bucket은 4K개가 존재하는 것임
+
+		// flags : HASH_EARLY | HASH_SMALL
 		if (flags & HASH_EARLY)
 			table = alloc_bootmem_nopanic(size);
+			// table에 16K 공간 확보
 		else if (hashdist)
 			table = __vmalloc(size, GFP_ATOMIC, PAGE_KERNEL);
 		else {
@@ -6072,6 +6105,8 @@ void *__init alloc_large_system_hash(const char *tablename,
 			}
 		}
 	} while (!table && size > PAGE_SIZE && --log2qty);
+	// 할당을 못 받은 경우 크기를 줄여가면서 반복문이 수행됨
+	// 현재는 원하는 크기만큼 할당 받았다고 생각함.
 
 	if (!table)
 		panic("Failed to allocate %s hash table\n", tablename);
@@ -6081,9 +6116,14 @@ void *__init alloc_large_system_hash(const char *tablename,
 	       (1UL << log2qty),
 	       ilog2(size) - PAGE_SHIFT,
 	       size);
+	// PID hash table entries : 4096 (order: 0, 4096 bytes)
 
+	// _hash_shift : 4
 	if (_hash_shift)
 		*_hash_shift = log2qty;
+		// 12로 대입
+	
+	// _hash_mask : 0
 	if (_hash_mask)
 		*_hash_mask = (1 << log2qty) - 1;
 

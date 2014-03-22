@@ -569,10 +569,16 @@ void __init pidhash_init(void)
 					   HASH_EARLY | HASH_SMALL,
 					   &pidhash_shift, NULL,
 					   0, 4096);
+	// 4096개의 bucket을 가지는 해쉬 테이블을 할당 받은 뒤,
+	// pid_hash에 시작 주소를 저장
+	// pidhash_shift가 12로 변경됨
+
 	pidhash_size = 1U << pidhash_shift;
+	// pidhash_size : 4096
 
 	for (i = 0; i < pidhash_size; i++)
 		INIT_HLIST_HEAD(&pid_hash[i]);
+	// 4096개의 리스트 초기화
 }
 
 void __init pidmap_init(void)

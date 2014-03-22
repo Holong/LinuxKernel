@@ -166,8 +166,15 @@ int __ref register_cpu_notifier(struct notifier_block *nb)
 {
 	int ret;
 	cpu_maps_update_begin();
+	// 뮤텍스 변수 cpu_add_remove_lock의 락을 획득
+
+	// struct raw_notifier_head cpu_chain, head 멤버는 NULL로 초기화 되어 있음
+	// nb : &page_alloc_cpu_notify_nb
 	ret = raw_notifier_chain_register(&cpu_chain, nb);
+	//
+
 	cpu_maps_update_done();
+	// 뮤텍스 변수 cpu_add_remove_lock의 락을 해제
 	return ret;
 }
 

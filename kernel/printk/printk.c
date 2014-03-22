@@ -747,12 +747,14 @@ static int __init log_buf_len_setup(char *str)
 }
 early_param("log_buf_len", log_buf_len_setup);
 
+// early : 0
 void __init setup_log_buf(int early)
 {
 	unsigned long flags;
 	char *new_log_buf;
 	int free;
 
+	// new_log_buf_len : 0
 	if (!new_log_buf_len)
 		return;
 

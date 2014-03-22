@@ -3001,6 +3001,9 @@ static void __init dcache_init_early(void)
 	/* If hashes are distributed across NUMA nodes, defer
 	 * hash allocation until vmalloc space is available.
 	 */
+
+	// hashdist : 0
+	// CONFIG_NUMA와 관련됨
 	if (hashdist)
 		return;
 
@@ -3014,9 +3017,13 @@ static void __init dcache_init_early(void)
 					&d_hash_mask,
 					0,
 					0);
+	// dentry_hashtable을 만듬
+	// bucket 개수는 128K개 존재
+	// d_hash_shift : 20
 
 	for (loop = 0; loop < (1U << d_hash_shift); loop++)
 		INIT_HLIST_BL_HEAD(dentry_hashtable + loop);
+	// dentry_hashtable의 모든 bucket 초기화
 }
 
 static void __init dcache_init(void)
@@ -3059,6 +3066,8 @@ EXPORT_SYMBOL(d_genocide);
 void __init vfs_caches_init_early(void)
 {
 	dcache_init_early();
+	// dentry_hashtable 생성
+
 	inode_init_early();
 }
 

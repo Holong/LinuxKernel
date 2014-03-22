@@ -559,22 +559,33 @@ asmlinkage void __init start_kernel(void)
 	// vm_total_pages 값을 설정
 
 	page_alloc_init();
+	// cpu_chain에 page_alloc_cpu_notify를 연결
+	// cpu_add_remove_mutex 변수를 이용해 뮤텍스를 씀
 
 	pr_notice("Kernel command line: %s\n", boot_command_line);
+	// Kernel command line 로그 출력, DTB chosen 노드에서 뽑아온 값임
+
 	parse_early_param();
 	parse_args("Booting kernel", static_command_line, __start___param,
 		   __stop___param - __start___param,
 		   -1, -1, &unknown_bootoption);
+	// 다시 볼 것
 
 	jump_label_init();
+	// NULL 함수
 
 	/*
 	 * These use large bootmem allocations and must precede
 	 * kmem_cache_init()
 	 */
 	setup_log_buf(0);
+	// 한 거 없음
+
 	pidhash_init();
+	// pid_hash를 만듬, 4096개의 bucket을 가짐
+
 	vfs_caches_init_early();
+
 	sort_main_extable();
 	trap_init();
 	mm_init();

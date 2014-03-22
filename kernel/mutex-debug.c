@@ -80,15 +80,20 @@ void mutex_remove_waiter(struct mutex *lock, struct mutex_waiter *waiter,
 	waiter->task = NULL;
 }
 
+// lock : &cpu_add_remove_lock
 void debug_mutex_unlock(struct mutex *lock)
 {
-	if (unlikely(!debug_locks))
+	// debug_locks : 1
+	if (unlikely(!debug_locks))	// 통과
 		return;
 
 	DEBUG_LOCKS_WARN_ON(lock->magic != lock);
 	DEBUG_LOCKS_WARN_ON(lock->owner != current);
 	DEBUG_LOCKS_WARN_ON(!lock->wait_list.prev && !lock->wait_list.next);
+	// 경고문임. 전부 통과됨 (뮤텍스 락 함수에 존재)
+
 	mutex_clear_owner(lock);
+	// cpu_add_remove_lock에 저장된 owner를 NULL로 만듬
 }
 
 void debug_mutex_init(struct mutex *lock, const char *name,
