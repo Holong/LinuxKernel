@@ -44,6 +44,10 @@ void __init sort_main_extable(void)
 	if (main_extable_sort_needed) {
 		pr_notice("Sorting __ex_table...\n");
 		sort_extable(__start___ex_table, __stop___ex_table);
+		// __ex_table : 소스 여기저기에서 pushsection, popsection을 이용해
+		// 		주소 두 가지를 __ex_table에 저장함.
+		// 주소 하나는 에러가 일어날 수 있는 장소이고, 다른 하나는 에러가 생겼을 때
+		// 처리를 하는 코드의 주소가 저장되어 있음.
 	}
 }
 

@@ -30,6 +30,7 @@ static inline void set_page_refcounted(struct page *page)
 	VM_BUG_ON(PageTail(page));
 	VM_BUG_ON(atomic_read(&page->_count));
 	set_page_count(page, 1);
+	// page->_count를 1로 설정
 }
 
 static inline void __get_page_tail_foll(struct page *page,

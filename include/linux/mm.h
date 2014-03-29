@@ -281,10 +281,13 @@ static inline int get_freepage_migratetype(struct page *page)
 /*
  * Drop a ref, return true if the refcount fell to zero (the page has no users)
  */
+// page : 0x20000을 관리하는 struct page의 주소
 static inline int put_page_testzero(struct page *page)
 {
 	VM_BUG_ON(atomic_read(&page->_count) == 0);
 	return atomic_dec_and_test(&page->_count);
+	// _count를 감소시키고 0인지 확인함
+	// 현재는 0으로 감소되기 때문에 1을 반환함
 }
 
 /*

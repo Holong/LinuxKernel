@@ -3069,6 +3069,7 @@ void __init vfs_caches_init_early(void)
 	// dentry_hashtable 생성
 
 	inode_init_early();
+	// inode_hashtable 생성
 }
 
 void __init vfs_caches_init(unsigned long mempages)
