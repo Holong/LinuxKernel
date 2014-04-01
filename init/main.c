@@ -484,6 +484,8 @@ static void __init mm_init(void)
 	 * bigger than MAX_ORDER unless SPARSEMEM.
 	 */
 	page_cgroup_init_flatmem();
+	// NULL 함수
+
 	mem_init();
 	kmem_cache_init();
 	percpu_init_late();
@@ -597,9 +599,15 @@ asmlinkage void __init start_kernel(void)
 	// pid_hash를 만듬, 4096개의 bucket을 가짐
 
 	vfs_caches_init_early();
+	// dentry_hashtable, inode_hashtable를 생성함
+	// 해쉬의 bucket만 만든 상황임
 
 	sort_main_extable();
+	// 기존에 존재하던 __ex_table을 정렬함
+
 	trap_init();
+	// 하는 일 없음
+
 	mm_init();
 
 	/*

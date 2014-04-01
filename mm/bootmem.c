@@ -185,16 +185,20 @@ void __init free_bootmem_late(unsigned long physaddr, unsigned long size)
 	}
 }
 
+// bdata : bdata_list의 첫 번째 entry
 static unsigned long __init free_all_bootmem_core(bootmem_data_t *bdata)
 {
 	struct page *page;
 	unsigned long start, end, pages, count = 0;
 
+	// bdata->node_bootmem_map : 있음
 	if (!bdata->node_bootmem_map)
 		return 0;
 
 	start = bdata->node_min_pfn;
+	// start : 0x20000
 	end = bdata->node_low_pfn;
+	// end : 0x4F800
 
 	bdebug("nid=%td start=%lx end=%lx\n",
 		bdata - bootmem_node_data, start, end);
@@ -204,16 +208,29 @@ static unsigned long __init free_all_bootmem_core(bootmem_data_t *bdata)
 		unsigned shift;
 
 		map = bdata->node_bootmem_map;
+		// map : bitmap의 주소
+
 		idx = start - bdata->node_min_pfn;
+		// idx : 0x20000 - 0x20000 : 0
+
 		shift = idx & (BITS_PER_LONG - 1);
+		// shift : 0
+
 		/*
 		 * vec holds at most BITS_PER_LONG map bits,
 		 * bit 0 corresponds to start.
 		 */
 		vec = ~map[idx / BITS_PER_LONG];
+		// vec = ~map[0];
+		// 비트 맵의 첫 번째 4바이트를 vec에 저장
+		// 즉 32개의 페이지 프레임 정보가 vec에 저장됨
 
+		// shift : 0
 		if (shift) {
 			vec >>= shift;
+			// idx 번째 페이지 프레임의 할당 정보를 담당하는 비트가
+			// vec의 0번째 비트가 되게 만듬
+
 			if (end - start >= BITS_PER_LONG)
 				vec |= ~map[idx / BITS_PER_LONG + 1] <<
 					(BITS_PER_LONG - shift);
@@ -223,9 +240,13 @@ static unsigned long __init free_all_bootmem_core(bootmem_data_t *bdata)
 		 * BITS_PER_LONG block of pages in front of us, free
 		 * it in one go.
 		 */
+
+		// start : 0x20000
 		if (IS_ALIGNED(start, BITS_PER_LONG) && vec == ~0UL) {
 			int order = ilog2(BITS_PER_LONG);
+			// order : 5
 
+			// start : 0x20000, order : 5
 			__free_pages_bootmem(pfn_to_page(start), order);
 			count += BITS_PER_LONG;
 			start += BITS_PER_LONG;
@@ -259,15 +280,20 @@ static unsigned long __init free_all_bootmem_core(bootmem_data_t *bdata)
 
 static int reset_managed_pages_done __initdata;
 
+// pgdat : &contig_page_data
 static inline void __init reset_node_managed_pages(pg_data_t *pgdat)
 {
 	struct zone *z;
 
+	// reset_managed_pages_done : 0
 	if (reset_managed_pages_done)
-		return;
+		return;		// 통과
 
 	for (z = pgdat->node_zones; z < pgdat->node_zones + MAX_NR_ZONES; z++)
 		z->managed_pages = 0;
+	
+	// contig_page_data에 존재하는 node_zones 구조체의 멤버인 managed_pages를 0으로 만듬
+	// managed_pages 멤버는 그 zone에서 관리하는 struct page의 개수임
 }
 
 void __init reset_all_zones_managed_pages(void)
@@ -275,7 +301,9 @@ void __init reset_all_zones_managed_pages(void)
 	struct pglist_data *pgdat;
 
 	for_each_online_pgdat(pgdat)
+		// pgdat : contig_page_data
 		reset_node_managed_pages(pgdat);
+		// node_zones의 managed_pages를 전부 초기화
 	reset_managed_pages_done = 1;
 }
 
@@ -290,8 +318,10 @@ unsigned long __init free_all_bootmem(void)
 	bootmem_data_t *bdata;
 
 	reset_all_zones_managed_pages();
+	// contig_page_data에 존재하는 node_zones의 managed_pages를 전부 초기화
 
 	list_for_each_entry(bdata, &bdata_list, list)
+	// for (bdata = list_entry((&bdata_list)->next, typeof(*bdata), list); &bdata->list != &bdata_list; bdata = list_entry(bdata->list.next, typeof(*bdata), list))
 		total_pages += free_all_bootmem_core(bdata);
 
 	totalram_pages += total_pages;

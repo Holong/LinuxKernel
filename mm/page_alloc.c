@@ -613,6 +613,7 @@ out:
 	zone->free_area[order].nr_free++;
 }
 
+// page : 0x20000을 관리하는 struct page 공간
 static inline int free_pages_check(struct page *page)
 {
 	if (unlikely(page_mapcount(page) |
@@ -706,18 +707,26 @@ static void free_one_page(struct zone *zone, struct page *page, int order,
 	spin_unlock(&zone->lock);
 }
 
+// page : 0x20000을 관리하는 struct page, order : 5
 static bool free_pages_prepare(struct page *page, unsigned int order)
 {
 	int i;
 	int bad = 0;
 
 	trace_mm_page_free(page, order);
-	kmemcheck_free_shadow(page, order);
+	// 뭔지는 모르나 디버깅 관련 함수인 듯
 
+	kmemcheck_free_shadow(page, order);
+	// NULL 함수
+
+	// PageAnon(page) : 0
 	if (PageAnon(page))
 		page->mapping = NULL;
+
+	// order : 32
 	for (i = 0; i < (1 << order); i++)
 		bad += free_pages_check(page + i);
+
 	if (bad)
 		return false;
 
@@ -732,6 +741,7 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	return true;
 }
 
+// page : 0x20000을 담당하는 struct page, order : 5
 static void __free_pages_ok(struct page *page, unsigned int order)
 {
 	unsigned long flags;
@@ -748,23 +758,41 @@ static void __free_pages_ok(struct page *page, unsigned int order)
 	local_irq_restore(flags);
 }
 
+// page : 0x20000을 담당하는 struct page의 주소, order : 5
 void __init __free_pages_bootmem(struct page *page, unsigned int order)
 {
 	unsigned int nr_pages = 1 << order;
+	// nr_pages : 32
 	unsigned int loop;
 
+	// page : 0x20000을 담당하는 struct page의 주소
 	prefetchw(page);
+	// 캐시 공간에 page 공간을 올림
+
+	// nr_pages : 32
 	for (loop = 0; loop < nr_pages; loop++) {
 		struct page *p = &page[loop];
+		// p : 0x20000을 담당하는 struct page 주소
 
-		if (loop + 1 < nr_pages)
-			prefetchw(p + 1);
+		if (loop + 1 < nr_pages)	// loop + 1 : 1
+			prefetchw(p + 1);	// 다음 struct page를 미리 땡겨옴 (0x20001 프레임용)
 		__ClearPageReserved(p);
+		// __clear_bit(PG_reserved, &p->flags);
+		// flags의 PG_reserved를 해제함
+		// 현재 해당하는 page는 해제되어 있는 상태이기 때문에 PG_reserved를 해제한 것임
+		// 해제 상태 여부는 bootmem 할당자의 비트맵을 보고 이전에 판단하였음
+
 		set_page_count(p, 0);
+		// page->_count를 0으로 초기화
 	}
 
 	page_zone(page)->managed_pages += 1 << order;
+	// &contig_page_data->node_zones[ZONE_NORMAL].managed_pages : 32
+	// managed_pages에 해제한 페이지 개수를 계속 더해줌
+
 	set_page_refcounted(page);
+	// 0x20000을 담당하는 struct page->_count를 1로 설정
+
 	__free_pages(page, order);
 }
 
@@ -2707,8 +2735,10 @@ unsigned long get_zeroed_page(gfp_t gfp_mask)
 }
 EXPORT_SYMBOL(get_zeroed_page);
 
+// page : 0x20000을 담당하는 struct page, order : 5
 void __free_pages(struct page *page, unsigned int order)
 {
+	// order : 5
 	if (put_page_testzero(page)) {
 		if (order == 0)
 			free_hot_cold_page(page, 0);
