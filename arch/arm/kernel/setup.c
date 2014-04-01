@@ -1031,10 +1031,16 @@ void __init setup_arch(char **cmdline_p)
 	init_mm.brk	   = (unsigned long) _end;
 
 	/* populate cmd_line too for later use, preserving boot_command_line */
+	// boot_command_line : "console=ttySAC2,115200 init=/linuxrc"
 	strlcpy(cmd_line, boot_command_line, COMMAND_LINE_SIZE);
+	// cmd_line : "console=ttySAC2,115200 init=/linuxrc"
+
 	*cmdline_p = cmd_line;
 
 	parse_early_param();
+	// 부트 커맨드에서 콘솔 관련 정보를 뽑아 초기 설정을 걸어줌
+	// 즉 console= 뒷 부분에 쓰인 "ttySAC2,115200" 문자열을 인자로 하여 setup_early_serial8250_console 함수가 호출됨
+	// 그런데 딱히 하는 일이 없음
 
 	sort(&meminfo.bank, meminfo.nr_banks, sizeof(meminfo.bank[0]), meminfo_cmp, NULL);
 	sanity_check_meminfo();

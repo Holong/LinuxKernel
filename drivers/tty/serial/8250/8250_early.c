@@ -240,6 +240,7 @@ static int __init early_serial8250_setup(char *options)
 	return 0;
 }
 
+// cmdline : "ttySAC2,115200"
 int __init setup_early_serial8250_console(char *cmdline)
 {
 	char *options;

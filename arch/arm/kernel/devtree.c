@@ -308,6 +308,7 @@ struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 	//		     그 함수가 1을 반환할 때까지 노드를 계속 바꾸면서 호출
 	// early_init_dt_scan_chosen : 노드가 chosen 노드인지 확인한 후
 	//			       맞으면 bootargs property의 데이터를 가져와 boot_command_line에 저장
+	// boot_command_line : "console=ttySAC2,115200 init=/linuxrc"
 
 	/* Initialize {size,address}-cells info */
 	of_scan_flat_dt(early_init_dt_scan_root, NULL);

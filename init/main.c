@@ -394,6 +394,7 @@ static noinline void __init_refok rest_init(void)
 }
 
 /* Check for early params. */
+// param : "console", val : "ttySAC2,115200", unused : "early options"
 static int __init do_early_param(char *param, char *val, const char *unused)
 {
 	const struct obs_kernel_param *p;
@@ -407,10 +408,17 @@ static int __init do_early_param(char *param, char *val, const char *unused)
 				pr_warn("Malformed early option '%s'\n", param);
 		}
 	}
+	// 모든 파일에 존재하는 __setup, early_param 매크로는 .init.setup 섹션에 데이터를 생성하는데,
+	// 그 섹션의 시작 위치부터 마지막까지 p를 이용해 하나씩 접근을 수행함.
+	// 최종적으로 setup_func를 통해 불리는 것은 early_param("earlycon", setup_early_serial8250_console)을 통해 만들어진
+	// 데이터임
+	// 결국 setup_early_serial8250_console("ttySAC2,115200")이 호출됨
+
 	/* We accept everything at this stage. */
 	return 0;
 }
 
+// cmdline : "console=ttySAC2,115200 init=/linuxrc"
 void __init parse_early_options(char *cmdline)
 {
 	parse_args("early options", cmdline, NULL, 0, 0, 0, do_early_param);
@@ -422,11 +430,15 @@ void __init parse_early_param(void)
 	static __initdata int done = 0;
 	static __initdata char tmp_cmdline[COMMAND_LINE_SIZE];
 
+	// done : 0
 	if (done)
 		return;
 
 	/* All fall through to do_early_param. */
 	strlcpy(tmp_cmdline, boot_command_line, COMMAND_LINE_SIZE);
+	// boot_command_line에 존재하는 문자열을 tmp_cmdline에 복사함
+	// tmp_cmdline : "console=ttySAC2,115200 init=/linuxrc"
+
 	parse_early_options(tmp_cmdline);
 	done = 1;
 }

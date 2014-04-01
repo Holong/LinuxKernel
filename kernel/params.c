@@ -83,6 +83,8 @@ bool parameq(const char *a, const char *b)
 	return parameqn(a, b, strlen(a)+1);
 }
 
+// param : "console", val : "ttySAC2,115200", doing : "early options", params : NULL
+// num_params : 0, min_level : 0, max_level : 0, handle_unknown : do_early_param
 static int parse_one(char *param,
 		     char *val,
 		     const char *doing,
@@ -96,8 +98,9 @@ static int parse_one(char *param,
 	unsigned int i;
 	int err;
 
+	// num_params : 0
 	/* Find parameter */
-	for (i = 0; i < num_params; i++) {
+	for (i = 0; i < num_params; i++) {			// 루프 수행 안함
 		if (parameq(param, params[i].name)) {
 			if (params[i].level < min_level
 			    || params[i].level > max_level)
@@ -115,9 +118,13 @@ static int parse_one(char *param,
 		}
 	}
 
+	// handle_unknown : do_early_param
 	if (handle_unknown) {
 		pr_debug("doing %s: %s='%s'\n", doing, param, val);
+
+		// param : "console", val : "ttySAC2,115200", doing : "early options"
 		return handle_unknown(param, val, doing);
+		// console= 뒷 부분에 쓰인 "ttySAC2,115200" 문자열을 인자로 하여 setup_early_serial8250_console 함수가 호출됨
 	}
 
 	pr_debug("Unknown argument '%s'\n", param);
@@ -126,12 +133,14 @@ static int parse_one(char *param,
 
 /* You can use " around spaces, but can't escape ". */
 /* Hyphens and underscores equivalent in parameter names. */
+// args : "console=ttySAC2,115200 init=/linuxrc", param : 빈 공간의 주소, val : 빈 공간의 주소
 static char *next_arg(char *args, char **param, char **val)
 {
 	unsigned int i, equals = 0;
 	int in_quote = 0, quoted = 0;
 	char *next;
 
+	// *args : 'c'
 	if (*args == '"') {
 		args++;
 		in_quote = 1;
@@ -139,24 +148,36 @@ static char *next_arg(char *args, char **param, char **val)
 	}
 
 	for (i = 0; args[i]; i++) {
+		// args[0] : 'c', in_quote : 0
 		if (isspace(args[i]) && !in_quote)
-			break;
-		if (equals == 0) {
-			if (args[i] == '=')
+			break;	// 통과
+
+		if (equals == 0) {	// 진입
+			if (args[i] == '=')	// 통과
 				equals = i;
 		}
-		if (args[i] == '"')
+		if (args[i] == '"')	// 통과
 			in_quote = !in_quote;
 	}
 
+	// equals : 7
+	// i가 빈 공간을 가리킬 때 루프 탈출
+
 	*param = args;
+	// param에 args 저장, 부트 커맨드용 임시 공간의 시작 주소가 저장됨
+
 	if (!equals)
-		*val = NULL;
+		*val = NULL;	// 통과
 	else {
 		args[equals] = '\0';
+		// NULL 문자가 추가되어 param으로 접근할 수 있는 문자열이 변경됨
+		// param : "console"
+
 		*val = args + equals + 1;
+		// *val : "ttySAC2,115200 init=/linuxrc"
 
 		/* Don't include quotes in value. */
+		// **val : 't'
 		if (**val == '"') {
 			(*val)++;
 			if (args[i-1] == '"')
@@ -164,19 +185,29 @@ static char *next_arg(char *args, char **param, char **val)
 		}
 		if (quoted && args[i-1] == '"')
 			args[i-1] = '\0';
+		// "로 둘러싸인 경우 처리 하기 위한 코드들임
 	}
-
+	
+	// args[i] : " ", 공백임
 	if (args[i]) {
 		args[i] = '\0';
+		// NULL 문자가 추가되어 문자열로 인식되는 길이가 변경됨
+		// *val : "ttySAC2,115200"
 		next = args + i + 1;
+		// next : "init=/linuxrc"
 	} else
 		next = args + i;
+
+	// 결국, *param에는 가장 앞에 있는 파라미터 이름 문자열 위치가 저장되고,
+	// *val에는 그 파라미터의 값 문자열의 위치가 저장됨
 
 	/* Chew up trailing spaces. */
 	return skip_spaces(next);
 }
 
 /* Args looks like "foo=bar,bar2 baz=fuz wiz". */
+// doing : "early options", args : "console=ttySAC2,115200 init=/linuxrc", params : NULL
+// num : 0, min_level : 0, max_level : 0, unknown : do_early_param
 int parse_args(const char *doing,
 	       char *args,
 	       const struct kernel_param *params,
@@ -189,18 +220,33 @@ int parse_args(const char *doing,
 
 	/* Chew leading spaces */
 	args = skip_spaces(args);
+	// 넘어온 부트 커맨드의 앞 빈 공간을 건너 뜀
+	// 현재는 빈 공간이 없으므로 하는 일 없음
 
 	if (*args)
 		pr_debug("doing %s, parsing ARGS: '%s'\n", doing, args);
+		// 디버그 정보 출력
 
+	// *args : 'c'
 	while (*args) {
 		int ret;
 		int irq_was_disabled;
 
 		args = next_arg(args, &param, &val);
+		// param : "console", val : "ttySAC2,115200"
+		// args : "init=/linuxrc"
+		// 부트 커맨드의 첫 번째 파라미터 이름과 값의 위치를 저장
+		// 부트 커맨드 내에서 파라미터는 공백으로 구분
+
 		irq_was_disabled = irqs_disabled();
+		// irqs_disabled() : 현재 cpsr 값을 확인하여 IRQ가 켜진 상태인지 아닌지 확인
+
+		// param : "console", val : "ttySAC2,115200", doing : "early options", params : NULL
+		// num : 0, min_level : 0, max_level : 0, unknown : do_early_param
 		ret = parse_one(param, val, doing, params, num,
 				min_level, max_level, unknown);
+		// console= 뒷 부분에 쓰인 "ttySAC2,115200" 문자열을 인자로 하여 setup_early_serial8250_console 함수가 호출됨
+
 		if (irq_was_disabled && !irqs_disabled())
 			pr_warn("%s: option '%s' enabled irq's!\n",
 				doing, param);
