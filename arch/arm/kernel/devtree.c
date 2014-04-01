@@ -321,7 +321,7 @@ struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 	// early_init_dt_scan_memory : 노드가 memory 정보인지 확인한 후
 	// 맞는 경우 base와 size 정보를 뽑아와 아래 구조체를 초기화함.
 	// meminfo.nr_banks : 1
-	// meminfo.bank[0].base : 0x20000000
+	// meminfo.bank[0].start : 0x20000000
 	// meminfo.bank[0].size : 0x80000000
 	// 정보를 뽑을 때 위에서 처리한 dt_root_size_cells, dt_root_addr_cells를 이용함
 

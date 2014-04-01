@@ -649,6 +649,7 @@ static void __init free_unused_memmap(struct meminfo *mi)
 		// [1] prev_bank_end : 0x4F800, bank_start : 0x4F800
 		if (prev_bank_end && prev_bank_end < bank_start)
 			free_memmap(prev_bank_end, bank_start);		// 통과됨
+		// if문에 걸리는 경우는 이전 뱅크와 현재 뱅크 사이에 공간이 존재하는 경우임
 
 		/*
 		 * Align up here since the VM subsystem insists that the

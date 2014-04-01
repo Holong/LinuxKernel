@@ -1159,43 +1159,78 @@ void __init sanity_check_meminfo(void)
 {
 	phys_addr_t memblock_limit = 0;
 	int i, j, highmem = 0;
-	phys_addr_t vmalloc_limit = __pa(vmalloc_min - 1) + 1;
 
+	// vmalloc_min : 0xEF800000
+	phys_addr_t vmalloc_limit = __pa(vmalloc_min - 1) + 1;
+	// vmalloc_limit : 0x4F80000
+
+	// meminfo.nr_banks : 1
 	for (i = 0, j = 0; i < meminfo.nr_banks; i++) {
 		struct membank *bank = &meminfo.bank[j];
+		// bank : meminfo.bank[0]
+		// meminfo.bank[0].start : 0x20000000
+		// meminfo.bank[0].size : 0x80000000 가 저장되어 있음
+
 		phys_addr_t size_limit;
 
 		*bank = meminfo.bank[i];
-		size_limit = bank->size;
+		// meminfo.bank[0]에  meminfo.bank[0] 를 대입
 
+		size_limit = bank->size;
+		// size_limit : 0x80000000
+
+		// bank->start : 0x20000000, vmalloc_limit : 0x4F800000
 		if (bank->start >= vmalloc_limit)
 			highmem = 1;
 		else
 			size_limit = vmalloc_limit - bank->start;
+			// size_limit : 0x2F800000
 
 		bank->highmem = highmem;
+		// bank->highmem : 0
 
 #ifdef CONFIG_HIGHMEM
 		/*
 		 * Split those memory banks which are partially overlapping
 		 * the vmalloc area greatly simplifying things later.
 		 */
-		if (!highmem && bank->size > size_limit) {
+		if (!highmem && bank->size > size_limit) {		
+			// 현재 뱅크가 lowmem인데, 뱅크 크기가 lowmem 제한 크기보다 클 경우를 찾아내는 조건임
+			// lowmem 크기 제한은 760MB이기 때문에 현재 뱅크를 적당히 쪼개야 함
 			if (meminfo.nr_banks >= NR_BANKS) {
 				printk(KERN_CRIT "NR_BANKS too low, "
 						 "ignoring high memory\n");
 			} else {
 				memmove(bank + 1, bank,
 					(meminfo.nr_banks - i) * sizeof(*bank));
+				// meminfo.bank[1]에 meminfo.bank[0] 대입
+				// 뱅크가 여러 개일 경우 여러 칸이 이동 됨
+
 				meminfo.nr_banks++;
+				// meminfo.nr_banks : 2
 				i++;
 				bank[1].size -= size_limit;
+				// bank[1].size : 0x5080000
+
 				bank[1].start = vmalloc_limit;
+				// bank[1].start : 0x4F800000
+
 				bank[1].highmem = highmem = 1;
+				// bank[1].highmem : 1
 				j++;
 			}
 			bank->size = size_limit;
+			// bank[0].size : 0x2F800000
 		}
+		// 뱅크가 2개로 분리 됨
+		// meminfo.nr_banks : 2
+		// meminfo.bank[0].start : 0x20000000
+		// meminfo.bank[0].size : 0x2F800000
+		// meminfo.bank[0].highmem : 0
+		//
+		// meminfo.bank[1].start : 0x4F800000
+		// meminfo.bank[1].size : 0x50800000
+		// meminfo.bank[1].highmem : 1
 #else
 		/*
 		 * Highmem banks not allowed with !CONFIG_HIGHMEM.
@@ -1221,11 +1256,16 @@ void __init sanity_check_meminfo(void)
 			bank->size = size_limit;
 		}
 #endif
+		// bank : meminfo.bank[0]
+		// bank->highmem : 0
 		if (!bank->highmem) {
 			phys_addr_t bank_end = bank->start + bank->size;
+			// bank_end : 0x4F800000, lowmem의 마지막 주소임
 
+			// arm_lowmem_limit : 0
 			if (bank_end > arm_lowmem_limit)
 				arm_lowmem_limit = bank_end;
+				// arm_lowmem_limit : 0x4F800000
 
 			/*
 			 * Find the first non-section-aligned page, and point
@@ -1240,16 +1280,21 @@ void __init sanity_check_meminfo(void)
 			 * allocated when mapping the start of bank 0, which
 			 * occurs before any free memory is mapped.
 			 */
+			// memblock_limit : 0
 			if (!memblock_limit) {
 				if (!IS_ALIGNED(bank->start, SECTION_SIZE))
 					memblock_limit = bank->start;
 				else if (!IS_ALIGNED(bank_end, SECTION_SIZE))
 					memblock_limit = bank_end;
+				// bank->start, bank_end 둘 다 1MB에 대해 정렬되어 있으므로
+				// 둘 다 수행되지 않음
+				// memblock_limit : 0
 			}
 		}
 		j++;
 	}
-#ifdef CONFIG_HIGHMEM
+#ifdef CONFIG_HIGHMEM		// y
+
 	if (highmem) {
 		const char *reason = NULL;
 
@@ -1269,8 +1314,13 @@ void __init sanity_check_meminfo(void)
 		}
 	}
 #endif
+
 	meminfo.nr_banks = j;
+	// meminfo.nr_banks : 2
+
+	// arm_lowmem_limit : 0x4F800000
 	high_memory = __va(arm_lowmem_limit - 1) + 1;
+	// high_memory : 0xEF800000
 
 	/*
 	 * Round the memblock limit down to a section size.  This
@@ -1281,8 +1331,10 @@ void __init sanity_check_meminfo(void)
 		memblock_limit = round_down(memblock_limit, SECTION_SIZE);
 	if (!memblock_limit)
 		memblock_limit = arm_lowmem_limit;
+	// memblock_limit : 0x4F800000
 
 	memblock_set_current_limit(memblock_limit);
+	// 전역 변수인 memblock.current_limit가 0x4F800000 으로 설정됨
 }
 
 // 인라인 함수!?

@@ -1050,9 +1050,11 @@ void __init_memblock memblock_trim_memory(phys_addr_t align)
 	}
 }
 
+// limit : 0x4F800000
 void __init_memblock memblock_set_current_limit(phys_addr_t limit)
 {
 	memblock.current_limit = limit;
+	// 전역 변수인 memblock.current_limit가 0x4F800000 으로 설정됨
 }
 
 static void __init_memblock memblock_dump(struct memblock_type *type, char *name)

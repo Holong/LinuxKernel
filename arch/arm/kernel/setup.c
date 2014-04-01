@@ -777,7 +777,7 @@ int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
 
 	meminfo.nr_banks++;
 	// meminfo.nr_banks : 1
-	// meminfo.bank[0].base : 0x20000000
+	// meminfo.bank[0].start : 0x20000000
 	// meminfo.bank[0].size : 0x80000000
 
 	return 0;
@@ -1043,7 +1043,24 @@ void __init setup_arch(char **cmdline_p)
 	// 그런데 딱히 하는 일이 없음
 
 	sort(&meminfo.bank, meminfo.nr_banks, sizeof(meminfo.bank[0]), meminfo_cmp, NULL);
+	// heap sort를 이용해 정렬을 수행하게 됨
+	// 현재 meminfo.bank에 저장되어 있는 정보는 
+	// meminfo.nr_banks : 1
+	// meminfo.bank[0].start : 0x20000000
+	// meminfo.bank[0].size : 0x80000000
+	// 이며 1개 밖에 존재하지 않기 때문에 정렬이 수행되지 않음
+
 	sanity_check_meminfo();
+	// 뱅크가 lowmem, highmem 2개로 분리 됨.
+	// lowmem은 붙밖이로 쓰이고, highmem은 virtual memory 기법이 적용될 것으로 보임
+	// meminfo.nr_banks : 2
+	// meminfo.bank[0].start : 0x20000000
+	// meminfo.bank[0].size : 0x2F800000
+	// meminfo.bank[0].highmem : 0
+	// meminfo.bank[1].start : 0x4F800000
+	// meminfo.bank[1].size : 0x50800000
+	// meminfo.bank[1].highmem : 1
+
 	arm_memblock_init(&meminfo, mdesc);
 
 	paging_init(mdesc);
