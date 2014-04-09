@@ -410,9 +410,9 @@ static int __init do_early_param(char *param, char *val, const char *unused)
 	}
 	// 모든 파일에 존재하는 __setup, early_param 매크로는 .init.setup 섹션에 데이터를 생성하는데,
 	// 그 섹션의 시작 위치부터 마지막까지 p를 이용해 하나씩 접근을 수행함.
-	// 최종적으로 setup_func를 통해 불리는 것은 early_param("earlycon", setup_early_serial8250_console)을 통해 만들어진
-	// 데이터임
-	// 결국 setup_early_serial8250_console("ttySAC2,115200")이 호출됨
+
+	// 그런데 조건에 맞는 구조체가 존재하지 않음
+	// 그냥 함수 종료됨
 
 	/* We accept everything at this stage. */
 	return 0;

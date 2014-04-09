@@ -1038,9 +1038,10 @@ void __init setup_arch(char **cmdline_p)
 	*cmdline_p = cmd_line;
 
 	parse_early_param();
-	// 부트 커맨드에서 콘솔 관련 정보를 뽑아 초기 설정을 걸어줌
-	// 즉 console= 뒷 부분에 쓰인 "ttySAC2,115200" 문자열을 인자로 하여 setup_early_serial8250_console 함수가 호출됨
-	// 그런데 딱히 하는 일이 없음
+	// 부트 커맨드에서 파라미터와 해당 값을 뽑아 처리 함수를 호출
+	// 처리 함수는 파라미터 이름을 가지고 찾아냄
+	// 현재 처리되는 파라미터는 "console"과 "init"임
+	// 그런데 해당하는 처리 함수가 등록되어 있지 않기 때문에 하는 일이 없음
 
 	sort(&meminfo.bank, meminfo.nr_banks, sizeof(meminfo.bank[0]), meminfo_cmp, NULL);
 	// heap sort를 이용해 정렬을 수행하게 됨
