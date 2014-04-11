@@ -393,22 +393,40 @@ phys_addr_t __init arm_memblock_steal(phys_addr_t size, phys_addr_t align)
 	return phys;
 }
 
-// mdesc :  __mach_desc_EXYNOS5_DT_name		, mi : &meminfo
+// mi : meminfo
+// meminfo.nr_banks : 2
+// meminfo.bank[0].start : 0x20000000, meminfo.bank[0].size : 0x2F800000, meminfo.bank[0].highmem : 0
+// meminfo.bank[1].start : 0x4F800000, meminfo.bank[1].size : 0x50800000, meminfo.bank[1].highmem : 1
+// mdesc :  __mach_desc_EXYNOS5_DT_name
 // 	    mach-exynos5-dt.c에 선언되어 있음
 void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 {
 	int i;
 
+	// mi->nr_banks : 2
 	for (i = 0; i < mi->nr_banks; i++)
+		// [1] meminfo.bank[0].start : 0x20000000, meminfo.bank[0].size : 0x2F800000
+		// [2] meminfo.bank[1].start : 0x4F800000, meminfo.bank[1].size : 0x50800000 
 		memblock_add(mi->bank[i].start, mi->bank[i].size);
+	// memblock.memory 정보에 regions 정보를 설정하였음
+	// memblock.memory.cnt : 2
+	// memblock.memory.max : 128
+	// memblock.memory.total_size : 0x80000000
+	// memblock.memory.regions[0].base : 0x20000000
+	// memblock.memory.regions[0].size : 0x80000000
+	// 뱅크가 연결되어 있기 때문에 하나로 합쳤음
+
 
 	/* Register the kernel text, kernel data and initrd with memblock. */
-#ifdef CONFIG_XIP_KERNEL
+#ifdef CONFIG_XIP_KERNEL	// N
 	memblock_reserve(__pa(_sdata), _end - _sdata);
-#else
+#else	
+	// 이 쪽으로 진입
+	// _stext : kernel 코드의 시작 주소, _end : kernel data 영역의 마지막 주소
 	memblock_reserve(__pa(_stext), _end - _stext);
+	// memblock.reserved에 등록
 #endif
-#ifdef CONFIG_BLK_DEV_INITRD
+#ifdef CONFIG_BLK_DEV_INITRD	// Y
 	if (phys_initrd_size &&
 	    !memblock_is_region_memory(phys_initrd_start, phys_initrd_size)) {
 		pr_err("INITRD: 0x%08llx+0x%08lx is not a memory region - disabling initrd\n",

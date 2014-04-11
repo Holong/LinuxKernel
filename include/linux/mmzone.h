@@ -75,9 +75,13 @@ enum {
 
 extern int page_group_by_mobility_disabled;
 
+// page : 0x20000을 담당하는 struct page
 static inline int get_pageblock_migratetype(struct page *page)
 {
+	// PB_migrate : 0, PB_migrate_end : 2
 	return get_pageblock_flags_group(page, PB_migrate, PB_migrate_end);
+	// 현재 page에 해당하는 pageblock_flags의 MIGRATE 정보를 가져옴.
+	// 0x2가 반환됨
 }
 
 struct free_area {

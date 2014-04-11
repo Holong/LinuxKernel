@@ -319,16 +319,18 @@ static int __init_memblock memblock_double_array(struct memblock_type *type,
  *
  * Scan @type and merge neighboring compatible regions.
  */
+// type : &memblock.memory
 static void __init_memblock memblock_merge_regions(struct memblock_type *type)
 {
 	int i = 0;
 
 	/* cnt never goes below 1 */
+	// type->cnt : 2
 	while (i < type->cnt - 1) {
 		struct memblock_region *this = &type->regions[i];
 		struct memblock_region *next = &type->regions[i + 1];
 
-		if (this->base + this->size != next->base ||
+		if (this->base + this->size != next->base ||	// regions 사이에 연결되는 것이 있는 지 확인
 		    memblock_get_region_node(this) !=
 		    memblock_get_region_node(next)) {
 			BUG_ON(this->base + this->size > next->base);
@@ -336,10 +338,12 @@ static void __init_memblock memblock_merge_regions(struct memblock_type *type)
 			continue;
 		}
 
+		// 이전 regions의 end 주소와 현재 regions의 base 주소 동일할 경우 이 쪽으로 옴
 		this->size += next->size;
 		/* move forward from next + 1, index of which is i + 2 */
 		memmove(next, next + 1, (type->cnt - (i + 2)) * sizeof(*next));
 		type->cnt--;
+		// 두 regions을 하나로 합침
 	}
 }
 
@@ -354,19 +358,29 @@ static void __init_memblock memblock_merge_regions(struct memblock_type *type)
  * Insert new memblock region [@base,@base+@size) into @type at @idx.
  * @type must already have extra room to accomodate the new region.
  */
+// type : memblock.memory, idx : 1, base : 0x4F800000, size : 0x50800000, nid : 1
 static void __init_memblock memblock_insert_region(struct memblock_type *type,
 						   int idx, phys_addr_t base,
 						   phys_addr_t size, int nid)
 {
 	struct memblock_region *rgn = &type->regions[idx];
+	// rgn : memblock.memory.regions[1]
 
 	BUG_ON(type->cnt >= type->max);
 	memmove(rgn + 1, rgn, (type->cnt - idx) * sizeof(*rgn));
+	// 기존에 존재하던 memory.regions[1]부터 끝까지 정보를 한 칸씩 뒤로 밈
+
 	rgn->base = base;
 	rgn->size = size;
+	// memblock.memory.regions[1]의 base, size 멤버를 변경
+
 	memblock_set_region_node(rgn, nid);
+	// NULL 함수
+
 	type->cnt++;
 	type->total_size += size;
+	// memblock.memory.cnt : 2
+	// memblock.memory.total_size : 0x80000000
 }
 
 /**
@@ -384,25 +398,40 @@ static void __init_memblock memblock_insert_region(struct memblock_type *type,
  * RETURNS:
  * 0 on success, -errno on failure.
  */
+// type : &memblock.memory, base : 0x20000000, size : 0x2F800000, nid : 1
+// type : &memblock.memory, base : 0x4F800000, size : 0x50800000, nid : 1
 static int __init_memblock memblock_add_region(struct memblock_type *type,
 				phys_addr_t base, phys_addr_t size, int nid)
 {
 	bool insert = false;
 	phys_addr_t obase = base;
+	// obase : 0x20000000
+	// obase : 0x4F800000
 	phys_addr_t end = base + memblock_cap_size(base, &size);
+	// size와 base의 합이 주소 공간을 넘어 가는 경우를 처리해줌
+	// 그냥 잘라 버림
+	// 현재 타깃에서는 문제가 없기 때문에 아무 동작도 수행하지 않음
+	// end : 0x4F800000
+	// end : 0xA0000000
 	int i, nr_new;
 
 	if (!size)
 		return 0;
 
 	/* special case for empty array */
-	if (type->regions[0].size == 0) {
+	if (type->regions[0].size == 0) {	// 이전에 설정된 memblock 정보가 없는 경우
 		WARN_ON(type->cnt != 1 || type->total_size);
 		type->regions[0].base = base;
+		// memblock.memory.regions[0].base : 0x20000000
 		type->regions[0].size = size;
+		// memblock.memory.regions[0].size : 0x2F800000
 		memblock_set_region_node(&type->regions[0], nid);
+		// NULL 함수
 		type->total_size = size;
+		// memblock.memory.total_size : 0x2F800000
 		return 0;
+		// 첫 번째 bank 정보를 memblock 변수에 설정해 줌
+		// 이전에 아무런 정보가 없었기 때문에 여기서 초기 설정을 담당
 	}
 repeat:
 	/*
@@ -411,21 +440,32 @@ repeat:
 	 * to accomodate the new area.  The second actually inserts them.
 	 */
 	base = obase;
+	// base : 0x4F800000
 	nr_new = 0;
+	// nr_new : 0
 
+	// type->cnt : 1
 	for (i = 0; i < type->cnt; i++) {
 		struct memblock_region *rgn = &type->regions[i];
+		// rgn : &memory.regions[0]
 		phys_addr_t rbase = rgn->base;
+		// rbase : 0x20000000
 		phys_addr_t rend = rbase + rgn->size;
+		// rend : 0x4F800000
 
 		if (rbase >= end)
-			break;
-		if (rend <= base)
-			continue;
+			break;		// rbase가 end보다 큰 경우
+					// 즉, 현재 설정하려는 메모리 뱅크가 이전에 설정한 뱅크보다
+					// 아래에 존재하는 경우 루프 탈출
+
+		if (rend <= base)	// rend가 base보다 작은 경우
+			continue;	// 즉, 현재 설정하려는 메모리 뱅크가 이전에 설정한 뱅크보다
+					// 위에 존재하는 경우 루프 건너 뛰기
 		/*
 		 * @rgn overlaps.  If it separates the lower part of new
 		 * area, insert that portion.
 		 */
+		// 여기까지 오면 이전에 설정한 뱅크와 현재 설정하려는 뱅크의 영역이 겹치는 경우임
 		if (rbase > base) {
 			nr_new++;
 			if (insert)
@@ -437,16 +477,24 @@ repeat:
 	}
 
 	/* insert the remaining portion */
+	// base : 0x4F800000, end : 0xA0000000
 	if (base < end) {
 		nr_new++;
-		if (insert)
+		// nr_new : 1
+
+		// insert : 0
+		if (insert)		// 통과
+			// type : memblock.memory, i : 1, base : 0x4F800000, end - base : 0x50800000, nid : 1
 			memblock_insert_region(type, i, base, end - base, nid);
+			// memblock.memory.regions[1]에 highmem 정보를 저장
+			// memblock.cnt, memblock.total_size 정보를 업데이트
 	}
 
 	/*
 	 * If this was the first round, resize array and repeat for actual
 	 * insertions; otherwise, merge and return.
 	 */
+	// insert : 0
 	if (!insert) {
 		while (type->cnt + nr_new > type->max)
 			if (memblock_double_array(type, obase, size) < 0)
@@ -454,7 +502,9 @@ repeat:
 		insert = true;
 		goto repeat;
 	} else {
+		// type : &memblock.memory
 		memblock_merge_regions(type);
+		// 연결되는 regions이 존재하는 경우 하나의 regions로 합침
 		return 0;
 	}
 }
@@ -465,8 +515,12 @@ int __init_memblock memblock_add_node(phys_addr_t base, phys_addr_t size,
 	return memblock_add_region(&memblock.memory, base, size, nid);
 }
 
+// base : 0x20000000, size : 0x2F800000
+// base : 0x4F800000, size : 0x50800000
 int __init_memblock memblock_add(phys_addr_t base, phys_addr_t size)
 {
+	// memblock : 전역변수, base : 0x20000000, size : 0x2F800000, MAX_NUMNODES : 1
+	// memblock : 전역변수, base : 0x4F800000, size : 0x50800000, MAX_NUMNODES : 1
 	return memblock_add_region(&memblock.memory, base, size, MAX_NUMNODES);
 }
 
@@ -574,6 +628,7 @@ int __init_memblock memblock_free(phys_addr_t base, phys_addr_t size)
 	return __memblock_remove(&memblock.reserved, base, size);
 }
 
+// base : kernel의 시작, size : kernel의 크기
 int __init_memblock memblock_reserve(phys_addr_t base, phys_addr_t size)
 {
 	struct memblock_type *_rgn = &memblock.reserved;
@@ -583,7 +638,11 @@ int __init_memblock memblock_reserve(phys_addr_t base, phys_addr_t size)
 		     (unsigned long long)base + size,
 		     (void *)_RET_IP_);
 
+	// _rgn : &memblock.reserved, base : kernel의 시작, size : kernel의 크기
+	// MAX_NUMNODES : 1
 	return memblock_add_region(_rgn, base, size, MAX_NUMNODES);
+	// memblock.reserved.regions[0]에 커널이 차지하는 메모리 공간을
+	// 등록함
 }
 
 /**

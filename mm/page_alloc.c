@@ -539,6 +539,8 @@ static inline int page_is_buddy(struct page *page, struct page *buddy,
  * -- nyc
  */
 
+// page: 0x20000 (pfn), page_zone(page): &contig_page_data->node_zones[ZONE_NORMAL]
+// order: 5, migratetype: 0x2
 static inline void __free_one_page(struct page *page,
 		struct zone *zone, unsigned int order,
 		int migratetype)
@@ -616,6 +618,10 @@ out:
 // page : 0x20000을 관리하는 struct page 공간
 static inline int free_pages_check(struct page *page)
 {
+	// page : 0x20000을 관리하는 struct page 공간
+	// page_mapcount(page) : 0
+	// page->mapping : NULL, page->_count : 0,
+	// page->flags : 0x20000000
 	if (unlikely(page_mapcount(page) |
 		(page->mapping != NULL)  |
 		(atomic_read(&page->_count) != 0) |
@@ -624,9 +630,15 @@ static inline int free_pages_check(struct page *page)
 		bad_page(page);
 		return 1;
 	}
+
 	page_nid_reset_last(page);
+	// NULL 함수
+
+	// page->flags : 0x20000000
+	// PAGE_FLAGS_CHECK_AT_PREP : 0x1FFFF
 	if (page->flags & PAGE_FLAGS_CHECK_AT_PREP)
 		page->flags &= ~PAGE_FLAGS_CHECK_AT_PREP;
+	// MR_PAGEFLAGS 만큼의 하위 비트를 전부 삭제
 	return 0;
 }
 
@@ -694,13 +706,18 @@ static void free_pcppages_bulk(struct zone *zone, int count,
 	spin_unlock(&zone->lock);
 }
 
+// zone: &contig_page_data->node_zones[ZONE_NORMAL], page: 0x20000(pfn)
+// order: 5, migratetype: 0x2
 static void free_one_page(struct zone *zone, struct page *page, int order,
 				int migratetype)
 {
 	spin_lock(&zone->lock);
+	// zone에 스핀락을 걸음
 	zone->all_unreclaimable = 0;
 	zone->pages_scanned = 0;
 
+	// page: 0x20000(pfn), zone: &contig_page_data->node_zones[ZONE_NORMAL],
+	// order: 5, migratetype: 0x2
 	__free_one_page(page, zone, order, migratetype);
 	if (unlikely(!is_migrate_isolate(migratetype)))
 		__mod_zone_freepage_state(zone, 1 << order, migratetype);
@@ -726,17 +743,27 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	// order : 32
 	for (i = 0; i < (1 << order); i++)
 		bad += free_pages_check(page + i);
+		// page->flags의 NR_PAGEFLAGS 만큼의 하이 비트를 전부 지움
+		// page가 free 된 것이면 0 반환
 
 	if (bad)
 		return false;
 
+	// PageHighMem(page) : 0
 	if (!PageHighMem(page)) {
 		debug_check_no_locks_freed(page_address(page),PAGE_SIZE<<order);
 		debug_check_no_obj_freed(page_address(page),
 					   PAGE_SIZE << order);
+		// 전부 NULL 함수
 	}
+
+	// page : 0x20000을 담당하는 struct page, order : 5
 	arch_free_page(page, order);
+	// NULL 함수
+
+	// page : 0x20000을 담당하는 struct page, order : 5
 	kernel_map_pages(page, 1 << order, 0);
+	// NULL 함수
 
 	return true;
 }
@@ -747,13 +774,29 @@ static void __free_pages_ok(struct page *page, unsigned int order)
 	unsigned long flags;
 	int migratetype;
 
+	// page : 0x20000의 해당하는 struct page의 1st page, order : 5
 	if (!free_pages_prepare(page, order))
 		return;
+	// page->flags의 NR_PAGEFLAGS 만큼의 하위 비트를 전부 지움
 
 	local_irq_save(flags);
+	// flags에 cpsr을 저장하고 IRQ 인터럽트를 끔
+
+	// PGFREE : 7, order : 5
 	__count_vm_events(PGFREE, 1 << order);
+	// CPU0의 percpu 변수인 vm_event_states.event[PGFREE]를 32로 설정하였음
+
+	// page : 0x20000을 담당하는 struct page
 	migratetype = get_pageblock_migratetype(page);
+	// 현재 page에 해당하는 pageblock_flags의 MIGRATE 정보를 가져옴.
+	// 0x2가 반환됨
+
+	// page : 0x20000을 담당하는 struct page, migratetype : 0x2
 	set_freepage_migratetype(page, migratetype);
+	// struct page의 index 멤버에 migratetype을 저장함
+
+	// page: 0x20000 (pfn), page_zone(page): &contig_page_data->node_zones[ZONE_NORMAL]
+	// order: 5, migratetype: 0x2
 	free_one_page(page_zone(page), page, order, migratetype);
 	local_irq_restore(flags);
 }
@@ -6173,7 +6216,7 @@ static inline unsigned long *get_pageblock_bitmap(struct zone *zone,
 
 static inline int pfn_to_bitidx(struct zone *zone, unsigned long pfn)
 {
-#ifdef CONFIG_SPARSEMEM
+#ifdef CONFIG_SPARSEMEM	// Y
 	pfn &= (PAGES_PER_SECTION-1);
 	return (pfn >> pageblock_order) * NR_PAGEBLOCK_BITS;
 #else
@@ -6189,6 +6232,7 @@ static inline int pfn_to_bitidx(struct zone *zone, unsigned long pfn)
  * @end_bitidx: The last bit of interest
  * returns pageblock_bits flags
  */
+// page : 0x20000을 담당하는 struct page 공간, start_bitidx : 0, end_bitidx : 2
 unsigned long get_pageblock_flags_group(struct page *page,
 					int start_bitidx, int end_bitidx)
 {
@@ -6198,15 +6242,28 @@ unsigned long get_pageblock_flags_group(struct page *page,
 	unsigned long flags = 0;
 	unsigned long value = 1;
 
+	// page : 0x20000을 담당하는 struct page
 	zone = page_zone(page);
-	pfn = page_to_pfn(page);
-	bitmap = get_pageblock_bitmap(zone, pfn);
-	bitidx = pfn_to_bitidx(zone, pfn);
+	// zone : (&contig_page_data)->node_zones[0]
 
+	pfn = page_to_pfn(page);
+	// pfn : 0x20000
+	
+	// zone : (&contig_page_data)->node_zones[0]
+	bitmap = get_pageblock_bitmap(zone, pfn);
+	// bitmap : &mem_section[0][2]->pageblock_flags
+	// pageblock bitmap의 주소
+
+	bitidx = pfn_to_bitidx(zone, pfn);
+	// bitidx : 0
+
+	// start_bitidx: 0, end_bitidx: 2, value: 1, bitidx: 0
+	// memmap_init_zone 에서 pageblock_flags의 MIGRATE_MOVABLE(2)번 비트를 1로 설정
+	// 1024번째 page마다 수행됨
 	for (; start_bitidx <= end_bitidx; start_bitidx++, value <<= 1)
 		if (test_bit(bitidx + start_bitidx, bitmap))
 			flags |= value;
-
+	// flags : 0x2
 	return flags;
 }
 
