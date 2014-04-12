@@ -242,36 +242,73 @@ static unsigned long __init free_all_bootmem_core(bootmem_data_t *bdata)
 		 */
 
 		// start : 0x20000
+		// 0x20000 - 0x2001F까지 32개의 struct page가 free 상태라고 가정)
 		if (IS_ALIGNED(start, BITS_PER_LONG) && vec == ~0UL) {
 			int order = ilog2(BITS_PER_LONG);
 			// order : 5
 
 			// start : 0x20000, order : 5
 			__free_pages_bootmem(pfn_to_page(start), order);
+			// 0x20000에서 0x2001F까지의 페이지가 free 상태임을
+			// 적절한 전역 변수와 플래그에 반영시켜 줌
+
 			count += BITS_PER_LONG;
+			// count : 32
 			start += BITS_PER_LONG;
+			// start : 0x20020
 		} else {
+			// start : 0x20000, vec : 0xFFFFFF0F (할당 정보 비트)
+			// 즉, 중간에 reserve되어 있는 page가 끼어 있는 상황임
 			unsigned long cur = start;
 
 			start = ALIGN(start + 1, BITS_PER_LONG);
+			// start : 0x20020
+
 			while (vec && cur != start) {
 				if (vec & 1) {
 					page = pfn_to_page(cur);
+					// page : 0x20000을 담당하는 struct page
+
 					__free_pages_bootmem(page, 0);
+					// 0x20000 페이지가 free 상태임을
+					// 적절한 전역 변수와 플래그에 반영시켜 줌
 					count++;
+					// count 증가
 				}
 				vec >>= 1;
 				++cur;
 			}
+			// vec 정보를 이용해서 free 상태인 page를 전역 변수들에게 반영시킴
 		}
 	}
+	// bootmem 할당자에 의해 관리되왔던 정보들이 전부 buddy 정보로 변경되 저장됨
+	// contig_page_data.node_zones[ZONE_NORMAL].free_area[order].free_list[MIGRATE_MOVABLE] 에
+	// 각 공간의 선두 struct page를 연결
+	// contig_page_data.node_zones[ZONE_NORMAL].free_area[order].nr_free
+	// 에 해당 order 인 free 공간 갯수를 저장
+	// CPU0의 percpu 변수인 vm_event_states.event[PGFREE]에 전체 struct page 개수 설정
+	// contig_page_data.node_zones[ZONE_NORMAL].vm_stat[NR_FREE_PAGES]에도 전체 struct page 개수 설정
+	// vm_stat[NR_FREE_PAGES]에 전체 struct page 개수 설정
+	// 모든 struct page의 index 멤버에 migratetype(0x2)을 저장함
+	// 각 공간의 선두 struct page의 _mapcount는 -128이 되고, private 멤버는 order 값이 됨
 
 	page = virt_to_page(bdata->node_bootmem_map);
+	// bootmem 할당자의 비트를 가지고 있던 공간을 담당하던 struct page 값 반환
+
 	pages = bdata->node_low_pfn - bdata->node_min_pfn;
+	// pages : 0x2F800
+
 	pages = bootmem_bootmap_pages(pages);
+	// pages : 0x6
+	// 비트맵 공간이 몇 개의 페이지에 걸쳐서 존재 했는지 계산
+
 	count += pages;
+	// count에 비트맵 공간 개수를 추가
+	// 이제부터 비트맵은 필요 없어짐
+
 	while (pages--)
 		__free_pages_bootmem(page++, 0);
+		// 필요 없는 비트맵을 해제해서 buddy에 등록시킴
 
 	bdebug("nid=%td released=%lx\n", bdata - bootmem_node_data, count);
 
@@ -323,6 +360,9 @@ unsigned long __init free_all_bootmem(void)
 	list_for_each_entry(bdata, &bdata_list, list)
 	// for (bdata = list_entry((&bdata_list)->next, typeof(*bdata), list); &bdata->list != &bdata_list; bdata = list_entry(bdata->list.next, typeof(*bdata), list))
 		total_pages += free_all_bootmem_core(bdata);
+		// bootmem 할당자에서 관리하는 정보를 이용해
+		// buddy로 전부 새로 등록하고 bootmem 비트맵을 전부 제거
+		// contig_page_data.node_zones[ZONE_NORMAL].free_area[order]에 전부 등록됨
 
 	totalram_pages += total_pages;
 

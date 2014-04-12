@@ -115,11 +115,15 @@ static inline void vm_events_fold_cpu(int cpu)
  */
 extern atomic_long_t vm_stat[NR_VM_ZONE_STAT_ITEMS];
 
+// x : 32, zone : node_zones[ZONE_NORMAL], item : 0
 static inline void zone_page_state_add(long x, struct zone *zone,
 				 enum zone_stat_item item)
 {
 	atomic_long_add(x, &zone->vm_stat[item]);
+	// contig_page_data.node_zones[ZONE_NORMAL].vm_stat[NR_FREE_PAGES] : 32
 	atomic_long_add(x, &vm_stat[item]);
+	// vm_stat[NR_FREE_PAGES] : 32
+	// 전역 변수에 값을 설정함
 }
 
 static inline unsigned long global_page_state(enum zone_stat_item item)
@@ -283,10 +287,14 @@ static inline void drain_zonestat(struct zone *zone,
 			struct per_cpu_pageset *pset) { }
 #endif		/* CONFIG_SMP */
 
+// zone : node_zones[ZONE_NORMAL], nr_pages : 32, migratetype : 0x2
 static inline void __mod_zone_freepage_state(struct zone *zone, int nr_pages,
 					     int migratetype)
 {
+	// zone : node_zones[ZONE_NORMAL], NR_FREE_PAGES : 0, nr_pages : 32
 	__mod_zone_page_state(zone, NR_FREE_PAGES, nr_pages);
+	// contig_page_data.node_zones[ZONE_NORMAL].vm_stat[NR_FREE_PAGES] : 32
+	// vm_stat[NR_FREE_PAGES] : 32 로 저장함
 	if (is_migrate_cma(migratetype))
 		__mod_zone_page_state(zone, NR_FREE_CMA_PAGES, nr_pages);
 }

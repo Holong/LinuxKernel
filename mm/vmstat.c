@@ -206,23 +206,42 @@ void set_pgdat_percpu_threshold(pg_data_t *pgdat,
 /*
  * For use when we know that interrupts are disabled.
  */
+// zone : node_zones[ZONE_NORMAL], item : 0, delta : 32
+// zone : node_zones[ZONE_NORMAL], item : 0, delta : 1
 void __mod_zone_page_state(struct zone *zone, enum zone_stat_item item,
 				int delta)
 {
 	struct per_cpu_pageset __percpu *pcp = zone->pageset;
+	// pcp : &boot_pageset
 	s8 __percpu *p = pcp->vm_stat_diff + item;
+	// p : &pcp->vm_stat_diff
 	long x;
 	long t;
 
+	// delta : 32
 	x = delta + __this_cpu_read(*p);
+	// *__this_cpu_ptr(p) 가 호출되고, 
+	// SHIFT_PERCPU_PTR(p, __my_cpu_offset)이 최종적으로 호출됨
+	// 즉, *(p + 0) 값이 반환된다.
+	// 결국 boot_pageset의 0번 cpu 공간의 vm_stat_diff[0] 값이 반환됨
+	// vm_stat_diff[0]은 NR_FREE_PAGES 공간임
+	// x : 32 
 
 	t = __this_cpu_read(pcp->stat_threshold);
+	// cpu0번의 boot_pageset.stat_threshold 값을 t에 저장
+	// t : 0
 
 	if (unlikely(x > t || x < -t)) {
+		// x : 32, zone : node_zones[ZONE_NORMAL], item : 0
 		zone_page_state_add(x, zone, item);
+		// contig_page_data.node_zones[ZONE_NORMAL].vm_stat[NR_FREE_PAGES] : 32
+		// vm_stat[NR_FREE_PAGES] : 32
+		// 전역 변수에 값을 설정함
 		x = 0;
 	}
 	__this_cpu_write(*p, x);
+	// boot_pageset.vm_stat_diff[NR_FREE_PAGES] 값은 0으로 설정됨
+	// 결국 저장되는 정보가 없음
 }
 EXPORT_SYMBOL(__mod_zone_page_state);
 
