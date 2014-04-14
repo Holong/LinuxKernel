@@ -424,9 +424,13 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 	// 이 쪽으로 진입
 	// _stext : kernel 코드의 시작 주소, _end : kernel data 영역의 마지막 주소
 	memblock_reserve(__pa(_stext), _end - _stext);
-	// memblock.reserved에 등록
+	// memblock.reserved에 커널이 차지하는 메모리를 등록함
 #endif
 #ifdef CONFIG_BLK_DEV_INITRD	// Y
+
+	// phys_initrd_size : 0
+	// DTB의 choosen 노드에 저장되어 있는 정보가 DTB에서 넘어와 phys_initrd_size에 저장됨
+	// 현재는 그 정보가 없기 때문에 0임
 	if (phys_initrd_size &&
 	    !memblock_is_region_memory(phys_initrd_start, phys_initrd_size)) {
 		pr_err("INITRD: 0x%08llx+0x%08lx is not a memory region - disabling initrd\n",
@@ -439,8 +443,11 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 		       (u64)phys_initrd_start, phys_initrd_size);
 		phys_initrd_start = phys_initrd_size = 0;
 	}
+
+	// 만약 DTB에 initrd에 대한 정보가 존재하면 아래로 진입함
 	if (phys_initrd_size) {
 		memblock_reserve(phys_initrd_start, phys_initrd_size);
+		// initrd 영역을 reserve 영역에 등록
 
 		/* Now convert initrd to virtual addresses */
 		initrd_start = __phys_to_virt(phys_initrd_start);
@@ -449,21 +456,33 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 #endif
 
 	arm_mm_memblock_reserve();
+	// 페이지 테이블 공간을 reserve 영역에 등록
+	// 물리 주소 0x20004000 - 0x20008000이 등록됨
+
 	arm_dt_memblock_reserve();
+	// DTB가 저장된 공간을 reserve 영역에 등록
+	// DTB 내부의 memory reserve map 영역에 저장되어 있는 데이터를 이용해
+	// 추가 reserve 영역을 등록
 
 	/* reserve any platform specific memblock areas */
+	// mdesc->reserve = exynos5_reserve
 	if (mdesc->reserve)
 		mdesc->reserve();
+	// exynos5_reserve 내부가 NULL 함수임
 
 	/*
 	 * reserve memory for DMA contigouos allocations,
 	 * must come from DMA area inside low memory
 	 */
 	dma_contiguous_reserve(min(arm_dma_limit, arm_lowmem_limit));
+	// NULL 함수
 
 	arm_memblock_steal_permitted = false;
 	memblock_allow_resize();
+	// 전역 변수 memblock_can_resize를 1로 설정
+
 	memblock_dump_all();
+	// 디버그 정보 출력인데, 조건이 안맞아 하지는 않음
 }
 
 void __init bootmem_init(void)

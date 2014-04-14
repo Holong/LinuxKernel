@@ -1062,7 +1062,19 @@ void __init setup_arch(char **cmdline_p)
 	// meminfo.bank[1].size : 0x50800000
 	// meminfo.bank[1].highmem : 1
 
+	// mdesc :  __mach_desc_EXYNOS5_DT_name
+	// 	   mach-exynos5-dt.c에 선언되어 있음
 	arm_memblock_init(&meminfo, mdesc);
+	// memblock 에 regions 정보를 설정하였음
+	//
+	// memblock.memory.cnt : 2
+	// memblock.memory.max : 128
+	// memblock.memory.total_size : 0x80000000
+	// memblock.memory.regions[0].base : 0x20000000
+	// memblock.memory.regions[0].size : 0x80000000
+	//
+	// memblock.reserved 에는 현재 사용하는 공간을 등록
+	// 커널 공간, DTB 공간, initrd, 섹션 테이블 등록
 
 	paging_init(mdesc);
 	// mmu용 변환 테이블인 pgd, pte 설정

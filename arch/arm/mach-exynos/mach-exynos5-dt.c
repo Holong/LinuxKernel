@@ -59,7 +59,7 @@ static char const *exynos5_dt_compat[] __initdata = {
 
 static void __init exynos5_reserve(void)
 {
-#ifdef CONFIG_S5P_DEV_MFC
+#ifdef CONFIG_S5P_DEV_MFC	// N
 	struct s5p_mfc_dt_meminfo mfc_mem;
 
 	/* Reserve memory for MFC only if it's available */

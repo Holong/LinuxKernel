@@ -168,6 +168,7 @@ extern void __memblock_dump_all(void);
 
 static inline void memblock_dump_all(void)
 {
+	// memblock_debug : 0
 	if (memblock_debug)
 		__memblock_dump_all();
 }

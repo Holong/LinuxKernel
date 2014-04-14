@@ -1426,9 +1426,12 @@ void __init arm_mm_memblock_reserve(void)
 	 * Reserve the page tables.  These are already in use,
 	 * and can only be in node 0.
 	 */
+	// swapper_pd_dir : 0xC0004000, SWAPPER_PG_DIR_SIZE : 16K
 	memblock_reserve(__pa(swapper_pg_dir), SWAPPER_PG_DIR_SIZE);
+	// 페이지 테이블 공간을 reserve 영역에 등록
+	// 물리 주소 0x20004000 - 0x20008000이 등록됨
 
-#ifdef CONFIG_SA1111
+#ifdef CONFIG_SA1111	// N
 	/*
 	 * Because of the SA1111 DMA bug, we want to preserve our
 	 * precious DMA-able memory...

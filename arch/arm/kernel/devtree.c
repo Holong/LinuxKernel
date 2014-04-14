@@ -40,12 +40,14 @@ void __init arm_dt_memblock_reserve(void)
 {
 	u64 *reserve_map, base, size;
 
+	// initial_boot_params : DTB가 저장된 공간의 주소
 	if (!initial_boot_params)
 		return;
 
 	/* Reserve the dtb region */
 	memblock_reserve(virt_to_phys(initial_boot_params),
 			 be32_to_cpu(initial_boot_params->totalsize));
+	// DTB가 저장된 공간을 reserved 영역에 등록함
 
 	/*
 	 * Process the reserve map.  This will probably overlap the initrd
@@ -54,12 +56,18 @@ void __init arm_dt_memblock_reserve(void)
 	 */
 	reserve_map = ((void*)initial_boot_params) +
 			be32_to_cpu(initial_boot_params->off_mem_rsvmap);
+	// DTB 내부의 memory reserv map 부분의 시작 주소가 저장됨
+
 	while (1) {
 		base = be64_to_cpup(reserve_map++);
 		size = be64_to_cpup(reserve_map++);
 		if (!size)
 			break;
 		memblock_reserve(base, size);
+		// DTB 내부의 memory reserve map 영역에 저장되어 있는
+		// 시작 주소와 사이즈 조합을 이용해
+		// reserve 영역에 등록함
+		// 현재 DTB에는 없음
 	}
 }
 
