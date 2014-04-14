@@ -471,9 +471,12 @@ repeat:
 			if (insert)
 				memblock_insert_region(type, i++, base,
 						       rbase - base, nid);
+			// 현재 설정하려는 뱅크가 이전 뱅크 아래에 존재하면서 둘이 겹치는 경우 여기서 처리됨
 		}
 		/* area below @rend is dealt with, forget about it */
 		base = min(rend, end);
+		// 현재 설정하려는 뱅크가 이전 뱅크 위에 존재하면서 둘이 겹치는 경우 base만 조절하면 됨
+		// region에 집어 넣는 것은 아래에서 수행됨
 	}
 
 	/* insert the remaining portion */
