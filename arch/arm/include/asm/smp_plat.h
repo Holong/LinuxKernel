@@ -15,10 +15,11 @@
  */
 static inline bool is_smp(void)
 {
-#ifndef CONFIG_SMP
+#ifndef CONFIG_SMP	// Y
 	return false;
-#elif defined(CONFIG_SMP_ON_UP)
+#elif defined(CONFIG_SMP_ON_UP)	// Y
 	extern unsigned int smp_on_up;
+	// smp_on_up : 1
 	return !!smp_on_up;
 #else
 	return true;

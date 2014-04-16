@@ -50,7 +50,7 @@
  * The module space lives between the addresses given by TASK_SIZE
  * and PAGE_OFFSET - it must be within 32MB of the kernel text.
  */
-#ifndef CONFIG_THUMB2_KERNEL
+#ifndef CONFIG_THUMB2_KERNEL	// N
 #define MODULES_VADDR		(PAGE_OFFSET - SZ_16M)
 #else
 /* smaller range for Thumb-2 symbols relocation (2^24)*/

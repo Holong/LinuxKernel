@@ -261,6 +261,7 @@ static int __get_cpu_architecture(void)
 
 int __pure cpu_architecture(void)
 {
+	// __cpu_architecture = CPU_ARCH_ARMv7
 	BUG_ON(__cpu_architecture == CPU_ARCH_UNKNOWN);
 
 	return __cpu_architecture;

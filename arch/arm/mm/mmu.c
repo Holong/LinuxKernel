@@ -56,11 +56,11 @@ pmd_t *top_pmd;
 
 static unsigned int cachepolicy __initdata = CPOLICY_WRITEBACK;
 static unsigned int ecc_mask __initdata = 0;
-pgprot_t pgprot_user;
-pgprot_t pgprot_kernel;
-pgprot_t pgprot_hyp_device;
-pgprot_t pgprot_s2;
-pgprot_t pgprot_s2_device;
+pgprot_t pgprot_user;		// L_PTE_PRESENT | L_PTE_YOUNG | 0b11100 | L_PTE_SHARED
+pgprot_t pgprot_kernel;		// L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY | 0b11100 | L_PTE_SHARED
+pgprot_t pgprot_hyp_device;	// PROT_PTE_DEVICE | L_PTE_MT_DEV_SHARED | L_PTE_SHARED
+pgprot_t pgprot_s2;		// L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_SHARED
+pgprot_t pgprot_s2_device;	// PROT_PTE_DEVICE | L_PTE_MT_DEV_SHARED | L_PTE_SHARED
 
 EXPORT_SYMBOL(pgprot_user);
 EXPORT_SYMBOL(pgprot_kernel);
@@ -73,7 +73,7 @@ struct cachepolicy {
 	pteval_t	pte_s2;
 };
 
-#ifdef CONFIG_ARM_LPAE
+#ifdef CONFIG_ARM_LPAE		// N
 #define s2_policy(policy)	policy
 #else
 #define s2_policy(policy)	0
@@ -237,24 +237,32 @@ static struct mem_type mem_types[] = {
 				  L_PTE_SHARED,
 		.prot_l1	= PMD_TYPE_TABLE,
 		.prot_sect	= PROT_SECT_DEVICE | PMD_SECT_S,
+				  // | PMD_SECT_XN
+				  // TEX[0],C,B : 100 이 됨
+				  // Device Type 메모리임
 		.domain		= DOMAIN_IO,
 	},
 	[MT_DEVICE_NONSHARED] = { /* ARMv6 non-shared device */
 		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_NONSHARED,
 		.prot_l1	= PMD_TYPE_TABLE,
 		.prot_sect	= PROT_SECT_DEVICE,
+				  // | PMD_SECT_XN
+				  // TEX[0],C,B : 100 이 됨
+				  // Device Type 메모리임
 		.domain		= DOMAIN_IO,
 	},
 	[MT_DEVICE_CACHED] = {	  /* ioremap_cached */
-		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_CACHED,
+		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_CACHED, // | L_PTE_SHARED
 		.prot_l1	= PMD_TYPE_TABLE,
-		.prot_sect	= PROT_SECT_DEVICE | PMD_SECT_WB,
+		.prot_sect	= PROT_SECT_DEVICE | PMD_SECT_WB, // | PMD_SECT_S
 		.domain		= DOMAIN_IO,
 	},
 	[MT_DEVICE_WC] = {	/* ioremap_wc */
-		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_WC,
+		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_WC, // | L_PTE_SHARED
 		.prot_l1	= PMD_TYPE_TABLE,
-		.prot_sect	= PROT_SECT_DEVICE,
+		.prot_sect	= PROT_SECT_DEVICE, // | PMD_SECT_XN | PMD_SECT_S
+				  // TEX[0],C,B : 001 이 됨
+				  // Device Type 메모리임
 		.domain		= DOMAIN_IO,
 	},
 	[MT_UNCACHED] = {
@@ -264,42 +272,42 @@ static struct mem_type mem_types[] = {
 		.domain		= DOMAIN_IO,
 	},
 	[MT_CACHECLEAN] = {
-		.prot_sect = PMD_TYPE_SECT | PMD_SECT_XN,
+		.prot_sect = PMD_TYPE_SECT | PMD_SECT_XN, // PMD_SECT_APX | PMD_SECT_AP_WRITE | PMD_SECT_WB
 		.domain    = DOMAIN_KERNEL,
 	},
 #ifndef CONFIG_ARM_LPAE
 	[MT_MINICLEAN] = {
-		.prot_sect = PMD_TYPE_SECT | PMD_SECT_XN | PMD_SECT_MINICACHE,
+		.prot_sect = PMD_TYPE_SECT | PMD_SECT_XN | PMD_SECT_MINICACHE, // PMD_SECT_APX|PMD_SECT_AP_WRITE
 		.domain    = DOMAIN_KERNEL,
 	},
 #endif
 	[MT_LOW_VECTORS] = {
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
-				L_PTE_RDONLY,
+				L_PTE_RDONLY,	// | 0b11100 | L_PTE_SHARED
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_USER,
 	},
 	[MT_HIGH_VECTORS] = {
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
-				L_PTE_USER | L_PTE_RDONLY,
+				L_PTE_USER | L_PTE_RDONLY,	// | 0b11100 | L_PTE_SHARED
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_USER,
 	},
 	[MT_MEMORY] = {
-		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
+		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY, // | L_PTE_SHARED | L_PTE_SHARED | L_PTE_MT_WRITEALLOC
 		.prot_l1   = PMD_TYPE_TABLE,
-		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
+		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE, // | PMD_SECT_S | (PMD_SECT_TEX(1) | PMD_SECT_CACHEABLE | PMD_SECT_BUFFERABLE
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_ROM] = {
-		.prot_sect = PMD_TYPE_SECT,
+		.prot_sect = PMD_TYPE_SECT, // PMD_SECT_APX | PMD_SECT_AP_WRITE | PMD_SECT_WBWA
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_NONCACHED] = {
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
-				L_PTE_MT_BUFFERABLE,
+				L_PTE_MT_BUFFERABLE, // | L_PTE_SHARED
 		.prot_l1   = PMD_TYPE_TABLE,
-		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
+		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE, // | PMD_SECT_S | PMD_SECT_BUFFERED
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_DTCM] = {
@@ -323,7 +331,7 @@ static struct mem_type mem_types[] = {
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_DMA_READY] = {
-		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
+		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY, // | L_PTE_SHARED | L_PTE_SHARED | L_PTE_MT_WRITEALLOC
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_KERNEL,
 	},
@@ -342,16 +350,21 @@ static void __init build_mem_type_table(void)
 {
 	struct cachepolicy *cp;
 	unsigned int cr = get_cr();
+	// SCTLR 레지스터 값을 cr에 저장
+
 	pteval_t user_pgprot, kern_pgprot, vecs_pgprot;
+	// pteval_t : 32비트 공간
+	
 	pteval_t hyp_device_pgprot, s2_pgprot, s2_device_pgprot;
 	int cpu_arch = cpu_architecture();
+	// cpu_arch = CPU_ARCH_ARMv7
 	int i;
 
 	if (cpu_arch < CPU_ARCH_ARMv6) {
-#if defined(CONFIG_CPU_DCACHE_DISABLE)
+#if defined(CONFIG_CPU_DCACHE_DISABLE)	// N
 		if (cachepolicy > CPOLICY_BUFFERED)
 			cachepolicy = CPOLICY_BUFFERED;
-#elif defined(CONFIG_CPU_DCACHE_WRITETHROUGH)
+#elif defined(CONFIG_CPU_DCACHE_WRITETHROUGH)	// N
 		if (cachepolicy > CPOLICY_WRITETHROUGH)
 			cachepolicy = CPOLICY_WRITETHROUGH;
 #endif
@@ -361,8 +374,11 @@ static void __init build_mem_type_table(void)
 			cachepolicy = CPOLICY_WRITEBACK;
 		ecc_mask = 0;
 	}
-	if (is_smp())
+	// cpu_arch가 ARMv7이므로 위의 내용은 전부 통과됨
+
+	if (is_smp())	// is_smp() : 1
 		cachepolicy = CPOLICY_WRITEALLOC;
+		// cachepolicy = CPOLICY_WRITEALLOC;
 
 	/*
 	 * Strip out features not present on earlier architectures.
@@ -375,6 +391,7 @@ static void __init build_mem_type_table(void)
 	if ((cpu_arch < CPU_ARCH_ARMv6 || !(cr & CR_XP)) && !cpu_is_xsc3())
 		for (i = 0; i < ARRAY_SIZE(mem_types); i++)
 			mem_types[i].prot_sect &= ~PMD_SECT_S;
+	// cpu_arch가 ARMv7이므로 통과됨
 
 	/*
 	 * ARMv5 and lower, bit 4 must be set for page tables (was: cache
@@ -394,12 +411,16 @@ static void __init build_mem_type_table(void)
 				mem_types[i].prot_sect |= PMD_BIT4;
 		}
 	}
+	// xcale이 아니고, ARMv7이므로 전부 통과
 
 	/*
 	 * Mark the device areas according to the CPU/architecture.
 	 */
 	if (cpu_is_xsc3() || (cpu_arch >= CPU_ARCH_ARMv6 && (cr & CR_XP))) {
-		if (!cpu_is_xsc3()) {
+		// 이 쪽으로 진입
+		// ARMv7이고, CR_XP 비트가 1로 설정되어 있기 때문이다.
+		//
+		if (!cpu_is_xsc3()) {	// cpu_is_xsc3() : 0
 			/*
 			 * Mark device regions on ARMv6+ as execute-never
 			 * to prevent speculative instruction fetches.
@@ -408,8 +429,11 @@ static void __init build_mem_type_table(void)
 			mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_XN;
 			mem_types[MT_DEVICE_CACHED].prot_sect |= PMD_SECT_XN;
 			mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_XN;
+			// mem_types 값을 설정해줌
+			// 디바이스 영역은 execute-never 비트가 켜지게 함
 		}
 		if (cpu_arch >= CPU_ARCH_ARMv7 && (cr & CR_TRE)) {
+			// CR_TRE 비트는 1이므로 아래가 수행됨
 			/*
 			 * For ARMv7 with TEX remapping,
 			 * - shared device is SXCB=1100
@@ -418,9 +442,16 @@ static void __init build_mem_type_table(void)
 			 * (Uncached Normal memory)
 			 */
 			mem_types[MT_DEVICE].prot_sect |= PMD_SECT_TEX(1);
+			// TEX[0],C,B : 100 이 됨
+			// Device Type 메모리임
 			mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_TEX(1);
+			// TEX[0],C,B : 100 이 됨
+			// Device Type 메모리임
 			mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_BUFFERABLE;
+			// TEX[0],C,B : 001 이 됨
+			// Device Type 메모리임
 		} else if (cpu_is_xsc3()) {
+			// 통과
 			/*
 			 * For Xscale3,
 			 * - shared device is TEXCB=00101
@@ -432,6 +463,7 @@ static void __init build_mem_type_table(void)
 			mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_TEX(2);
 			mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_TEX(1);
 		} else {
+			// 통과
 			/*
 			 * For ARMv6 and ARMv7 without TEX remapping,
 			 * - shared device is TEXCB=00001
@@ -444,25 +476,41 @@ static void __init build_mem_type_table(void)
 			mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_TEX(1);
 		}
 	} else {
+		// 통과
 		/*
 		 * On others, write combining is "Uncached/Buffered"
 		 */
 		mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_BUFFERABLE;
 	}
+	// DEVICE 관련 mem_types 설정
 
 	/*
 	 * Now deal with the memory-type mappings
 	 */
+	// cachepolicy = CPOLICY_WRITEALLOC;
 	cp = &cache_policies[cachepolicy];
+	// cp : cache_policies[4]
+	//	.policy		= "writealloc",
+	//	.cr_mask	= 0,
+	//	.pmd		= PMD_SECT_WBWA,
+	//	.pte		= L_PTE_MT_WRITEALLOC,
+	//	.pte_s2		= s2_policy(L_PTE_S2_MT_WRITEBACK)
+	
 	vecs_pgprot = kern_pgprot = user_pgprot = cp->pte;
+	// vecs_pgprot, kern_pgprot, user_pgprot : 0b11100
+	
 	s2_pgprot = cp->pte_s2;
+	// s2_pgprot : 0
+	
 	hyp_device_pgprot = s2_device_pgprot = mem_types[MT_DEVICE].prot_pte;
+	// hyp_device_pgprot, s2_device_pgprot : PROT_PTE_DEVICE | L_PTE_MT_DEV_SHARED | L_PTE_SHARED
 
 	/*
 	 * ARMv6 and above have extended page tables.
 	 */
+	// cr & CR_XP : 1
 	if (cpu_arch >= CPU_ARCH_ARMv6 && (cr & CR_XP)) {
-#ifndef CONFIG_ARM_LPAE
+#ifndef CONFIG_ARM_LPAE		// N
 		/*
 		 * Mark cache clean areas and XIP ROM read only
 		 * from SVC mode and no access from userspace.
@@ -470,9 +518,11 @@ static void __init build_mem_type_table(void)
 		mem_types[MT_ROM].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
 		mem_types[MT_MINICLEAN].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
 		mem_types[MT_CACHECLEAN].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
+		// mem_types에 반영
 #endif
 
 		if (is_smp()) {
+			// is_smp() : 1
 			/*
 			 * Mark memory with the "shared" attribute
 			 * for SMP systems
@@ -480,7 +530,11 @@ static void __init build_mem_type_table(void)
 			user_pgprot |= L_PTE_SHARED;
 			kern_pgprot |= L_PTE_SHARED;
 			vecs_pgprot |= L_PTE_SHARED;
+			// vecs_pgprot, kern_pgprot, user_pgprot : 0b11100 | L_PTE_SHARED
+			
 			s2_pgprot |= L_PTE_SHARED;
+			// s2_pgprot : L_PTE_SHARED
+
 			mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_S;
 			mem_types[MT_DEVICE_WC].prot_pte |= L_PTE_SHARED;
 			mem_types[MT_DEVICE_CACHED].prot_sect |= PMD_SECT_S;
@@ -491,6 +545,7 @@ static void __init build_mem_type_table(void)
 			mem_types[MT_MEMORY_NONCACHED].prot_sect |= PMD_SECT_S;
 			mem_types[MT_MEMORY_NONCACHED].prot_pte |= L_PTE_SHARED;
 		}
+		// mem_types 설정
 	}
 
 	/*
@@ -502,6 +557,7 @@ static void __init build_mem_type_table(void)
 			/* Non-cacheable Normal is XCB = 001 */
 			mem_types[MT_MEMORY_NONCACHED].prot_sect |=
 				PMD_SECT_BUFFERED;
+			// 수행
 		} else {
 			/* For both ARMv6 and non-TEX-remapping ARMv7 */
 			mem_types[MT_MEMORY_NONCACHED].prot_sect |=
@@ -511,7 +567,7 @@ static void __init build_mem_type_table(void)
 		mem_types[MT_MEMORY_NONCACHED].prot_sect |= PMD_SECT_BUFFERABLE;
 	}
 
-#ifdef CONFIG_ARM_LPAE
+#ifdef CONFIG_ARM_LPAE	// N
 	/*
 	 * Do not generate access flag faults for the kernel mappings.
 	 */
@@ -523,14 +579,19 @@ static void __init build_mem_type_table(void)
 	kern_pgprot |= PTE_EXT_AF;
 	vecs_pgprot |= PTE_EXT_AF;
 #endif
-
+//
 	for (i = 0; i < 16; i++) {
 		pteval_t v = pgprot_val(protection_map[i]);
+		// user_pgprot : 0b11100 | L_PTE_SHARED
 		protection_map[i] = __pgprot(v | user_pgprot);
 	}
+	// protection_map[0] - protection_map[16] 까지 user_pgprot 비트를 추가해 줌
+	// user_pgprot : 0b11100 | L_PTE_SHARED
 
+	// vecs_pgprot : 0b11100 | L_PTE_SHARED
 	mem_types[MT_LOW_VECTORS].prot_pte |= vecs_pgprot;
 	mem_types[MT_HIGH_VECTORS].prot_pte |= vecs_pgprot;
+	// 플래그 추가
 
 	// pgprot_user >> u32 전역변수
 	// user_pgprot |= L_PTE_SHARED 로 위에서 세팅 됨.
@@ -551,14 +612,13 @@ static void __init build_mem_type_table(void)
 	// hyp_device_pgprot = PROT_PTE_DEVICE | L_PTE_MT_DEV_SHARED | L_PTE_SHARED
 	pgprot_hyp_device  = __pgprot(hyp_device_pgprot);
 
+	mem_types[MT_LOW_VECTORS].prot_l1 |= ecc_mask;
+	mem_types[MT_HIGH_VECTORS].prot_l1 |= ecc_mask;
 	// ecc_mask >> unsigned static int 이며 0 으로 되어 있음.
 	// 그러므로 prot_l1 값은 그대로 유지됨.
 	// .prot_l1   = PMD_TYPE_TABLE
-	mem_types[MT_LOW_VECTORS].prot_l1 |= ecc_mask;
-	mem_types[MT_HIGH_VECTORS].prot_l1 |= ecc_mask;
 
-	// cp : struct cachepolicy *
-	// cp = &cache_policies[cachepolicy];
+	// cp : &cache_policies[cachepolicy];
 	// cp->pmd : PMD_SECT_WBWA
 	// PMD_SECT_WBWA : (PMD_SECT_TEX(1) | PMD_SECT_CACHEABLE | PMD_SECT_BUFFERABLE)
 	mem_types[MT_MEMORY].prot_sect |= ecc_mask | cp->pmd;
@@ -569,6 +629,8 @@ static void __init build_mem_type_table(void)
 	// kern_pgprot = cp->pte | L_PTE_SHARED   (cp->pte : L_PTE_MT_WRITEALLOC)
 	mem_types[MT_MEMORY_DMA_READY].prot_pte |= kern_pgprot;
 	mem_types[MT_MEMORY_NONCACHED].prot_sect |= ecc_mask;
+
+	// cp->pmd : PMD_SECT_WBWA
 	mem_types[MT_ROM].prot_sect |= cp->pmd;
 
 	// 위에서 저장해 주는 값은 각 메모리 영역의 특성을 지정해 주는 방법임.
@@ -604,7 +666,7 @@ static void __init build_mem_type_table(void)
 	//
 	// 각 메모리 타입의 prot_l1, prot_sect 에 PMD_DOMAIN(t->domain) OR 연산을 통해 저장함.
 	// ARM 아키텍쳐의 도메인 특성에 대한 설정을 해 주는 것으로 생각됨.
-	// page table 메모리 구조의 DOMAIN 영역은 [8:5] 비트임.
+	// section과 small page의 DOMAIN 영역은 [8:5] 비트임.
 	// PMD_DOMAIN을 통해 5비트 쉬프트를 시킴으로써 이 영역의 값을 저장해 줌.
 	//
 	//	#define DOMAIN_KERNEL	0
@@ -685,14 +747,14 @@ static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 }
 
-// pmd : 0xC0007000, addr : 0xC0000000, end : 0xC0200000, phys : 0x40000000
+// pmd : 0xC0007000, addr : 0xC0000000, end : 0xC0200000, phys : 0x20000000, type : mem_types[MT_MEMORY]
 static void __init __map_init_section(pmd_t *pmd, unsigned long addr,
 			unsigned long end, phys_addr_t phys,
 			const struct mem_type *type)
 {
 	pmd_t *p = pmd;
 
-#ifndef CONFIG_ARM_LPAE
+#ifndef CONFIG_ARM_LPAE		// N
 	/*
 	 * In classic MMU format, puds and pmds are folded in to
 	 * the pgds. pmd_offset gives the PGD entry. PGDs refer to a
@@ -710,12 +772,15 @@ static void __init __map_init_section(pmd_t *pmd, unsigned long addr,
 		// phys : 0x40000000, type->prot_sect : 메모리 타입의 속성
 		*pmd = __pmd(phys | type->prot_sect);
 		// section entry에 적합한 데이터를 만들어 줌
+		// MT_MEMORY의 경우 Shareable, Write-back, Write-allocat임 
 		phys += SECTION_SIZE; // phys 를 1MB씩 올림
 	} while (pmd++, addr += SECTION_SIZE, addr != end); // 2번 돔
 
 	flush_pmd_entry(p);
+	// MMU 테이블을 바꿨으면 그 곳의 캐시를 반드시 지워주어야 안전하게 반영이 됨
 }
 
+// [1] pud : 0xC0007000, addr : 0xC0000000, end : 0xC0200000, phys : 0x20000000, type : mem_types[MT_MEMORY]
 static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 				      unsigned long end, phys_addr_t phys,
 				      const struct mem_type *type)
@@ -731,7 +796,7 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 		 * all the pmds for the given range.
 		 */
 		next = pmd_addr_end(addr, end);
-		// addr을 그대로 next로 대입
+		// end를 그대로 next로 대입
 
 		/*
 		 * Try a section mapping - addr, next and phys must all be
@@ -757,8 +822,10 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 		// phys += 2MB
 		// 바로 탈출
 	} while (pmd++, addr = next, addr != end);
+	// 관리하려는 크기에 맞게 1차, 2차 테이블을 만들어 줌
 }
 
+// [1] pgd : 0xC0007000, addr : 0xC0000000, end : 0xC0200000, phys : 0x20000000, type : mem_types[MT_MEMORY]
 static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
 				  unsigned long end, phys_addr_t phys,
 				  const struct mem_type *type)
@@ -769,14 +836,15 @@ static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
 
 	do {
 		next = pud_addr_end(addr, end);
+		// 그냥 end를 next에 대입
+
 		// pgd, addr, end, phys, type 으로 그대로 들어감
 		alloc_init_pmd(pud, addr, next, phys, type);
 		phys += next - addr;
 	} while (pud++, addr = next, addr != end);
-
 	// 결국 이 함수는 pgd >> pud, end >> next로 그대로 대입한 뒤
 	// alloc_init_pmd를 호출하고 끝냄.
-	// 내부 do while문은 아무 역할도 하지 않음
+	// 현재 do while문은 아무 역할도 하지 않음
 	// 아마 LPAE 방식을 쓸 때 사용할 것으로 생각됨
 }
 
@@ -850,7 +918,7 @@ static void __init create_36bit_mapping(struct map_desc *md,
  * supersections.
  */
 // 2MB 할당으로 넘어온 경우
-// map.pfn: 0x40000
+// map.pfn: 0x20000
 // map.virtual: 0xC0000000
 // map.length: 0x2f800000
 // map.type: MT_MEMORY
@@ -869,7 +937,7 @@ static void __init create_mapping(struct map_desc *md)
 	const struct mem_type *type;		// type : 메모리의 옵션값
 	pgd_t *pgd;				// pgd(section)의 주소 위치
 
-	// md->virtual = 0xC0000000 vectors_base : 0xffff0000 , TASK_SIZE : 0xBF000000
+	// md->virtual = 0xC0000000, vectors_base : 0xffff0000 , TASK_SIZE : 0xBF000000
 	// lowmem을 매핑할 가상 메모리의 시작 주소가 USER SPACE를 침범하는 지 확인
 	if (md->virtual != vectors_base() && md->virtual < TASK_SIZE) {
 		printk(KERN_WARNING "BUG: not creating mapping for 0x%08llx"
@@ -888,34 +956,37 @@ static void __init create_mapping(struct map_desc *md)
 	}
 
 	type = &mem_types[md->type];
-	
-	//[MT_MEMORY] = {
-	//	.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
+	// [MT_MEMORY] = {
+	//	.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY | L_PTE_SHARED | L_PTE_SHARED | L_PTE_MT_WRITEALLOC
 	//	.prot_l1   = PMD_TYPE_TABLE,
-	//	.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
+	//	.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_S | (PMD_SECT_TEX(1) | PMD_SECT_CACHEABLE | PMD_SECT_BUFFERABLE
 	//	.domain    = DOMAIN_KERNEL,
-	//}
-#ifndef CONFIG_ARM_LPAE
+	
+#ifndef CONFIG_ARM_LPAE		// N
 	/*
 	 * Catch 36-bit addresses
 	 */
 
-	// md->pfn : 0x40000
+	// md->pfn : 0x20000
 	if (md->pfn >= 0x100000) {
 		create_36bit_mapping(md, type);
 		return;
 	}
 #endif
 
+	// md->virtual : 0xC0000000, PAGE_MASK : 0xFFFFF000
 	addr = md->virtual & PAGE_MASK;
-	// md->virtual : 0xC0000000, PAGE_MASK : 0xFFFFF000, addr : 0xC0000000
-	// md.virtual: 0xffff0000, PAGE_MASK: 0xFFFFF000, addr: 0xffff0000
+	// addr : 0xC0000000
+	
+	// md->pfn: 0x20000
 	phys = __pfn_to_phys(md->pfn);
-	// md->pfn: 0x40000, phys: 0x40000000
-	// md->pfn: 0x6F7FE, phys: 0x6F7FE000
+	// phys: 0x20000000
+	
+	// md->length: 0x2f800000, md->virtual & ~PAGE_MASK : 0
 	length = PAGE_ALIGN(md->length + (md->virtual & ~PAGE_MASK));
-	// md.length: 0x2f800000, length: 0x2f800000
-	// md.length: 0x1000, length: 0x1000
+	// length: 0x2f800000
+	
+	// type->prot_l1 = PMD_TYPE_TABLE
 	if (type->prot_l1 == 0 && ((addr | phys | length) & ~SECTION_MASK)) {
 		printk(KERN_WARNING "BUG: map for 0x%08llx at 0x%08lx can not "
 		       "be mapped using pages, ignoring.\n",
@@ -923,22 +994,24 @@ static void __init create_mapping(struct map_desc *md)
 		return;
 	}
 
+	// [1] addr: 0xC0000000, pgd: 0xB0004000 + 0x600 * 8
+	// [2] addr: 0xFFFF0000, pgd: 0xB0004000 + 0x7FF * 8
 	pgd = pgd_offset_k(addr);
-	// addr: 0xC0000000, pgd: 0xc0004000 + 0x600 * 8
-	// addr: 0xffff0000, pgd: 0xc0004000 + 0x7FF * 8
 	// 가상 주소를 넣었을 때 찾아가는 pgd 테이블의 주소를 찾아냄
+	
+	// [1] end: 0xC0000000 + 0x2F800000: 0xEf800000
+	// [2] end: 0xFFFF0000 + 0x1000: 0xFFFF1000
 	end = addr + length;
-	// end: 0xC0000000 + 0x2f800000: 0xef800000
-	// end: 0xffff0000 + 0x1000: 0xffff1000
 	// 매핑할 가상 주소의 마지막 값
+	
 	do {
+		// [1] addr: 0xC0000000, end: 0xEf800000, next: 0xC0200000
+		// [2] addr: 0xFFFF0000, end: 0xFFFF1000, next: 0xFFFF1000
 		unsigned long next = pgd_addr_end(addr, end);
-		// addr: 0xC0000000, end: 0xef800000, next: 0xC0200000
-		// addr: 0xffff0000, end: 0xffff1000, next: 0xffff1000
 		// 2MB씩 자르거나 그것보다 end가 적으면 end를 next로 설정
 
-		// pgd: 0xC0007000, addr: 0xC0000000, next: 0xC0200000, phys: 0x40000000
-		// pgd: 0xC0007FF8, addr: 0xFFFF0000, next: 0xFFFF1000, phys: 0x6F7FE000
+		// [1] pgd: 0xC0007000, addr: 0xC0000000, next: 0xC0200000, phys: 0x20000000, type : mem_types[MT_MEMORY]
+		// [2] pgd: 0xC0007FF8, addr: 0xFFFF0000, next: 0xFFFF1000, phys: 0x6F7FE000
 		alloc_init_pud(pgd, addr, next, phys, type);
 
 		phys += next - addr;
@@ -1354,6 +1427,9 @@ static inline void prepare_page_table(void)
 	// PMD_SIZE : 0x00200000 (2MB) 
 	for (addr = 0; addr < MODULES_VADDR; addr += PMD_SIZE)
 		pmd_clear(pmd_off_k(addr));
+		// pgd : section (1MB)
+		// pte : small page (4KB)
+		//
 		// return pmd_offset(pud_offset(pgd_offset_k(virt), virt), virt);
 		// #define pud_offset(pgd, start)		(pgd)
 		// #define pgd_offset_k(addr)	pgd_offset(&init_mm, addr)
@@ -1373,16 +1449,18 @@ static inline void prepare_page_table(void)
 		// 그러므로 1씩 증가시켜야 pgd 2개가 올라가게 된다.
 		
 	// 위 반복문을 통해 하는 작업은 USER 영역인 0x00000000 ~ 0xbf000000 에 대한
-	// PGD 테이블을 Data Cache Clean >> TLB를 날림.
+	// PGD 테이블을 전부 0으로 초기화 하고, 해당하는 Data Cache Clean >> TLB를 날림.
+	// 즉, 해당 가상 주소를 담당하는 1차 페이지 테이블을 전부 삭제
+	// 어차피 쓰지도 않았기 때문에 0으로 초기화해도 문제 없음
 
-#ifdef CONFIG_XIP_KERNEL
+#ifdef CONFIG_XIP_KERNEL	// N
 	/* The XIP kernel is mapped in the module area -- skip over it */
 	addr = ((unsigned long)_etext + PMD_SIZE - 1) & PMD_MASK;
 #endif
 	for ( ; addr < PAGE_OFFSET; addr += PMD_SIZE)
 		pmd_clear(pmd_off_k(addr));
 	// 0xbf000000 ~ 0xc0000000 에 대한
-	// PGD 테이블을 Data Cache Clean
+	// PGD 테이블을 지우고, 해당  Data Cache Clean
 	
 	/*
 	 * Find the end of the first block of lowmem.
@@ -1393,7 +1471,7 @@ static inline void prepare_page_table(void)
 	
 	if (end >= arm_lowmem_limit)
 		end = arm_lowmem_limit;
-	// arm_lowmem_limit : 0x6f800000
+	// arm_lowmem_limit : 0x4f800000
 	// 그러므로 end 값이 arm_lowmem_limit가 됨
 	// bank 0 의 마지막 주소임
 	
@@ -1405,8 +1483,7 @@ static inline void prepare_page_table(void)
 	// adddr : 0xef800000, VMALLOC_START : 0xF0000000 임 
 	for (addr = __phys_to_virt(end); addr < VMALLOC_START; addr += PMD_SIZE)
 		pmd_clear(pmd_off_k(addr));
-
-	// 그러므로 buffer 8MB 에 대한 PGD 테이블을 Data Cache Clean
+	// 그러므로 buffer 8MB 에 대한 PGD 테이블을 지우고,  Data Cache Clean
 }
 
 #ifdef CONFIG_ARM_LPAE
@@ -1591,7 +1668,7 @@ static void __init map_lowmem(void)
 	/* Map all the lowmem memory banks. */
 	// lowmem 영역을 매핑
 	// lowmem은 커널 영역의 아랫 부분이며
-	// 물리 메모리 위치 : 0x40000000 ~ 0x6f800000 (760MB)
+	// 물리 메모리 위치 : 0x20000000 ~ 0x4f800000 (760MB)
 	// 가상 메모리 위치 : 0xC0000000 ~ 0xEF800000 (760MB)
 
 	// for (reg = memblock.memory.regions; reg < memblock.memory.regions + memblock.memory.cnt; reg++)
@@ -1600,11 +1677,11 @@ static void __init map_lowmem(void)
 		phys_addr_t end = start + reg->size;
 		struct map_desc map;
 		
-		// end : 0xC0000000 , arm_lowmem_limit : 0x6f800000
+		// end : 0xC0000000 , arm_lowmem_limit : 0x4f800000
 		if (end > arm_lowmem_limit)
 			end = arm_lowmem_limit;
 
-		// start : 0x40000000, end : 0x6f800000
+		// start : 0x20000000, end : 0x4f800000
 		if (start >= end)
 			break;
 		// 위 2개의 if 문은 start, end의 위치를 lowmem 영역에 맞추는 작업임
@@ -1612,7 +1689,7 @@ static void __init map_lowmem(void)
 		
 		map.pfn = __phys_to_pfn(start);
 		// 프레임 번호를 긁어 옴 (4KB 단위 크기 프레임)
-		// map.pfn : 0x40000
+		// map.pfn : 0x20000
 		map.virtual = __phys_to_virt(start);
 		// map.virtual : 0xC0000000  (가상 메모리 시작 주소)
 		map.length = end - start;
@@ -1620,13 +1697,15 @@ static void __init map_lowmem(void)
 		map.type = MT_MEMORY;
 
 		create_mapping(&map);
-		// map 정보에 맞게 mmu를 위한 section 자료 구조를 생성함.
+		// map 정보에 맞게 mmu를 위한 페이지 테이블 자료 구조를 생성함.
 		// map의 각 인자 값이 의미 하는 것은?
 		// virtual : 가상 주소의 시작값
 		// pfn : 물리 주소의 시작 프레임 번호 (내부에서 물리 주소의 시작 주소로 변경)
 		// length : 매핑할 크기.
 		// type : section 설정 필드에 넣어줄 설정값들
 	}
+
+	// 물리 주소 0x20000000 - 0x4F800000 lowmem 영역을 가상 주소 0xC0000000 - 0xEF800000으로 매핑시킴 
 }
 
 /*
@@ -1639,19 +1718,21 @@ void __init paging_init(struct machine_desc *mdesc)
 	
 	build_mem_type_table();
 	// 아키텍쳐 설정에 따라 mem_type 배열을 세팅 하였음.
+	// 이 배열은 section과 small page 설정 시 사용될 예정
 
 	prepare_page_table();
-	// PGD 테이블 초기화 (User 영역, Module 영역, Buffer 8MB 영역)
+	// User 영역, Module 영역, Buffer 8MB 영역에 대한
+	// 1차 페이지 테이블을 초기화
 	
 	map_lowmem();
-	// lowmem 영역에 대하여
-	// First-level Table에 Section들을 만들어 줌.
-	// Read/write & No access Access only at PL1 or higher 권한 설정
-	// 대응하는 Physical 위치 설정
-	// 나머지는 0으로 밀어버림
+	// lowmem 영역에 대하여 페이지 테이블을 만들어 줌
+	// 물리 주소 0x20000000 - 0x4F800000 lowmem 영역을 가상 주소 0xC0000000 - 0xEF800000으로 매핑시킴 
+	// PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_S | (PMD_SECT_TEX(1) | PMD_SECT_CACHEABLE | PMD_SECT_BUFFERABLE
+	// 로 섹션 플래그가 설정됨
 	
 	dma_contiguous_remap();
 	// 그냥 통과
+	
 	devicemaps_init(mdesc);
 	// vectors, io memory map 설정
 	kmap_init();
