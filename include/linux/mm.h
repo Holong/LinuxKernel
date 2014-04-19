@@ -1334,11 +1334,16 @@ extern void adjust_managed_page_count(struct page *page, long count);
 extern void mem_init_print_info(const char *str);
 
 /* Free the reserved page into the buddy system, so it gets managed. */
+// page : 0x4F800을 담당하는 struct page
 static inline void __free_reserved_page(struct page *page)
 {
 	ClearPageReserved(page);
+	// flags의 PG_reserved 플래그 삭제
+	// PAGEFLAG
 	init_page_count(page);
+	// page의 _count를 1로 설정
 	__free_page(page);
+	// order 0으로 버디에 등록 
 }
 
 static inline void free_reserved_page(struct page *page)
@@ -1372,8 +1377,12 @@ static inline unsigned long get_num_physpages(void)
 	int nid;
 	unsigned long phys_pages = 0;
 
+	// for(nid = 0; nid == 0; nid = 1)
 	for_each_online_node(nid)
 		phys_pages += node_present_pages(nid);
+	// contig_page_data->node_present_pages 값이
+	// phys_pages에 저장됨
+	// phys_pages : 0x80000
 
 	return phys_pages;
 }

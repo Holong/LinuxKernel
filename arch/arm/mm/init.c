@@ -710,50 +710,80 @@ static void __init free_unused_memmap(struct meminfo *mi)
 }
 
 #ifdef CONFIG_HIGHMEM
+// pfn : 0x4F800, end : 0x50000
 static inline void free_area_high(unsigned long pfn, unsigned long end)
 {
+	// pfn : 0x4F800, end : 0x50000
 	for (; pfn < end; pfn++)
+		// pfn_to_page(pfn) : 0x4F800을 담당하는 struct page
 		free_highmem_page(pfn_to_page(pfn));
+		// 버디에 등록하고 contig_page_data 내부 변경
+		
 }
 #endif
 
 static void __init free_highpages(void)
 {
 #ifdef CONFIG_HIGHMEM
+	// max_low_pfn : 0x2F800, PHYS_PFN_OFFSET : 0x20000
 	unsigned long max_low = max_low_pfn + PHYS_PFN_OFFSET;
+	// max_low : 0x4F800
+	// Lowmem의 최상위 주소
 	struct memblock_region *mem, *res;
 
 	/* set highmem page free */
+	// memblock.memory 멤버로 접근
 	for_each_memblock(memory, mem) {
 		unsigned long start = memblock_region_memory_base_pfn(mem);
+		// start : 0x20000
 		unsigned long end = memblock_region_memory_end_pfn(mem);
+		// end : 0xA0000
 
 		/* Ignore complete lowmem entries */
+		// end : 0xA0000, max_low : 0x4F800
 		if (end <= max_low)
 			continue;
 
 		/* Truncate partial highmem entries */
+		// start : 0x20000, max_low : 0x4F800
 		if (start < max_low)
 			start = max_low;
+		// start : 0x4F800
+		// highmem 시작 주소로 start를 변경함
 
 		/* Find and exclude any reserved regions */
+		// memblock.reserved 영역에 존재하는 영역을 전부 제외
 		for_each_memblock(reserved, res) {
 			unsigned long res_start, res_end;
 
+			// 가정 : 0x50000 - 0x50100 이 reserved 상태
 			res_start = memblock_region_reserved_base_pfn(res);
 			res_end = memblock_region_reserved_end_pfn(res);
+			// res_start : 0x50000, res_end : 0x50100
 
+			// res_end : 0x50100, start : 0x4F800
 			if (res_end < start)
 				continue;
+
+			// res_start : 0x50000, start : 0x4F800
 			if (res_start < start)
 				res_start = start;
+
+			// res_start : 0x50000, end : 0xA0000
 			if (res_start > end)
 				res_start = end;
+
+			// res_end : 0x50100, end : 0xA0000
 			if (res_end > end)
 				res_end = end;
+
+			// res_start : 0x50000, start : 0x4F800
 			if (res_start != start)
+				// res_start : 0x50000, start : 0x4F800
 				free_area_high(start, res_start);
+				// 버디에 등록
 			start = res_end;
+			// start : 0x50100
 			if (start == end)
 				break;
 		}
@@ -762,6 +792,8 @@ static void __init free_highpages(void)
 		if (start < end)
 			free_area_high(start, end);
 	}
+	// reserved에 등록되지 않은 모든 highmem 메모리를 전부
+	// 메모리에 등록
 #endif
 }
 
@@ -790,15 +822,21 @@ void __init mem_init(void)
 	// bank 사이에 빈 공간이 존재하거나, 64K로 정렬이 되어 있지 않은 부분을 free 해 줌
 
 	free_all_bootmem();
+	// bootmem 할당자에서 관리하는 정보를 이용해
+	// buddy로 전부 새로 등록하고 bootmem 비트맵을 전부 제거
+	// contig_page_data.node_zones[ZONE_NORMAL].free_area[order]에 전부 등록됨
 
-#ifdef CONFIG_SA1111
+#ifdef CONFIG_SA1111		// N
 	/* now that our DMA memory is actually so designated, we can free it */
 	free_reserved_area(__va(PHYS_OFFSET), swapper_pg_dir, -1, NULL);
 #endif
 
 	free_highpages();
+	// reserved에 등록되지 않은 모든 highmem 메모리를 전부
+	// 메모리에 등록
 
 	mem_init_print_info(NULL);
+	// 로그 출력
 
 #define MLK(b, t) b, t, ((t) - (b)) >> 10
 #define MLM(b, t) b, t, ((t) - (b)) >> 20
@@ -856,7 +894,9 @@ void __init mem_init(void)
 	 */
 #ifdef CONFIG_MMU
 	BUILD_BUG_ON(TASK_SIZE				> MODULES_VADDR);
+	// BUILD_BUG_ON : 조건이 참이면 빌드할 때 에러
 	BUG_ON(TASK_SIZE 				> MODULES_VADDR);
+	// BUG_ON : 조건이 참이면 무조건 커널 스톱
 #endif
 
 #ifdef CONFIG_HIGHMEM

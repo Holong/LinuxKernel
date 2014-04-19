@@ -317,18 +317,23 @@ static inline size_t slab_ksize(const struct kmem_cache *s)
 	return s->size;
 }
 
+// order : 3, size : 64, reserved : 0
 static inline int order_objects(int order, unsigned long size, int reserved)
 {
 	return ((PAGE_SIZE << order) - reserved) / size;
+	// 512
 }
 
+// order : 0, size : 64, reserved : 0
 static inline struct kmem_cache_order_objects oo_make(int order,
 		unsigned long size, int reserved)
 {
 	struct kmem_cache_order_objects x = {
+		// OO_SHIFT : 16
 		(order << OO_SHIFT) + order_objects(order, size, reserved)
 	};
 
+	// x.x : 0x40
 	return x;
 }
 
@@ -339,6 +344,8 @@ static inline int oo_order(struct kmem_cache_order_objects x)
 
 static inline int oo_objects(struct kmem_cache_order_objects x)
 {
+	// OO_MASK : 0xFFFF
+	// x.x : 64
 	return x.x & OO_MASK;
 }
 
@@ -1426,6 +1433,8 @@ static void __free_slab(struct kmem_cache *s, struct page *page)
 
 #define need_reserve_slab_rcu						\
 	(sizeof(((struct page *)NULL)->lru) < sizeof(struct rcu_head))
+// struct rcu_head : struct callback_head
+// 0이 됨
 
 static void rcu_free_slab(struct rcu_head *h)
 {
@@ -2703,35 +2712,45 @@ static int slub_nomerge;
  * requested a higher mininum order then we start with that one instead of
  * the smallest order which will fit the object.
  */
+// size : 64, min_objects : 16, max_order : 3, fract_leftover : 16, reserved : 0
 static inline int slab_order(int size, int min_objects,
 				int max_order, int fract_leftover, int reserved)
 {
 	int order;
 	int rem;
 	int min_order = slub_min_order;
+	// min_order : 0
 
+	// min_order : 0, size : 64, reserved : 0
 	if (order_objects(min_order, size, reserved) > MAX_OBJS_PER_PAGE)
 		return get_order(size * MAX_OBJS_PER_PAGE) - 1;
+	// order_objects() : 0x40
 
+	// min_order : 0, min_objects : 16, size : 64, PAGE_SHIFT : 12
 	for (order = max(min_order,
 				fls(min_objects * size - 1) - PAGE_SHIFT);
 			order <= max_order; order++) {
-
+		// order : 0
 		unsigned long slab_size = PAGE_SIZE << order;
+		// slab_size : 4KB
 
+		// min_objects * size : 1024
 		if (slab_size < min_objects * size + reserved)
 			continue;
 
 		rem = (slab_size - reserved) % size;
+		// rem : 0
 
 		if (rem <= slab_size / fract_leftover)
 			break;
 
 	}
-
+	
+	// order : 0
 	return order;
 }
 
+// size : 64, reserved : 0
 static inline int calculate_order(int size, int reserved)
 {
 	int order;
@@ -2747,17 +2766,28 @@ static inline int calculate_order(int size, int reserved)
 	 * First we reduce the acceptable waste in a slab. Then
 	 * we reduce the minimum objects required in a slab.
 	 */
+	// slub_min_objects : 0
 	min_objects = slub_min_objects;
+	// min_objects : 0
 	if (!min_objects)
+		// nr_cpu_ids : 4
 		min_objects = 4 * (fls(nr_cpu_ids) + 1);
+		// min_objects : 16
+	// slub_max_order : 3, size : 64, reserved : 0
 	max_objects = order_objects(slub_max_order, size, reserved);
+	// max_objects : 512
 	min_objects = min(min_objects, max_objects);
+	// min_objects : 16
 
+	// min_objects : 16
 	while (min_objects > 1) {
 		fraction = 16;
 		while (fraction >= 4) {
+			// size : 64, min_objects : 16, slub_max_order : 3, fraction : 16, reserved : 0
 			order = slab_order(size, min_objects,
 					slub_max_order, fraction, reserved);
+			// order : 0
+			// slub_max_order : 3
 			if (order <= slub_max_order)
 				return order;
 			fraction /= 2;
@@ -2898,12 +2928,14 @@ static int init_kmem_cache_nodes(struct kmem_cache *s)
 	return 1;
 }
 
+// s : boot_kmem_cache_node, min : 3
 static void set_min_partial(struct kmem_cache *s, unsigned long min)
 {
 	if (min < MIN_PARTIAL)
 		min = MIN_PARTIAL;
 	else if (min > MAX_PARTIAL)
 		min = MAX_PARTIAL;
+	// min : 5
 	s->min_partial = min;
 }
 
@@ -2911,10 +2943,13 @@ static void set_min_partial(struct kmem_cache *s, unsigned long min)
  * calculate_sizes() determines the order and the distribution of data within
  * a slab object.
  */
+// s : kmem_cache_node, forced_order : -1
 static int calculate_sizes(struct kmem_cache *s, int forced_order)
 {
 	unsigned long flags = s->flags;
+	// flags : SLAB_HWCACHE_ALIGN(0x2000)
 	unsigned long size = s->object_size;
+	// size : 44
 	int order;
 
 	/*
@@ -2923,19 +2958,22 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	 * the possible location of the free pointer.
 	 */
 	size = ALIGN(size, sizeof(void *));
+	// size : 44
 
-#ifdef CONFIG_SLUB_DEBUG
+#ifdef CONFIG_SLUB_DEBUG // Y
 	/*
 	 * Determine if we can poison the object itself. If the user of
 	 * the slab may touch the object after free or before allocation
 	 * then we should never poison the object itself.
 	 */
+	// flags : SLAB_HWCACHE_ALIGN(0x2000)
 	if ((flags & SLAB_POISON) && !(flags & SLAB_DESTROY_BY_RCU) &&
 			!s->ctor)
 		s->flags |= __OBJECT_POISON;
 	else
 		s->flags &= ~__OBJECT_POISON;
-
+		// 이쪽으로 진행
+	// kmem_cache_node.flags : SLAB_HWCACHE_ALIGN(0x2000)
 
 	/*
 	 * If we are Redzoning then check if there is some space between the
@@ -2951,6 +2989,8 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	 * by the object. This is the potential offset to the free pointer.
 	 */
 	s->inuse = size;
+	// kmem_cache_node.inuse : 44
+	// metadata의 offset
 
 	if (((flags & (SLAB_DESTROY_BY_RCU | SLAB_POISON)) ||
 		s->ctor)) {
@@ -2984,23 +3024,34 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 		 */
 		size += sizeof(void *);
 #endif
+	// flags에 의해 전부 통과
 
 	/*
 	 * SLUB stores one object immediately after another beginning from
 	 * offset 0. In order to align the objects we have to simply size
 	 * each object to conform to the alignment.
 	 */
+
+	// size : 44, kmem_cache_node.align : 64
 	size = ALIGN(size, s->align);
+	// size : 64
 	s->size = size;
+	// kmem_cache_node.size : 64
+
+	// forced_order : -1
 	if (forced_order >= 0)
 		order = forced_order;
 	else
+		// size : 64, kmem_cache_node.reserved : 0
 		order = calculate_order(size, s->reserved);
+		// order : 0
 
 	if (order < 0)
 		return 0;
 
 	s->allocflags = 0;
+	// boot_kmem_cache_node.allocflags : 0
+
 	if (order)
 		s->allocflags |= __GFP_COMP;
 
@@ -3009,28 +3060,48 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 
 	if (s->flags & SLAB_RECLAIM_ACCOUNT)
 		s->allocflags |= __GFP_RECLAIMABLE;
+	// 전부 통과
 
 	/*
 	 * Determine the number of objects per slab
 	 */
+	// order : 0, size : 64, s->reserved : 0
 	s->oo = oo_make(order, size, s->reserved);
+	// boot_kmem_cache_node.oo.x : 0x40 
+
 	s->min = oo_make(get_order(size), size, s->reserved);
+	// boot_kmem_cache_node.min.x : 0x40
+
 	if (oo_objects(s->oo) > oo_objects(s->max))
 		s->max = s->oo;
+		// boot_kmem_cache_node.max.x : 0x40
 
 	return !!oo_objects(s->oo);
 }
 
+// s : &boot_kmem_cache_node, flags : SLAB_HWCACHE_ALIGN(0x2000)
 static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 {
+	// boot_kmem_cache_node.size : 44, flags : SLAB_HWCACHE_ALIGN(0x2000),
+	// boot_kmem_cache_node.name : "kmem_cache_node", s->ctor : 0
 	s->flags = kmem_cache_flags(s->size, flags, s->name, s->ctor);
+	// s->flags : flags 값이 그대로 대입됨, SLAB_HWCACHE_ALIGN(0x2000)
 	s->reserved = 0;
+	// boot_kmem_cache_node.size : 44
+	// boot_kmem_cache_node.name : "kmem_cache_node"
+	// boot_kmem_cache_node.flags : 0x2000
+	// boot_kmem_cache_node.reserved : 0
 
+	// need_reserve_slab_rcu : 0
 	if (need_reserve_slab_rcu && (s->flags & SLAB_DESTROY_BY_RCU))
 		s->reserved = sizeof(struct rcu_head);
 
+	// s : &boot_kmem_cache_node
+	// calculate_sizes(s, -1) : 1		order와 objects 개수를 계산해 저장함
 	if (!calculate_sizes(s, -1))
 		goto error;
+
+	// disable_higher_order_debug : 0
 	if (disable_higher_order_debug) {
 		/*
 		 * Disable debugging flags that store metadata if the min slab
@@ -3043,9 +3114,10 @@ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 				goto error;
 		}
 	}
+	// 통과됨
 
 #if defined(CONFIG_HAVE_CMPXCHG_DOUBLE) && \
-    defined(CONFIG_HAVE_ALIGNED_STRUCT_PAGE)
+    defined(CONFIG_HAVE_ALIGNED_STRUCT_PAGE)		// N
 	if (system_has_cmpxchg_double() && (s->flags & SLAB_DEBUG_FLAGS) == 0)
 		/* Enable fast mode */
 		s->flags |= __CMPXCHG_DOUBLE;
@@ -3055,7 +3127,11 @@ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 	 * The larger the object size is, the more pages we want on the partial
 	 * list to avoid pounding the page allocator excessively.
 	 */
+	// s : boot_kmem_cache_node
+	// s.size : 64
+	// ilog2(64)/2 : 3
 	set_min_partial(s, ilog2(s->size) / 2);
+	// boot_kmem_cache_node.min_partial : 5 로 설정
 
 	/*
 	 * cpu_partial determined the maximum number of objects kept in the
@@ -3605,13 +3681,17 @@ void __init kmem_cache_init(void)
 {
 	static __initdata struct kmem_cache boot_kmem_cache,
 		boot_kmem_cache_node;
+	// slub_def.h에 있는 구조체가 사용됨
 
 	if (debug_guardpage_minorder())
 		slub_max_order = 0;
+	// 통과
 
 	kmem_cache_node = &boot_kmem_cache_node;
 	kmem_cache = &boot_kmem_cache;
+	// 지역 변수 주소를 전역 변수에 대입
 
+	// sizeof(struct kmem_cache_node) : 44byte, SLAB_HWCACHE_ALIGN : 0x00002000
 	create_boot_cache(kmem_cache_node, "kmem_cache_node",
 		sizeof(struct kmem_cache_node), SLAB_HWCACHE_ALIGN);
 
@@ -3742,6 +3822,7 @@ __kmem_cache_alias(struct mem_cgroup *memcg, const char *name, size_t size,
 	return s;
 }
 
+// s : &boot_kmem_cache_node, flags : SLAB_HWCACHE_ALIGN(0x2000)
 int __kmem_cache_create(struct kmem_cache *s, unsigned long flags)
 {
 	int err;

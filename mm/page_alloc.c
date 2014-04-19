@@ -5747,12 +5747,21 @@ unsigned long free_reserved_area(void *start, void *end, int poison, char *s)
 EXPORT_SYMBOL(free_reserved_area);
 
 #ifdef	CONFIG_HIGHMEM
+// page : 0x4F800을 담당하는 struct page
 void free_highmem_page(struct page *page)
 {
 	__free_reserved_page(page);
+	// page가 관리하는 영역을 버디에 등록
+
 	totalram_pages++;
+	// 총 페이지 수 증가
+
 	page_zone(page)->managed_pages++;
+	// contig_page_data.node_zones[ZONE_HIGHMEM]의 
+	// 관리 페이지 수를 증가
+
 	totalhigh_pages++;
+	// high 페이지 개수 증가
 }
 #endif
 
@@ -5763,12 +5772,25 @@ void __init mem_init_print_info(const char *str)
 	unsigned long init_code_size, init_data_size;
 
 	physpages = get_num_physpages();
+	// physpages : 0x80000
+
 	codesize = _etext - _stext;
+	// codesize : 커널 코드 사이즈
+
 	datasize = _edata - _sdata;
+	// datasize : 커널 데이터 사이즈
+
 	rosize = __end_rodata - __start_rodata;
+	// rosize : 커널 readonly 사이즈
+
 	bss_size = __bss_stop - __bss_start;
+	// bss_size : 커널 bss 사이즈
+
 	init_data_size = __init_end - __init_begin;
+	// init_data_size : 커널 init data 사이즈
+
 	init_code_size = _einittext - _sinittext;
+	// init_code_size : 커널 init 코드 사이즈
 
 	/*
 	 * Detect special cases and adjust section sizes accordingly:

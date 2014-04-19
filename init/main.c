@@ -487,6 +487,13 @@ static void __init mm_init(void)
 	// NULL 함수
 
 	mem_init();
+	// bootmem 할당자에 저장되어 있던 할당 정보와
+	// reserved 정보를 이용해서 free 상태인 페이지들을 전부
+	// 버디 할당자에게 넘겨줌
+	// contig_page_data.node_zones 안의 리스트로 연결되어 있음
+
+	// slub으로 이동. CONFIG에 의해 slab, slub, slob 중에
+	// 필요에 맞는 것으로 사용됨
 	kmem_cache_init();
 	percpu_init_late();
 	pgtable_cache_init();
