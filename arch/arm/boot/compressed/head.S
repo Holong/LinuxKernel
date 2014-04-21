@@ -1532,7 +1532,7 @@ loop3:
 		mcr	p15, 0, r11, c7, c14, 2	@ clean & invalidate by set/way
 						// clean : 캐쉬 내용을 전부 메모리에 반영
 						// invalidate : 캐쉬 내용을 무효화
-								그러므로 hit은 발생하지 않음 무조건 다시 불러와야 함.
+						//		그러므로 hit은 발생하지 않음 무조건 다시 불러와야 함.
 		subs	r9, r9, #1		@ decrement the way
 						// r9을 하나 줄임
 						// way를 줄이는 것임

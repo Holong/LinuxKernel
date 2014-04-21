@@ -3084,8 +3084,8 @@ static unsigned long nr_free_zone_pages(int offset)
 
 	// zone : ?, z : ?, zonelist : contig_page_data.node_zonelists, offset : 0
 	for_each_zone_zonelist(zone, z, zonelist, offset) {
-	// for (z = first_zones_zonelist(zonelist, 0, NULL, &zone); zone; \
-		z = next_zones_zonelist(++z, 0, NULL, &zone))
+	// for (z = first_zones_zonelist(zonelist, 0, NULL, &zone); zone;
+	//	z = next_zones_zonelist(++z, 0, NULL, &zone))
 		// zone : contig_page_data.node_zonelists._zonerefs[1]
 		// z : contig_page_data.node_zones[ZONE_NORMAL]
 

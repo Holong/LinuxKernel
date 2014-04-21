@@ -515,23 +515,23 @@ static inline void clean_pmd_entry(void *pmd)
 	//		f >> TLB_DCLEAN
 	//		그러므로 if 구문은 통과하고 else if는 수행함.
 	//
-	//		if (always_tlb_flags & (f))				\
-				asm("mcr " insnarg				\
-			    		: : "r" (arg) : "cc");			\
-			else if (possible_tlb_flags & (f))			\
-				asm("tst %1, %2\n\t"				\
-			    		"mcrne " insnarg				\
-			    		: : "r" (arg), "r" (__tlb_flag), "Ir" (f)	\
-			    		: "cc");		
+	//		if (always_tlb_flags & (f))				
+	//			asm("mcr " insnarg				
+	//		    		: : "r" (arg) : "cc");			
+	//		else if (possible_tlb_flags & (f))			
+	//			asm("tst %1, %2\n\t"				
+	//		    		"mcrne " insnarg			
+	//		    		: : "r" (arg), "r" (__tlb_flag), "Ir" (f)	
+	//		    		: "cc");		
 	//
 	//		else if 밑의 인라인 어셈을 풀면 다음과 같다.
 	//		
 	//              #define tlb_op(f, regs, arg)	__tlb_op(f, "p15, 0, %0, " regs, arg)
 	//		#define __tlb_op(f, insnarg, arg)					
-	//		asm("tst %1, %2\n\t"							\
-			    		"mcrne " insnarg					\
-			    		: : "r" (pmd), "r" (__tlb_flag), "Ir" (TLB_DCLEAN)	\
-			    		: "cc");	
+	//		asm("tst %1, %2\n\t"							
+	//		    		"mcrne " insnarg					
+	//		    		: : "r" (pmd), "r" (__tlb_flag), "Ir" (TLB_DCLEAN)	
+	//		    		: "cc");	
 	//	
 	//		전부 풀면
 	//

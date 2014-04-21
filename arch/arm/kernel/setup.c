@@ -860,12 +860,14 @@ static void __init request_standard_resources(struct machine_desc *mdesc)
 			// 결론적으로 res의 자식 1번에 kernel_code가 들어가고
 			// kernel_code의 sibiling에 kernel_data가 등록됨
 			//
-			//            res
-			//     /      /          \
-			// parent  child       parent
-			//  /      /               \
-			// kernel_code  ------->  kernel_data ------> null
-			//                sibling
+			/*
+			              res
+			       /      /          \
+			   parent  child       parent
+			    /      /               \
+			   kernel_code  ------->  kernel_data ------> null
+			                sibling
+			*/
 	}
 
 	if (mdesc->video_start) {
@@ -1082,14 +1084,14 @@ void __init setup_arch(char **cmdline_p)
 	// zone memory map 설정, zero_page 설정
 
 	request_standard_resources(mdesc);
-	// iomem_resource를 root로 하는 트리에 res를 노드로 등록함
-	//            res
-	//     /      /          \
-	// parent  child       parent
-	//  /      /               \
-	// kernel_code  ------->  kernel_data ------> null
-	//                sibling
-
+	/* iomem_resource를 root로 하는 트리에 res를 노드로 등록함
+	              res
+	       /      /          \
+	   parent  child       parent
+	    /      /               \
+	   kernel_code  ------->  kernel_data ------> null
+	                         sibling
+	*/
 	if (mdesc->restart)
 		arm_pm_restart = mdesc->restart;
 
