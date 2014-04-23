@@ -726,7 +726,9 @@ static pte_t * __init early_pte_alloc(pmd_t *pmd, unsigned long addr, unsigned l
 		// page table 에 pte 테이블 시작 주소와 속성을 설정해 줌.
 	}
 	BUG_ON(pmd_bad(*pmd));
-	// 버그 존재 여부 확인
+	// 이전에 section용 자료가 만들어져 있는 경우 버그
+	// section으로 이미 관리되고 있는데, small page를 연결하려고 하면 버그가 출력됨
+	
 	return pte_offset_kernel(pmd, addr);
 	// small page의 위치 주소를 뽑아냄 (2차 테이블 내의 자료 주소 값)
 }

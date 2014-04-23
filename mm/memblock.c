@@ -886,7 +886,7 @@ int __init_memblock memblock_set_node(phys_addr_t base, phys_addr_t size,
 	return 0;
 }
 #endif /* CONFIG_HAVE_MEMBLOCK_NODE_MAP */
-// 인자 : 8K 8K 0 1
+// [1] size : 8K, align : 8K, max_addr :  0, nid : 1
 // size : 0x6000, align : 64, max_addr : 0x4F800000, nid : 1
 static phys_addr_t __init memblock_alloc_base_nid(phys_addr_t size,
 					phys_addr_t align, phys_addr_t max_addr,
@@ -897,6 +897,7 @@ static phys_addr_t __init memblock_alloc_base_nid(phys_addr_t size,
 	if (WARN_ON(!align))
 		align = __alignof__(long long);
 	// align 이 0일 때 경고 메시지 찍고, align 함
+	
 	/* align @size to avoid excessive fragmentation on reserved array */
 	size = round_up(size, align);
 	// size를 align에 맞게 올림
