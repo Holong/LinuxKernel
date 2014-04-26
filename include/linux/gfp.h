@@ -104,6 +104,9 @@ struct vm_area_struct;
 
 /* This equals 0, but use constants in case they ever change */
 #define GFP_NOWAIT	(GFP_ATOMIC & ~__GFP_HIGH)
+// GFP_ATOMIC : __GFP_HIGH와 동일
+// GFP_NOWAIT : 0
+
 /* GFP_ATOMIC means both !wait (__GFP_WAIT not set) and use emergency pool */
 #define GFP_ATOMIC	(__GFP_HIGH)
 #define GFP_NOIO	(__GFP_WAIT)
@@ -154,6 +157,7 @@ struct vm_area_struct;
 #define GFP_DMA32	__GFP_DMA32
 
 /* Convert GFP flags to their corresponding migrate type */
+// gfp_flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK (0x201200)
 static inline int allocflags_to_migratetype(gfp_t gfp_flags)
 {
 	WARN_ON((gfp_flags & GFP_MOVABLE_MASK) == GFP_MOVABLE_MASK);
@@ -306,6 +310,8 @@ struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 		       struct zonelist *zonelist, nodemask_t *nodemask);
 
+// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK, order : 0
+// zonelist : contig_page_data.node_zonelist[0]
 static inline struct page *
 __alloc_pages(gfp_t gfp_mask, unsigned int order,
 		struct zonelist *zonelist)
@@ -323,11 +329,13 @@ static inline struct page *alloc_pages_node(int nid, gfp_t gfp_mask,
 	return __alloc_pages(gfp_mask, order, node_zonelist(nid, gfp_mask));
 }
 
+// nid : 0, gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK, order : 0
 static inline struct page *alloc_pages_exact_node(int nid, gfp_t gfp_mask,
 						unsigned int order)
 {
 	VM_BUG_ON(nid < 0 || nid >= MAX_NUMNODES || !node_online(nid));
 
+	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK, order : 0, nid : 0
 	return __alloc_pages(gfp_mask, order, node_zonelist(nid, gfp_mask));
 }
 

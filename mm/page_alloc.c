@@ -2060,6 +2060,10 @@ static inline void init_zone_allows_reclaim(int nid)
  * get_page_from_freelist goes through the zonelist trying to allocate
  * a page.
  */
+// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL
+// nodemask : NULL, order : 0, zonelist : contig_page_data.node_zones, high_zoneidx : 0
+// alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET, preferred_zone : node_zones[0]
+// migratetype : MIGRATE_UNMOVABLE
 static struct page *
 get_page_from_freelist(gfp_t gfp_mask, nodemask_t *nodemask, unsigned int order,
 		struct zonelist *zonelist, int high_zoneidx, int alloc_flags,
@@ -2813,25 +2817,43 @@ got_pg:
 /*
  * This is the 'heart' of the zoned buddy allocator.
  */
+// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK, order : 0
+// zonelist : contig_page_data.node_zonelist[0], nodemask : NULL
 struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 			struct zonelist *zonelist, nodemask_t *nodemask)
 {
 	enum zone_type high_zoneidx = gfp_zone(gfp_mask);
+	// high_zoneidx : 0
+
 	struct zone *preferred_zone;
 	struct page *page = NULL;
+
 	int migratetype = allocflags_to_migratetype(gfp_mask);
+	// gfp_mask를 이용해 migratetype을 결정해줌
+	// 0이 됨 (MIGRATE_UNMOVABLE)
+
 	unsigned int cpuset_mems_cookie;
 	int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET;
+	// alloc_flags : 0x41
 	struct mem_cgroup *memcg = NULL;
 
+	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK
+	// gfp_allowed_mask = GFP_BOOT_MASK
 	gfp_mask &= gfp_allowed_mask;
+	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK
+	// 변화 없음
 
 	lockdep_trace_alloc(gfp_mask);
+	// NULL 함수
 
+	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK
 	might_sleep_if(gfp_mask & __GFP_WAIT);
+	// __GFP_WAIT 플래그가 존재하는 지 검사
+	// 없으므로 아무 것도 하지 않음
 
 	if (should_fail_alloc_page(gfp_mask, order))
+		// return false로 무조건 반환
 		return NULL;
 
 	/*
@@ -2847,23 +2869,36 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	 * verified in the (always inline) callee
 	 */
 	if (!memcg_kmem_newpage_charge(gfp_mask, &memcg, order))
+		// 무조건 true 반환
 		return NULL;
 
 retry_cpuset:
 	cpuset_mems_cookie = get_mems_allowed();
+	// cpuset_mems_cookie : 항상 0
 
 	/* The preferred zone is used for statistics later */
+	// zonelist : contig_page_data->node_zonelists
+	// high_zoneidx : 0(ZONE_NORMAL), nodemask : NULL
+	// cpuset_current_mems_allowed : node_states[N_HIGH_MEMORY]
+	// 					N_HIGH_MEMORY와 N_MEMORY는 동일하기 때문임
+	// preferred_zone : 지역 변수 주소
 	first_zones_zonelist(zonelist, high_zoneidx,
 				nodemask ? : &cpuset_current_mems_allowed,
 				&preferred_zone);
+	// preferred_zone : (&contig_page_data)->node_zones[0]
+
 	if (!preferred_zone)
 		goto out;
 
-#ifdef CONFIG_CMA
+#ifdef CONFIG_CMA	// N
 	if (allocflags_to_migratetype(gfp_mask) == MIGRATE_MOVABLE)
 		alloc_flags |= ALLOC_CMA;
 #endif
 	/* First allocation attempt */
+	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL
+	// nodemask : NULL, order : 0, zonelist : contig_page_data.node_zones, high_zoneidx : 0
+	// alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET, preferred_zone : node_zones[0]
+	// migratetype : MIGRATE_UNMOVABLE
 	page = get_page_from_freelist(gfp_mask|__GFP_HARDWALL, nodemask, order,
 			zonelist, high_zoneidx, alloc_flags,
 			preferred_zone, migratetype);

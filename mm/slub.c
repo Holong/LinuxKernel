@@ -337,9 +337,12 @@ static inline struct kmem_cache_order_objects oo_make(int order,
 	return x;
 }
 
+// oo.x : 0x40
 static inline int oo_order(struct kmem_cache_order_objects x)
 {
+	// x.x : 0x40
 	return x.x >> OO_SHIFT;
+	// return 0
 }
 
 static inline int oo_objects(struct kmem_cache_order_objects x)
@@ -1273,37 +1276,57 @@ static inline void slab_free_hook(struct kmem_cache *s, void *x) {}
 /*
  * Slab allocation and freeing
  */
+// flags : 0x1200, node : 0, oo : boot_kmem_cache_node.oo
 static inline struct page *alloc_slab_page(gfp_t flags, int node,
 					struct kmem_cache_order_objects oo)
 {
+	// oo.x : 0x40
 	int order = oo_order(oo);
+	// oo.x 값을 이용해 이전에 구했던 order 값을 재 계산
+	// order : 0
 
 	flags |= __GFP_NOTRACK;
-
+	// flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK 설정
+	//         __GFP_NOFAIL 플래그는 제거함
+	
+	// node : 0
 	if (node == NUMA_NO_NODE)
 		return alloc_pages(flags, order);
 	else
+		// node : 0, flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK, order : 0
 		return alloc_pages_exact_node(node, flags, order);
 }
 
+// s : boot_keme_cache_node, flags : 0, node : 0
 static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 {
 	struct page *page;
 	struct kmem_cache_order_objects oo = s->oo;
+	// oo.x : 0x40
 	gfp_t alloc_gfp;
 
+	// gfp_allowed_mask = GFP_BOOT_MASK;
+	// GFP_BOOT_MASK : 0x01FFFF2F
 	flags &= gfp_allowed_mask;
+	// flags : 0
 
+	// __GFP_WAIT : 0x10
 	if (flags & __GFP_WAIT)
 		local_irq_enable();
+		// __GFP_WAIT 플래그가 존재하면 irq 승인
+		// 즉 메모리 할당 작업 시 잠들 수 있다는 뜻임
 
 	flags |= s->allocflags;
+	// flags : 0
 
 	/*
 	 * Let the initial higher-order allocation fail under memory pressure
 	 * so we fall-back to the minimum order allocation.
 	 */
 	alloc_gfp = (flags | __GFP_NOWARN | __GFP_NORETRY) & ~__GFP_NOFAIL;
+	// alloc_gfp : __GFP_NOWARN | __GFP_NORETRY 설정
+	//		__GFP_NOFAIL 플래그는 제거함
+	// alloc_gfp : 0x1200
 
 	page = alloc_slab_page(alloc_gfp, node, oo);
 	if (unlikely(!page)) {
@@ -1356,6 +1379,7 @@ static void setup_object(struct kmem_cache *s, struct page *page,
 		s->ctor(object);
 }
 
+// s : boot_keme_cache_node, flags : GFP_NOWAIT(0), node : 0
 static struct page *new_slab(struct kmem_cache *s, gfp_t flags, int node)
 {
 	struct page *page;
@@ -1364,8 +1388,10 @@ static struct page *new_slab(struct kmem_cache *s, gfp_t flags, int node)
 	void *p;
 	int order;
 
+	// flags : GFP_NOWAIT
 	BUG_ON(flags & GFP_SLAB_BUG_MASK);
 
+	// s : boot_keme_cache_node, 0, node : 0
 	page = allocate_slab(s,
 		flags & (GFP_RECLAIM_MASK | GFP_CONSTRAINT_MASK), node);
 	if (!page)
@@ -2856,13 +2882,18 @@ static struct kmem_cache *kmem_cache_node;
  * when allocating for the kmalloc_node_cache. This is used for bootstrapping
  * memory on a fresh node that has no slab structures yet.
  */
+// node : 0
 static void early_kmem_cache_node_alloc(int node)
 {
 	struct page *page;
 	struct kmem_cache_node *n;
 
+	// kmem_cache_node >> boot_kmem_cache_node 임
+	// size : 64, sizeof(struct kmem_cache_node) : 44
 	BUG_ON(kmem_cache_node->size < sizeof(struct kmem_cache_node));
+	// 버그 아님
 
+	// kmem_cache_node : boot_keme_cache_node, GFP_NOWAIT : 0, node : 0
 	page = new_slab(kmem_cache_node, GFP_NOWAIT, node);
 
 	BUG_ON(!page);
@@ -2903,13 +2934,16 @@ static void free_kmem_cache_nodes(struct kmem_cache *s)
 	}
 }
 
+// s : boot_kmem_cache_node
 static int init_kmem_cache_nodes(struct kmem_cache *s)
 {
 	int node;
 
 	for_each_node_state(node, N_NORMAL_MEMORY) {
+	// for ( (node) = 0; (node) == 0; (node) = 1)
 		struct kmem_cache_node *n;
 
+		// slab_state : 0
 		if (slab_state == DOWN) {
 			early_kmem_cache_node_alloc(node);
 			continue;
@@ -3159,11 +3193,13 @@ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 	else if (s->size >= 256)
 		s->cpu_partial = 13;
 	else
-		s->cpu_partial = 30;
-
+		// s->cpu_partial: boot_kmem_cache_node.cpu_partial: 0
+		s->cpu_partial = 30; 
+		// boot_kmem_cache_node.cpu_partial: 30
 #ifdef CONFIG_NUMA
 	s->remote_node_defrag_ratio = 1000;
 #endif
+	// s : boot_kmem_cache_node
 	if (!init_kmem_cache_nodes(s))
 		goto error;
 
@@ -3694,6 +3730,52 @@ void __init kmem_cache_init(void)
 	// sizeof(struct kmem_cache_node) : 44byte, SLAB_HWCACHE_ALIGN : 0x00002000
 	create_boot_cache(kmem_cache_node, "kmem_cache_node",
 		sizeof(struct kmem_cache_node), SLAB_HWCACHE_ALIGN);
+
+	/*
+	boot_kmem_cache_node : 
+	struct kmem_cache {
+		struct kmem_cache_cpu __percpu *cpu_slab;
+		// Used for retriving partial slabs etc
+		unsigned long flags;	// SLAB_HWCACHE_ALIGN
+		unsigned long min_partial;
+					// 5
+		int size;		// The size of an object including meta data
+					// 64
+		int object_size;	// The size of an object without meta data
+					// 64
+		int offset;		// Free pointer offset
+		int cpu_partial;	// Number of per cpu partial objects to keep around
+					// 30
+		struct kmem_cache_order_objects oo;
+					// oo.x : 0x40
+
+		// Allocation and freeing of slabs
+		struct kmem_cache_order_objects max;
+					// max.x : 0x40
+		struct kmem_cache_order_objects min;
+					// min.x : 0x40
+		gfp_t allocflags;	// gfp flags to use on each alloc
+					// 0
+		int refcount;		// Refcount for slab cache destroy
+		void (*ctor)(void *);
+		int inuse;		// Offset to metadata
+					// 44
+		int align;		// Alignment
+					// 64
+		int reserved;		// Reserved bytes at the end of slabs
+					// 0
+		const char *name;	// Name (only for display!)
+					// name : "kmem_cache_node"
+		struct list_head list;	// List of slab caches
+		struct kobject kobj;	// For sysfs
+
+		struct kmem_cache_node *node[MAX_NUMNODES];
+	};
+
+
+	*/
+
+
 
 	register_hotmemory_notifier(&slab_memory_callback_nb);
 
