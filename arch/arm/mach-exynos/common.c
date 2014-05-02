@@ -316,6 +316,8 @@ static int __init exynos_fdt_map_chipid(unsigned long node, const char *uname,
 		// 둘 중에 하나라도 일치해야 그냥 리턴 됨
 		// 5420은 리턴 되지 않음
 
+	// 즉, 노드의 compatible property가 둘 중 하나인 것이 존재하면 이 쪽으로 들어옴
+	
 	reg = of_get_flat_dt_prop(node, "reg", &len);
 	if (reg == NULL || len != (sizeof(unsigned long) * 2))
 		return 0;

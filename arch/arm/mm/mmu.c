@@ -1548,7 +1548,7 @@ static void __init devicemaps_init(struct machine_desc *mdesc)
 	// VMALLOC_START : 0xF0000000, PMD_SIZE : 0x00200000(2MB)
 	for (addr = VMALLOC_START; addr; addr += PMD_SIZE)
 		pmd_clear(pmd_off_k(addr));
-	// 0xF0000000 ~ 0xFFFFFFFF 에 해당하는 section에 대한 data cache를 전부 클리어
+	// 0xF0000000 ~ 0xFFFFFFFF 에 해당하는 1차 페이지 테이블 전부 삭제
 
 	/*
 	 * Map the kernel if it is XIP.

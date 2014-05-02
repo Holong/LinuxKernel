@@ -114,7 +114,7 @@ phys_addr_t __init_memblock memblock_find_in_range_node(phys_addr_t start,
 	// start와 PAGE_SIZE 중에 큰 값을 start로 대입
 	end = max(start, end);
 	// start와 end 중에 큰 값을 end로 대입
-	// start : 0x1000, end : 0x6f80000
+	// start : 0x1000, end : 0x4f80000
 	for_each_free_mem_range_reverse(i, nid, &this_start, &this_end, NULL) {
 	// for (i = (u64)ULLONG_MAX, __next_free_mem_range_rev(&i, nid, &this_start, &this_end, NULL);
 	//      i != (u64)ULLONG_MAX;
@@ -760,9 +760,9 @@ void __init_memblock __next_free_mem_range_rev(u64 *idx, int nid,
 	for ( ; mi >= 0; mi--) {
 		struct memblock_region *m = &mem->regions[mi];
 		phys_addr_t m_start = m->base;
-		// m_start : 0x4000000
+		// m_start : 0x2000000
 		phys_addr_t m_end = m->base + m->size;
-		// m_end : 0xC0000000
+		// m_end : 0xA0000000
 
 		/* only memory regions are associated with nodes, check it */
 		if (nid != MAX_NUMNODES && nid != memblock_get_region_node(m))
