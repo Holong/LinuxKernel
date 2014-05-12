@@ -168,6 +168,7 @@ start:
 		mov	r7, r1			@ save architecture ID
 		mov	r8, r2			@ save atags pointer
 						// r1, r2는 부트로더가 넘겨준 값임.
+
 		/*
 		 * Booting from Angel - need to enter SVC mode and disable
 		 * FIQs/IRQs (numeric definitions from angel arm.h source).
@@ -398,6 +399,7 @@ restart:	adr	r0, LC0			// LC0의 주소를 r0로 대입
 		mov	r1, r6				// r1에 _edata 저장 (파라미터 2번)
 		sub	r2, sp, r6			// r2 = sp - _edata (파라미터 3번)
 		bl	atags_to_fdt			// int atags_to_fdt(void *atag_list, void *fdt, int total_space)
+
 		/*
 		 * If returned value is 1, there is no ATAG at the location
 		 * pointed by r8.  Try the typical 0x100 offset from start
@@ -499,7 +501,6 @@ dtb_check_done:					// 여기까지 수행한 것은 다음과 같다.
 						// 위의 2가지 경우를 통해 정상적인 경우가 처리됨
 						// 만약 압축을 풀면서 코드가 겹치기가 생기는 경우
 						// 현재 zImage의 코드 부분을 재배치시키고 압축을 풀어야 함.
-
 /*
  * Relocate ourselves past the end of the decompressed kernel.
  *   r6  = _edata
@@ -526,6 +527,7 @@ dtb_check_done:					// 여기까지 수행한 것은 다음과 같다.
 
 /* Relocate the hyp vector base if necessary */
 #ifdef CONFIG_ARM_VIRT_EXT			// 여긴 뺍시다.
+
 		mrs	r0, spsr
 		and	r0, r0, #MODE_MASK
 		cmp	r0, #HYP_MODE
@@ -581,7 +583,6 @@ dtb_check_done:					// 여기까지 수행한 것은 다음과 같다.
 							
 							// restart로 돌아가 레지스터 값 오프셋 처리를 다시 해준 후
 							// wont_overwrite로 이동된다.
-
 wont_overwrite:
 /*
  * If delta is zero, we are running at the address we were linked at.
@@ -606,6 +607,7 @@ wont_overwrite:
 		add	r11, r11, r0		// GOT start 조정
 		add	r12, r12, r0		// GOT end 조정
 
+
 #ifndef CONFIG_ZBOOT_ROM
 		/*
 		 * If we're running fully PIC === CONFIG_ZBOOT_ROM = n,
@@ -614,6 +616,7 @@ wont_overwrite:
 		 */
 		add	r2, r2, r0		// bss 시작 주소 보정
 		add	r3, r3, r0		// bss 끝 주소 보정
+
 
 		/*
 		 * Relocate all entries in the GOT table.
@@ -750,7 +753,6 @@ params:		ldr	r0, =0x10000100		@ params_phys for RPC
  * This routine must preserve:
  *  r4, r7, r8
  */
-
 // 위 주석에 의하면 I, D cache를 켜기 위해선 page table이 필요하다고 함 ( 왜 ?? )
 // 이를 위한 공간이 kernel execution address 아래 16KB가 필요하며 이는 앞에서
 // 검사하고 넘어 왔음.
@@ -1111,7 +1113,6 @@ __common_mmu_cache_on:
  *  r9  = corrupted
  *  r12 = corrupted
  */
-
 	// 현재 r3에 8 넣고 들어옴
 call_cache_fn:	
 		adr	r12, proc_types		// r12에 proc_types의 주소 넣음
@@ -1145,7 +1146,6 @@ call_cache_fn:
 						// r12 += 20
 						// CPU가 일치하지 않으면 다음 CPU로 이동
 		b	1b			// 일치할 때까지 반복 수행
-
 /*
  * Table for cache operations.  This is basically:
  *   - CPU ID match
@@ -1525,6 +1525,7 @@ loop3:
  						// Level과 Way 값이 설정됨
  ARM(		orr	r11, r11, r7, lsl r2	) @ factor index number into r11
  						// Set 값이 설정됨
+
  THUMB(		lsl	r6, r9, r5		)
  THUMB(		orr	r11, r10, r6		) @ factor way and cache number into r11
  THUMB(		lsl	r6, r7, r2		)
@@ -1623,6 +1624,7 @@ phex:		adr	r3, phexbuf	// 어셈블러 매크로 명령
 1:		subs	r1, r1, #1	// r1 -= 1, cpsr 고쳐짐.
 		movmi	r0, r3		// 위 결과가 음수인 경우 수행
 		bmi	puts		// 음수인 경우 puts을 수행
+
 		and	r2, r0, #15
 		mov	r0, r0, lsr #4
 		cmp	r2, #10

@@ -33,6 +33,7 @@ EXPORT_SYMBOL(contig_page_data);
 unsigned long max_low_pfn;
 unsigned long min_low_pfn;
 unsigned long max_pfn;
+
 // MAX_NUMNODSE : 1
 bootmem_data_t bootmem_node_data[MAX_NUMNODES] __initdata;
 
@@ -97,7 +98,6 @@ static void __init link_bootmem(bootmem_data_t *bdata)
 /*
  * Called once to set up the allocator itself.
  */
-
 // bdata : &bootmem_node_data, mapstart : bitmap의 프레임 번호, start : 0x20000, end : 0x4F800
 static unsigned long __init init_bootmem_core(bootmem_data_t *bdata,
 	unsigned long mapstart, unsigned long start, unsigned long end)

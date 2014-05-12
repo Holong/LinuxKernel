@@ -304,7 +304,6 @@ ENTRY(v7_coherent_user_range)
 #endif
 1:
  USER(	mcr	p15, 0, r12, c7, c11, 1	)	@ clean D line to the point of unification
-
 //9999:	x;					
 //	.pushsection __ex_table,"a";		
 //	.align	3;			

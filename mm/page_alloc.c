@@ -4055,7 +4055,7 @@ void __ref build_all_zonelists(pg_data_t *pgdat, struct zone *zone)
 	}
 	vm_total_pages = nr_free_pagecache_pages();
 	// vm_total_pages : node_zones[ZONE_NORMAL]과 node_zones[ZONE_HIGHMEM]이 관리하는 페이지 갯수
-
+	
 	/*
 	 * Disable grouping by mobility if the number of pages in the
 	 * system is too low to allow the mechanism to work. It would be
@@ -4271,6 +4271,7 @@ void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
 	z = &NODE_DATA(nid)->node_zones[zone];
 	// z : &contig_page_data.node_zones[ZONE_NORMAL]
 	// start_pfn : 0x20000, end_pfn : 0x4F800
+	
 	for (pfn = start_pfn; pfn < end_pfn; pfn++) {
 		/*
 		 * There can be holes in boot-time mem_map[]s
@@ -4373,6 +4374,7 @@ static int __meminit zone_batchsize(struct zone *zone)
 	// zone->managed_pages : 0x2EFD6
 	batch = zone->managed_pages / 1024;
 	// batch : 0xBB
+	
 	if (batch * PAGE_SIZE > 512 * 1024)
 		batch = (512 * 1024) / PAGE_SIZE;
 	batch /= 4;		/* We effectively *= 4 below */
@@ -5918,7 +5920,6 @@ static int page_alloc_cpu_notify(struct notifier_block *self,
 void __init page_alloc_init(void)
 {
 	hotcpu_notifier(page_alloc_cpu_notify, 0);
-	
 	// static struct notifier_block page_alloc_cpu_notify_nb = {
 	// 	.notifier_call = page_alloc_cpu_notify,
 	//	.priority = 0
@@ -6509,7 +6510,6 @@ void set_pageblock_flags_group(struct page *page, unsigned long flags,
 	bitidx = pfn_to_bitidx(zone, pfn);
 	// bitidx : 0
 	
-
 	VM_BUG_ON(!zone_spans_pfn(zone, pfn));
 
 	for (; start_bitidx <= end_bitidx; start_bitidx++, value <<= 1)

@@ -793,6 +793,7 @@ void __init_memblock __next_free_mem_range_rev(u64 *idx, int nid,
 			// 처음에는 위 코드를 통해 r_start는 reserved 영역 중 가장 위의 end 주소가 들어가며
 			// r_end에는 ULLONG_MAX가 대입 됨
 			//
+
 			/* if ri advanced past mi, break out to advance mi */
 			if (r_end <= m_start)
 				break;

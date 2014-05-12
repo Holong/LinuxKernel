@@ -802,7 +802,6 @@ void __init trap_init(void)
 static void __init kuser_init(void *vectors)
 {
 	//vectors : 0xEF7FE000
-	
 	extern char __kuser_helper_start[], __kuser_helper_end[];
 	// This is used to provide user space with some operations which require kernel help because of unimplemented
 	// native feature and/or instructions in many ARM CPUs.
@@ -888,6 +887,14 @@ void __init early_trap_init(void *vectors_base)
 	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
 	// 그냥 통과
 	
+=======
+	memcpy((void *)vectors + 0x1000, __stubs_start, __stubs_end - __stubs_start);
+
+	kuser_init(vectors_base);
+
+	flush_icache_range(vectors, vectors + PAGE_SIZE * 2);
+	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
+>>>>>>> 3.11.1
 #else /* ifndef CONFIG_CPU_V7M */
 	/*
 	 * on V7-M there is no need to copy the vector table to a dedicated

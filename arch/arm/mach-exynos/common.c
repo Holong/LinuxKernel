@@ -327,6 +327,7 @@ static int __init exynos_fdt_map_chipid(unsigned long node, const char *uname,
 	iodesc.virtual = (unsigned long)S5P_VA_CHIPID;
 	iodesc.type = MT_DEVICE;
 	// dtb의 실제 주소 위치와 매핑할 가상 주소 위치를 결정한 뒤 iodesc에 저장함.
+	
 	iotable_init(&iodesc, 1);
 	return 1;
 }

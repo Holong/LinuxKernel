@@ -24,7 +24,7 @@ int mminit_loglevel;
 void mminit_verify_zonelist(void)
 {
 	int nid;
-	
+
 	// MMINIT_VERIFY : 1
 	if (mminit_loglevel < MMINIT_VERIFY)
 		return;

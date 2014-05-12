@@ -189,6 +189,7 @@ __lookup_processor_type:
 	mov	r5, #0				@ unknown processor
 						// 여기까지 오면 일치하는 아키텍쳐가 없는 것임
 2:	mov	pc, lr				// r5에 proc_info의 시작 주소를 저장한 채로 돌아감  
+
 ENDPROC(__lookup_processor_type)
 
 /*

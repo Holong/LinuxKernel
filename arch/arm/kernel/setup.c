@@ -502,7 +502,6 @@ void notrace cpu_init(void)
 		//	mov  sp, r14
 		//	msr  cpsr_c, PSR_F_BIT | PSR_I_BIT | SVC_MODE
 
-
 #endif
 }
 

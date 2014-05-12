@@ -178,7 +178,6 @@ ENDPROC(stext)
  */
 __create_page_tables:
 	pgtbl	r4, r8				@ page table address
-	
 	// add	r4, r8, #TEXT_OFFSET - PG_DIR_SIZE  로 변환됨
 	// TEXT_OFFSET : 0x00008000, PG_DIR_SIZE : 0x00004000
 	// r8 = PHYS_OFFSET : 0x40000000
@@ -228,7 +227,6 @@ __create_page_tables:
 #endif						// 여기까지 통과됨
 
 	ldr	r7, [r10, #PROCINFO_MM_MMUFLAGS] @ mm_mmuflags
-	
 	// r10 : proc_info
 	// r7 : PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_AP_READ | PMD_SECT_AF | PMD_FLAGS_SMP
 	//	PMD_TYPE_SECT : 0b0010, section 형식이라는 것을 알려줌
@@ -343,6 +341,7 @@ __create_page_tables:
 	mov	r3, r7, lsr #SECTION_SHIFT
 	ldr	r7, [r10, #PROCINFO_IO_MMUFLAGS] @ io_mmuflags
 	orr	r3, r7, r3, lsl #SECTION_SHIFT
+
 #ifdef CONFIG_ARM_LPAE				// 통과
 	mov	r7, #1 << (54 - 32)		@ XN
 #ifdef CONFIG_CPU_ENDIAN_BE8
@@ -679,6 +678,7 @@ __fixup_a_pv_table:
 	bx	lr
 #else
 	b	2f
+
 1:	ldr	ip, [r7, r3]	// 주소에 델타를 더한 후 거기 존재하는 데이터를 r12로 저장
 				// r12에는 명령들이 들어감
 				// __phys_to_virt, __virt_to_phys 들이 존재

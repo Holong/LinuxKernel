@@ -136,10 +136,14 @@ void __init arm_dt_init_cpu_maps(void)
 		 * temp values were initialized to UINT_MAX
 		 * to avoid matching valid MPIDR[23:0] values.
 		 */
+<<<<<<< HEAD
 
 		// cpuidx : 1
 		for (j = 0; j < cpuidx; j++)
 			// tmp_map[0] : 0xFF000000
+=======
+		for (j = 0; j < cpuidx; j++)
+>>>>>>> 3.11.1
 			if (WARN(tmp_map[j] == hwid, "Duplicate /cpu reg "
 						     "properties in the DT\n"))
 				return;
@@ -217,7 +221,6 @@ void __init arm_dt_init_cpu_maps(void)
  * If a dtb was passed to the kernel in r2, then use it to choose the
  * correct machine_desc and to setup the system.
  */
-
 // dt_phys : DTB가 위치한 시작 주소
 struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 {

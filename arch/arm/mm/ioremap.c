@@ -50,7 +50,6 @@ LIST_HEAD(static_vmlist);
 // PMU  : 0xf8180000 +  64kB  PA:0x10040000
 // SRAM : 0xf8400000 +   4kB  PA:0x02020000
 // ROMC : 0xf84c0000 +   4kB  PA:0x12250000
-
 static struct static_vm *find_static_vm_paddr(phys_addr_t paddr,
 			size_t size, unsigned int mtype)
 {

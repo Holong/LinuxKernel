@@ -3812,8 +3812,6 @@ void __init kmem_cache_init(void)
 
 	*/
 
-
-
 	register_hotmemory_notifier(&slab_memory_callback_nb);
 
 	/* Able to allocate the per node structures */

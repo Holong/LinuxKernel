@@ -346,7 +346,6 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 		if (tag != OF_DT_PROP)
 			break;		// OF_DT_PROP이 아닐 경우 현재 노드의 모든 property 처리가 완료된 것임
 
-
 		*p += 4;
 		sz = be32_to_cpup((__be32 *)(*p));
 		// sz : 현재 property의 value의 크기
