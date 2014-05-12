@@ -116,7 +116,7 @@
 
 static inline int kmem_cache_debug(struct kmem_cache *s)
 {
-#ifdef CONFIG_SLUB_DEBUG
+#ifdef CONFIG_SLUB_DEBUG	// Y
 	return unlikely(s->flags & SLAB_DEBUG_FLAGS);
 #else
 	return 0;
@@ -125,7 +125,7 @@ static inline int kmem_cache_debug(struct kmem_cache *s)
 
 static inline bool kmem_cache_has_cpu_partial(struct kmem_cache *s)
 {
-#ifdef CONFIG_SLUB_CPU_PARTIAL
+#ifdef CONFIG_SLUB_CPU_PARTIAL		// Y
 	return !kmem_cache_debug(s);
 #else
 	return false;
@@ -333,7 +333,7 @@ static inline struct kmem_cache_order_objects oo_make(int order,
 		(order << OO_SHIFT) + order_objects(order, size, reserved)
 	};
 
-	// x.x : 0x40
+	// x.x : 0x40 (64)
 	return x;
 }
 
@@ -1302,11 +1302,12 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 {
 	struct page *page;
 	struct kmem_cache_order_objects oo = s->oo;
-	// oo.x : 0x40
+	// oo.x : 0x40	
+	// order & objects로, 계산된 최적 order 값과 objects 개수임
+	
 	gfp_t alloc_gfp;
 
 	// gfp_allowed_mask = GFP_BOOT_MASK;
-	// GFP_BOOT_MASK : 0x01FFFF2F
 	flags &= gfp_allowed_mask;
 	// flags : 0
 
@@ -1317,6 +1318,7 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 		// 즉 메모리 할당 작업 시 잠들 수 있다는 뜻임
 
 	flags |= s->allocflags;
+	// 커널 빌드 옵션에 의해 미리 설정되어야 하는 flag 값을 반영해줌
 	// flags : 0
 
 	/*
@@ -1379,7 +1381,7 @@ static void setup_object(struct kmem_cache *s, struct page *page,
 		s->ctor(object);
 }
 
-// s : boot_keme_cache_node, flags : GFP_NOWAIT(0), node : 0
+// s : &boot_keme_cache_node, flags : GFP_NOWAIT(0), node : 0
 static struct page *new_slab(struct kmem_cache *s, gfp_t flags, int node)
 {
 	struct page *page;
@@ -1391,7 +1393,7 @@ static struct page *new_slab(struct kmem_cache *s, gfp_t flags, int node)
 	// flags : GFP_NOWAIT
 	BUG_ON(flags & GFP_SLAB_BUG_MASK);
 
-	// s : boot_keme_cache_node, 0, node : 0
+	// s : &boot_keme_cache_node, flags : 0, node : 0
 	page = allocate_slab(s,
 		flags & (GFP_RECLAIM_MASK | GFP_CONSTRAINT_MASK), node);
 	if (!page)
@@ -2756,20 +2758,25 @@ static inline int slab_order(int size, int min_objects,
 	for (order = max(min_order,
 				fls(min_objects * size - 1) - PAGE_SHIFT);
 			order <= max_order; order++) {
-		// order : 0
+		// order : 0 (min_order와 min_objects를 담기 위한 최소 order 값 중 큰 값을 이용)
+		// 즉, 가능한 order의 최소 값
+
 		unsigned long slab_size = PAGE_SIZE << order;
 		// slab_size : 4KB
 
 		// min_objects * size : 1024
 		if (slab_size < min_objects * size + reserved)
 			continue;
+		// size 값은 실제 objects 크기를 캐시 라인 크기에 정렬한 것임
+		// reserved 영역은 포함되지 않았기 때문에 이를 추가시켜서 slab_size와 비교함
+		// 만약 slab_size가 작으면 order를 높여서 더 크게 만듬
 
 		rem = (slab_size - reserved) % size;
 		// rem : 0
 
 		if (rem <= slab_size / fract_leftover)
 			break;
-
+		// slab에 object를 채우고 남은 공간이 1/16보다 크면 order를 높여서 내부 단편화를 줄임
 	}
 	
 	// order : 0
@@ -2802,6 +2809,8 @@ static inline int calculate_order(int size, int reserved)
 	// slub_max_order : 3, size : 64, reserved : 0
 	max_objects = order_objects(slub_max_order, size, reserved);
 	// max_objects : 512
+	// order가 slub_max_order 일 때 집어넣을 수 있는 object 개수가 계산됨
+	
 	min_objects = min(min_objects, max_objects);
 	// min_objects : 16
 
@@ -2816,11 +2825,17 @@ static inline int calculate_order(int size, int reserved)
 			// slub_max_order : 3
 			if (order <= slub_max_order)
 				return order;
+
 			fraction /= 2;
+			// 내부 단편화를 줄이기 위해 fraction을 맞추다 보면 max_order보다 커지는 상황이 생길 수 있음
+			// order가 커지면 외부 단편화가 발생하기 때문에 이를 적정 수준에서 유지해야함
+			// 이 때는 내부 단편화를 포기하고 order를 낮추는 쪽으로 진행함
 		}
 		min_objects--;
+		// 내부 단편화를 늘려도 답이 안나오면 slab 하나에 포함되는 object 수를 줄여서 다시 계산해봄
 	}
 
+	// 여기까지 오면 slab 하나에 object 하나를 담을 수 없는 상태임
 	/*
 	 * We were unable to place multiple objects in a slab. Now
 	 * lets see if we can place a single object there.
@@ -2832,6 +2847,7 @@ static inline int calculate_order(int size, int reserved)
 	/*
 	 * Doh this slab cannot be placed using slub_max_order.
 	 */
+	// order를 계속 올려봄
 	order = slab_order(size, 1, MAX_ORDER, 1, reserved);
 	if (order < MAX_ORDER)
 		return order;
@@ -2965,8 +2981,10 @@ static int init_kmem_cache_nodes(struct kmem_cache *s)
 // s : boot_kmem_cache_node, min : 3
 static void set_min_partial(struct kmem_cache *s, unsigned long min)
 {
+	// MIN_PARTIAL : 5
 	if (min < MIN_PARTIAL)
 		min = MIN_PARTIAL;
+	// MAX_PARTIAL : 10
 	else if (min > MAX_PARTIAL)
 		min = MAX_PARTIAL;
 	// min : 5
@@ -2977,7 +2995,7 @@ static void set_min_partial(struct kmem_cache *s, unsigned long min)
  * calculate_sizes() determines the order and the distribution of data within
  * a slab object.
  */
-// s : kmem_cache_node, forced_order : -1
+// s : &boot_kmem_cache_node, forced_order : -1
 static int calculate_sizes(struct kmem_cache *s, int forced_order)
 {
 	unsigned long flags = s->flags;
@@ -3025,6 +3043,8 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	s->inuse = size;
 	// kmem_cache_node.inuse : 44
 	// metadata의 offset
+	//
+	// 뒤에 추가되는 size는 핵심 정보가 아님
 
 	if (((flags & (SLAB_DESTROY_BY_RCU | SLAB_POISON)) ||
 		s->ctor)) {
@@ -3040,7 +3060,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 		size += sizeof(void *);
 	}
 
-#ifdef CONFIG_SLUB_DEBUG
+#ifdef CONFIG_SLUB_DEBUG	// Y
 	if (flags & SLAB_STORE_USER)
 		/*
 		 * Need to store information about allocs and frees after
@@ -3079,6 +3099,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 		// size : 64, kmem_cache_node.reserved : 0
 		order = calculate_order(size, s->reserved);
 		// order : 0
+		// 외부 단편화와 내부 단편화 정도를 모두 고려한 최적 order 값이 반환됨
 
 	if (order < 0)
 		return 0;
@@ -3095,6 +3116,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	if (s->flags & SLAB_RECLAIM_ACCOUNT)
 		s->allocflags |= __GFP_RECLAIMABLE;
 	// 전부 통과
+	// flag 값에 맞게 allocflags 값을 변경해 줌
 
 	/*
 	 * Determine the number of objects per slab
@@ -3102,9 +3124,14 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 	// order : 0, size : 64, s->reserved : 0
 	s->oo = oo_make(order, size, s->reserved);
 	// boot_kmem_cache_node.oo.x : 0x40 
+	// 계산된 order에 몇 개의 object가 들어가는지 계산
+	// oo.x의 하위 16비트에는 object 개수가 저장되고,
+	// 상위 16비트에는 order 값이 저장됨
 
+	// size : 64
 	s->min = oo_make(get_order(size), size, s->reserved);
 	// boot_kmem_cache_node.min.x : 0x40
+	// 최소 order에 몇 개의 object가 들어가는지 계산
 
 	if (oo_objects(s->oo) > oo_objects(s->max))
 		s->max = s->oo;
@@ -3120,6 +3147,8 @@ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 	// boot_kmem_cache_node.name : "kmem_cache_node", s->ctor : 0
 	s->flags = kmem_cache_flags(s->size, flags, s->name, s->ctor);
 	// s->flags : flags 값이 그대로 대입됨, SLAB_HWCACHE_ALIGN(0x2000)
+	// 부트 커맨드를 통해 다른 값을 넣으면 그 값이 반영됨
+	
 	s->reserved = 0;
 	// boot_kmem_cache_node.size : 44
 	// boot_kmem_cache_node.name : "kmem_cache_node"
@@ -3131,9 +3160,11 @@ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 		s->reserved = sizeof(struct rcu_head);
 
 	// s : &boot_kmem_cache_node
-	// calculate_sizes(s, -1) : 1		order와 objects 개수를 계산해 저장함
+	// calculate_sizes(s, -1) : 1
 	if (!calculate_sizes(s, -1))
 		goto error;
+	// 최적 order와 objects 개수를 계산해 저장하고,
+	// 최소 order와 objects 개수도 계산해 저장해 둠
 
 	// disable_higher_order_debug : 0
 	if (disable_higher_order_debug) {
@@ -3161,11 +3192,12 @@ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 	 * The larger the object size is, the more pages we want on the partial
 	 * list to avoid pounding the page allocator excessively.
 	 */
-	// s : boot_kmem_cache_node
+	// s : &boot_kmem_cache_node
 	// s.size : 64
 	// ilog2(64)/2 : 3
 	set_min_partial(s, ilog2(s->size) / 2);
 	// boot_kmem_cache_node.min_partial : 5 로 설정
+	// 5 <= x <= 10 사이로 강제 조정
 
 	/*
 	 * cpu_partial determined the maximum number of objects kept in the
@@ -3196,9 +3228,11 @@ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 		// s->cpu_partial: boot_kmem_cache_node.cpu_partial: 0
 		s->cpu_partial = 30; 
 		// boot_kmem_cache_node.cpu_partial: 30
-#ifdef CONFIG_NUMA
+
+#ifdef CONFIG_NUMA	// N
 	s->remote_node_defrag_ratio = 1000;
 #endif
+
 	// s : boot_kmem_cache_node
 	if (!init_kmem_cache_nodes(s))
 		goto error;
@@ -3748,13 +3782,16 @@ void __init kmem_cache_init(void)
 					// 30
 		struct kmem_cache_order_objects oo;
 					// oo.x : 0x40
-
+					// 하위 16비트에 object 개수를 넣고, 상위 16비트에 order 값을 넣음
 		// Allocation and freeing of slabs
 		struct kmem_cache_order_objects max;
 					// max.x : 0x40
+					// 계산된 최적 order에 밀어 넣을 수 있는 object 개수, order
 		struct kmem_cache_order_objects min;
 					// min.x : 0x40
+					// 최소 order 적용 시 slab에 밀어 넣을 수 있는 object 개수
 		gfp_t allocflags;	// gfp flags to use on each alloc
+					// 할당 시 기본 반영되는 값이 저장됨
 					// 0
 		int refcount;		// Refcount for slab cache destroy
 		void (*ctor)(void *);

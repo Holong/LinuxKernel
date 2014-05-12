@@ -296,7 +296,7 @@ int slab_is_available(void)
 
 #ifndef CONFIG_SLOB		// N
 /* Create a cache during boot when no slab services are available yet */
-// s : kmem_cache_node, name : "kmem_cache_node", size : 44byte, flags : SLAB_HWCACHE_ALIGN(0x2000)
+// s : &boot_kmem_cache_node, name : "kmem_cache_node", size : 44byte, flags : SLAB_HWCACHE_ALIGN(0x2000)
 void __init create_boot_cache(struct kmem_cache *s, const char *name, size_t size,
 		unsigned long flags)
 {
@@ -309,9 +309,10 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name, size_t siz
 	// boot_kmem_cache_node.size : 44;
 	// boot_kmem_cache_node.object_size : 44;
 
-	// flags : 0x2000, ARCH_KMALLOC_MINALIGN : 64, size : 44
+	// flags : 0x2000, ARCH_KMALLOC_MINALIGN : 64(L1 cache 크기), size : 44
 	s->align = calculate_alignment(flags, ARCH_KMALLOC_MINALIGN, size);
 	// boot_kmem_cache_node.align : 64
+	
 	err = __kmem_cache_create(s, flags);
 
 	if (err)
