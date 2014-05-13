@@ -136,14 +136,10 @@ void __init arm_dt_init_cpu_maps(void)
 		 * temp values were initialized to UINT_MAX
 		 * to avoid matching valid MPIDR[23:0] values.
 		 */
-<<<<<<< HEAD
 
 		// cpuidx : 1
 		for (j = 0; j < cpuidx; j++)
 			// tmp_map[0] : 0xFF000000
-=======
-		for (j = 0; j < cpuidx; j++)
->>>>>>> 3.11.1
 			if (WARN(tmp_map[j] == hwid, "Duplicate /cpu reg "
 						     "properties in the DT\n"))
 				return;
@@ -214,6 +210,24 @@ void __init arm_dt_init_cpu_maps(void)
 	// __cpu_logical_map[0]에 무조건 부팅 cpu 번호가 들어감
 }
 
+bool arch_match_cpu_phys_id(int cpu, u64 phys_id)
+{
+	return phys_id == cpu_logical_map(cpu);
+}
+
+static const void * __init arch_get_next_mach(const char *const **match)
+{
+	static const struct machine_desc *mdesc = __arch_info_begin;
+	const struct machine_desc *m = mdesc;
+
+	if (m >= __arch_info_end)
+		return NULL;
+
+	mdesc++;
+	*match = m->dt_compat;
+	return m;
+}
+
 /**
  * setup_machine_fdt - Machine setup when an dtb was passed to the kernel
  * @dt_phys: physical address of dt blob
@@ -222,70 +236,31 @@ void __init arm_dt_init_cpu_maps(void)
  * correct machine_desc and to setup the system.
  */
 // dt_phys : DTB가 위치한 시작 주소
-struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
+const struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 {
-	struct boot_param_header *devtree;
-	struct machine_desc *mdesc, *mdesc_best = NULL;
-	unsigned int score, mdesc_score = ~1;
-	unsigned long dt_root;
-	const char *model;
+	const struct machine_desc *mdesc, *mdesc_best = NULL;
 
 #ifdef CONFIG_ARCH_MULTIPLATFORM	// N
 	DT_MACHINE_START(GENERIC_DT, "Generic DT based system")
 	MACHINE_END
 
-	mdesc_best = (struct machine_desc *)&__mach_desc_GENERIC_DT;
+	mdesc_best = &__mach_desc_GENERIC_DT;
 #endif
 
-	if (!dt_phys)		// DTB가 넘어왔으므로 통과됨
+	if (!dt_phys || !early_init_dt_scan(phys_to_virt(dt_phys)))
 		return NULL;
 
-	devtree = phys_to_virt(dt_phys);
-	// devtree : DTB의 가상 주소
+	mdesc = of_flat_dt_match_machine(mdesc_best, arch_get_next_mach);
 
-	/* check device tree validity */
-	if (be32_to_cpu(devtree->magic) != OF_DT_HEADER)
-		// be32_to_cpu(number) : 빅 엔디안 형태인 number를 CPU에 맞게 바꿔줌
-		// 			 여기서는 리틀 엔디안 형태로 변경됨
-		// DTB의 매직 넘버는 빅 엔디안 형태로 저장되어 있기 때문에
-		// 비교 연산을 수행하려면 리틀 엔디안 형태로 바꾼 뒤 비교해야함
-		return NULL;
-
-	/* Search the mdescs for the 'best' compatible value match */
-	initial_boot_params = devtree;
-	// DTB의 가상 주소를 대입
-
-	dt_root = of_get_flat_dt_root();
-	// root 노드의 첫 번째 property 시작 주소를 dt_root에 저장
-
-	for_each_machine_desc(mdesc) {
-	//for (p = __arch_info_begin; p < __arch_info_end; p++)
-	// __arch_info_begin ~ __arch_info_end 에서는 컴파일시 만들어진 machine_desc들이 전부 모여있음.
-	// arch/arm/mach-* 폴더 내부에 각 제조사별 machine_desc를 생성하는 코드들이 들어 있음.
-	// 각 machine_desc를 하나하나 방문하면서 아래 코드들이 수행됨
-		score = of_flat_dt_match(dt_root, mdesc->dt_compat);
-		// DTB의 compatible property를 이용해 현재 mdesc와 일치 정도를 비교한 뒤 반환
-		// score : 1 (일치)
-		// score : 1 이상 (호환 가능)
-		// score : 0 (호환 불가)
-		if (score > 0 && score < mdesc_score) {
-			mdesc_best = mdesc;
-			mdesc_score = score;
-			// 호환 가능한 것을 찾은 경우 이 값을 저장해 둠.
-			// 스코어 점수를 기록해서 가장 일치하는 machine_desc를 찾아야 함.
-		}
-	}
-	// 모든 machine_desc를 비교 대상으로 삼아 DTB에 저장된 보드와 가장 일치하는 machine_desc를 찾아냄
-	// 즉, score가 최대한 1에 가까운 것으로 찾음
-	// 전체 machine_desc를 가지고 전부 비교해 봄
-
-	if (!mdesc_best) {		// 호환 가능한 machine_desc를 찾지 못한 경우
+	if (!mdesc) {			// 호환 가능한 dtb를 찾지 못한 경우
 		const char *prop;
 		long size;
+		unsigned long dt_root;
 
 		early_print("\nError: unrecognized/unsupported "
 			    "device tree compatible list:\n[ ");
 
+		dt_root = of_get_flat_dt_root();
 		prop = of_get_flat_dt_prop(dt_root, "compatible", &size);
 		while (size > 0) {
 			early_print("'%s' ", prop);
@@ -297,49 +272,10 @@ struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 		dump_machine_table(); /* does not return */
 	}
 
-	model = of_get_flat_dt_prop(dt_root, "model", NULL);
-	// model property의 데이터 시작 주소를 model에 저장
-
-	if (!model)
-		model = of_get_flat_dt_prop(dt_root, "compatible", NULL);
-		// model property를 못 찾은 경우
-		// compatible property의 데이터 시작 주소를 model에 저장
-
-	if (!model)
-		model = "<unknown>";
-		// 그 것도 못 찾은 경우
-
-	pr_info("Machine: %s, model: %s\n", mdesc_best->name, model);
-	// Machine과 model 정보를 출력
-
-	/* Retrieve various information from the /chosen node */
-	of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
-	// DTB chosen 노드의 bootargs property에서 데이터를 뽑아와 boot_command_line에 저장
-	// of_scan_flat_dt : DTB의 노드마다 첫 번째 인자로 주어진 함수를 호출함.
-	//		     그 함수가 1을 반환할 때까지 노드를 계속 바꾸면서 호출
-	// early_init_dt_scan_chosen : 노드가 chosen 노드인지 확인한 후
-	//			       맞으면 bootargs property의 데이터를 가져와 boot_command_line에 저장
-	// boot_command_line : "console=ttySAC2,115200 init=/linuxrc"
-
-	/* Initialize {size,address}-cells info */
-	of_scan_flat_dt(early_init_dt_scan_root, NULL);
-	// early_init_dt_scan_root : 노드가 root 노드인지 확인한 후
-	//			     맞으면 #size-cells, #address-cells 값을 뽑아와
-	//			     dt_root_size_cells, dt_root_addr_cells 변수에 각각 저장
-
-	/* Setup memory, calling early_init_dt_add_memory_arch */
-	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
-	// early_init_dt_scan_memory : 노드가 memory 정보인지 확인한 후
-	// 맞는 경우 base와 size 정보를 뽑아와 아래 구조체를 초기화함.
-	// meminfo.nr_banks : 1
-	// meminfo.bank[0].start : 0x20000000
-	// meminfo.bank[0].size : 0x80000000
-	// 정보를 뽑을 때 위에서 처리한 dt_root_size_cells, dt_root_addr_cells를 이용함
-
 	/* Change machine number to match the mdesc we're using */
-	__machine_arch_type = mdesc_best->nr;
+	__machine_arch_type = mdesc->nr;
 	// __machine_arch_type : 0xFFFFFFFF 으로 저장됨
 
 	// mdesc_best : mach-exynos5-dt.c 에 선언되어 있음 
-	return mdesc_best;
+	return mdesc;
 }

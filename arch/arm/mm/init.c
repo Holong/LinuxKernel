@@ -76,14 +76,6 @@ static int __init parse_tag_initrd2(const struct tag *tag)
 
 __tagtable(ATAG_INITRD2, parse_tag_initrd2);
 
-#ifdef CONFIG_OF_FLATTREE
-void __init early_init_dt_setup_initrd_arch(unsigned long start, unsigned long end)
-{
-	phys_initrd_start = start;
-	phys_initrd_size = end - start;
-}
-#endif /* CONFIG_OF_FLATTREE */
-
 /*
  * This keeps memory configuration data used by a couple memory
  * initialization functions, as well as show_mem() for the skipping
@@ -241,7 +233,7 @@ static void __init arm_bootmem_init(unsigned long start_pfn,
 
 #ifdef CONFIG_ZONE_DMA
 
-unsigned long arm_dma_zone_size __read_mostly;
+phys_addr_t arm_dma_zone_size __read_mostly;
 EXPORT_SYMBOL(arm_dma_zone_size);
 
 /*
@@ -251,6 +243,7 @@ EXPORT_SYMBOL(arm_dma_zone_size);
  * so a successful GFP_DMA allocation will always satisfy this.
  */
 phys_addr_t arm_dma_limit;
+unsigned long arm_dma_pfn_limit;
 
 static void __init arm_adjust_dma_zone(unsigned long *size, unsigned long *hole,
 	unsigned long dma_size)
@@ -265,7 +258,7 @@ static void __init arm_adjust_dma_zone(unsigned long *size, unsigned long *hole,
 }
 #endif
 
-void __init setup_dma_zone(struct machine_desc *mdesc)
+void __init setup_dma_zone(const struct machine_desc *mdesc)
 {
 #ifdef CONFIG_ZONE_DMA
 	if (mdesc->dma_zone_size) {
@@ -273,6 +266,7 @@ void __init setup_dma_zone(struct machine_desc *mdesc)
 		arm_dma_limit = PHYS_OFFSET + arm_dma_zone_size - 1;
 	} else
 		arm_dma_limit = 0xffffffff;
+	arm_dma_pfn_limit = arm_dma_limit >> PAGE_SHIFT;
 #endif
 }
 
@@ -399,7 +393,8 @@ phys_addr_t __init arm_memblock_steal(phys_addr_t size, phys_addr_t align)
 // meminfo.bank[1].start : 0x4F800000, meminfo.bank[1].size : 0x50800000, meminfo.bank[1].highmem : 1
 // mdesc :  __mach_desc_EXYNOS5_DT_name
 // 	    mach-exynos5-dt.c에 선언되어 있음
-void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
+void __init arm_memblock_init(struct meminfo *mi,
+	const struct machine_desc *mdesc)
 {
 	int i;
 
@@ -427,10 +422,16 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 	// memblock.reserved에 커널이 차지하는 메모리를 등록함
 #endif
 #ifdef CONFIG_BLK_DEV_INITRD	// Y
-
+	/* FDT scan will populate initrd_start */
 	// phys_initrd_size : 0
 	// DTB의 choosen 노드에 저장되어 있는 정보가 DTB에서 넘어와 phys_initrd_size에 저장됨
 	// 현재는 그 정보가 없기 때문에 0임
+	if (initrd_start && !phys_initrd_size) {
+		phys_initrd_start = __virt_to_phys(initrd_start);
+		phys_initrd_size = initrd_end - initrd_start;
+	}
+	initrd_start = initrd_end = 0;			// FIXME
+
 	if (phys_initrd_size &&
 	    !memblock_is_region_memory(phys_initrd_start, phys_initrd_size)) {
 		pr_err("INITRD: 0x%08llx+0x%08lx is not a memory region - disabling initrd\n",
@@ -587,17 +588,16 @@ void __init bootmem_init(void)
 	 * This doesn't seem to be used by the Linux memory manager any
 	 * more, but is used by ll_rw_block.  If we can get rid of it, we
 	 * also get rid of some of the stuff above as well.
-	 *
-	 * Note: max_low_pfn and max_pfn reflect the number of _pages_ in
-	 * the system, not the maximum PFN.
 	 */
-
-	max_low_pfn = max_low - PHYS_PFN_OFFSET;
-	// max_low : 0x4F800, PHYS_PFN_OFFSET : 0x20000
-	// max_low_pfn : 0x2F800
-	max_pfn = max_high - PHYS_PFN_OFFSET;
-	// max_high : 0xA0000, PHYS_PFN_OFFSET : 0x20000
-	// max_pfn : 0x80000
+	// min      : 뱅크 0 시작 주소의 물리 small page 번호		(0x20000)
+	// max_low  : 뱅크 0의 마지막 주소의 물리 small page 번호	(0x4f800)
+	// max_high : 뱅크 1의 마지막 주소의 물리 small page 번호	(0xA0000)
+	min_low_pfn = min;
+	// min_low_pfn : 0x20000
+	max_low_pfn = max_low;
+	// max_low_pfn : 0x4F800
+	max_pfn = max_high;
+	// max_pfn : 0xA0000
 }
 
 /*
@@ -725,10 +725,8 @@ static inline void free_area_high(unsigned long pfn, unsigned long end)
 static void __init free_highpages(void)
 {
 #ifdef CONFIG_HIGHMEM
-	// max_low_pfn : 0x2F800, PHYS_PFN_OFFSET : 0x20000
-	unsigned long max_low = max_low_pfn + PHYS_PFN_OFFSET;
+	unsigned long max_low = max_low_pfn;
 	// max_low : 0x4F800
-	// Lowmem의 최상위 주소
 	struct memblock_region *mem, *res;
 
 	/* set highmem page free */

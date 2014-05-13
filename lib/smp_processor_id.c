@@ -9,13 +9,12 @@
 
 notrace unsigned int debug_smp_processor_id(void)
 {
-	unsigned long preempt_count = preempt_count();
-	// preempt_count : INIT_PREEMPT_COUNT
-	//		   0x40000001
 	int this_cpu = raw_smp_processor_id();
 	// this_cpu : 0
 
-	if (likely(preempt_count))
+	if (likely(preempt_count()))
+		// preempt_count : INIT_PREEMPT_COUNT
+		//		   0x40000001
 		goto out; // 이쪽으로 탈출
 
 	if (irqs_disabled())

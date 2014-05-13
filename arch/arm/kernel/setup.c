@@ -72,10 +72,12 @@ static int __init fpe_setup(char *line)
 __setup("fpe=", fpe_setup);
 #endif
 
-extern void paging_init(struct machine_desc *desc);
+extern void paging_init(const struct machine_desc *desc);
+extern void early_paging_init(const struct machine_desc *,
+			      struct proc_info_list *);
 extern void sanity_check_meminfo(void);
 extern enum reboot_mode reboot_mode;
-extern void setup_dma_zone(struct machine_desc *desc);
+extern void setup_dma_zone(const struct machine_desc *desc);
 
 unsigned int processor_id;
 EXPORT_SYMBOL(processor_id);
@@ -139,7 +141,7 @@ EXPORT_SYMBOL(elf_platform);
 static const char *cpu_name;
 static const char *machine_name;
 static char __initdata cmd_line[COMMAND_LINE_SIZE];
-struct machine_desc *machine_desc __initdata;
+const struct machine_desc *machine_desc __initdata;
 
 static union { char c[4]; unsigned long l; } endian_test __initdata = { { 'l', '?', '?', 'b' } };
 #define ENDIANNESS ((char)endian_test.l)
@@ -697,6 +699,8 @@ static void __init setup_processor(void)
 	elf_hwcap &= ~(HWCAP_THUMB | HWCAP_IDIVT);
 #endif
 
+	erratum_a15_798181_init();
+
 	feat_v6_fixup();
 	// MIDR 값 확인한 뒤, 따로 작업 없이 종료함
 
@@ -714,7 +718,7 @@ static void __init setup_processor(void)
 
 void __init dump_machine_table(void)
 {
-	struct machine_desc *p;
+	const struct machine_desc *p;
 
 	early_print("Available machine support:\n\nID (hex)\tNAME\n");
 	for_each_machine_desc(p)
@@ -727,11 +731,12 @@ void __init dump_machine_table(void)
 }
 
 // base : 0x20000000, size : 0x80000000
-int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
+int __init arm_add_memory(u64 start, u64 size)
 {
 	struct membank *bank = &meminfo.bank[meminfo.nr_banks];
 	// meminfo.nr_banks : 0 (초기화만 되어 있음)
 	// bank : &meminfo.bank[0]
+	u64 aligned_start;
 
 	if (meminfo.nr_banks >= NR_BANKS) {
 		printk(KERN_CRIT "NR_BANKS too low, "
@@ -744,15 +749,17 @@ int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
 	 * Size is appropriately rounded down, start is rounded up.
 	 */
 	size -= start & ~PAGE_MASK;
-	// PAGE_MASK : 0xFFFFF000
-	// size 정렬
-	bank->start = PAGE_ALIGN(start);
-	// start 정렬
-	
+	aligned_start = PAGE_ALIGN(start);
 	// 즉, start는 4KB 단위로 올리고, size는 내림
 
-#ifndef CONFIG_ARM_LPAE
-	if (bank->start + size < bank->start) {
+#ifndef CONFIG_ARCH_PHYS_ADDR_T_64BIT
+	if (aligned_start > ULONG_MAX) {
+		printk(KERN_CRIT "Ignoring memory at 0x%08llx outside "
+		       "32-bit physical address space\n", (long long)start);
+		return -EINVAL;
+	}
+
+	if (aligned_start + size > ULONG_MAX) {
 		printk(KERN_CRIT "Truncating memory at 0x%08llx to fit in "
 			"32-bit physical address space\n", (long long)start);
 		/*
@@ -760,11 +767,12 @@ int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
 		 * 32 bits, we use ULONG_MAX as the upper limit rather than 4GB.
 		 * This means we lose a page after masking.
 		 */
-		size = ULONG_MAX - bank->start;
+		size = ULONG_MAX - aligned_start;
 	}
 	// 문제 발생 시에만 진입
 #endif
 
+	bank->start = aligned_start;
 	bank->size = size & ~(phys_addr_t)(PAGE_SIZE - 1);
 	// 4KB 단위로 size도 정렬시킴
 
@@ -790,8 +798,8 @@ int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
 static int __init early_mem(char *p)
 {
 	static int usermem __initdata = 0;
-	phys_addr_t size;
-	phys_addr_t start;
+	u64 size;
+	u64 start;
 	char *endp;
 
 	/*
@@ -815,7 +823,7 @@ static int __init early_mem(char *p)
 }
 early_param("mem", early_mem);
 
-static void __init request_standard_resources(struct machine_desc *mdesc)
+static void __init request_standard_resources(const struct machine_desc *mdesc)
 {
 	struct memblock_region *region;
 	struct resource *res;
@@ -1002,7 +1010,7 @@ void __init hyp_mode_check(void)
 void __init setup_arch(char **cmdline_p)
 {
 	// machine_desc는 core 관련 정보를 관리하는 구조체임.
-	struct machine_desc *mdesc;
+	const struct machine_desc *mdesc;
 
 	setup_processor();
 	// cpu_tlb, cpu_user, cpu_cache를 현재 아키텍쳐에 맞는 구조체로 설정해줌
@@ -1020,9 +1028,6 @@ void __init setup_arch(char **cmdline_p)
 	// 		   mach-exynos5-dt.c에 선언되어 있음
 	machine_name = mdesc->name;
 	// machine_name : "SAMSUNG EXYNOS5 (Flattened Device Tree)"
-
-	setup_dma_zone(mdesc);
-	// NULL 함수
 
 	if (mdesc->reboot_mode != REBOOT_HARD)
 		reboot_mode = mdesc->reboot_mode;
@@ -1052,6 +1057,10 @@ void __init setup_arch(char **cmdline_p)
 	// meminfo.bank[0].start : 0x20000000
 	// meminfo.bank[0].size : 0x80000000
 	// 이며 1개 밖에 존재하지 않기 때문에 정렬이 수행되지 않음
+
+	early_paging_init(mdesc, lookup_processor_type(read_cpuid_id()));
+
+	setup_dma_zone(mdesc);
 
 	sanity_check_meminfo();
 	// 뱅크가 lowmem, highmem 2개로 분리 됨.
@@ -1209,6 +1218,7 @@ static const char *hwcap_str[] = {
 	"idivt",
 	"vfpd32",
 	"lpae",
+	"evtstrm",
 	NULL
 };
 
@@ -1228,15 +1238,6 @@ static int c_show(struct seq_file *m, void *v)
 		seq_printf(m, "model name\t: %s rev %d (%s)\n",
 			   cpu_name, cpuid & 15, elf_platform);
 
-#if defined(CONFIG_SMP)
-		seq_printf(m, "BogoMIPS\t: %lu.%02lu\n",
-			   per_cpu(cpu_data, i).loops_per_jiffy / (500000UL/HZ),
-			   (per_cpu(cpu_data, i).loops_per_jiffy / (5000UL/HZ)) % 100);
-#else
-		seq_printf(m, "BogoMIPS\t: %lu.%02lu\n",
-			   loops_per_jiffy / (500000/HZ),
-			   (loops_per_jiffy / (5000/HZ)) % 100);
-#endif
 		/* dump out the processor features */
 		seq_puts(m, "Features\t: ");
 

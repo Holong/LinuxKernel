@@ -161,7 +161,9 @@ start:
 						// zImage의 끝 주소 (링커 스크립트에 기록되어 있음)
  THUMB(		.thumb			)
 1:
+ ARM_BE8(	setend	be )			@ go BE8 if compiled for BE8
 		mrs	r9, cpsr		// cpsr을 r9에 저장
+
 #ifdef CONFIG_ARM_VIRT_EXT
 		bl	__hyp_stub_install	@ get into SVC mode, reversibly
 #endif
@@ -944,9 +946,7 @@ __armv4_mmu_cache_on:
 		mrc	p15, 0, r0, c1, c0, 0	@ read control reg
 		orr	r0, r0, #0x5000		@ I-cache enable, RR cache replacement
 		orr	r0, r0, #0x0030
-#ifdef CONFIG_CPU_ENDIAN_BE8
-		orr	r0, r0, #1 << 25	@ big-endian page tables
-#endif
+ ARM_BE8(	orr	r0, r0, #1 << 25 )	@ big-endian page tables
 		bl	__common_mmu_cache_on
 		mov	r0, #0
 		mcr	p15, 0, r0, c8, c7, 0	@ flush I,D TLBs
@@ -1019,10 +1019,8 @@ __armv7_mmu_cache_on:
 						@ (needed for ARM1176)
 						// 하위 호환을 위한 기능 Cortex-A15에서는 그냥 1로 되어있다.
 #ifdef CONFIG_MMU
-#ifdef CONFIG_CPU_ENDIAN_BE8
-		orr	r0, r0, #1 << 25	@ big-endian page tables 
-						// 그냥 통과
-#endif
+ ARM_BE8(	orr	r0, r0, #1 << 25 )	@ big-endian page tables
+ 						// 그냥 통과
 		mrcne   p15, 0, r6, c2, c0, 2   @ read ttb control reg
 						// TTBCR 레지스터 값을 r6에 저장
 						// TTBCR은 TTBR0와 TTBR1 중에 Translation table 로 쓸 것을 선택하는 것임.

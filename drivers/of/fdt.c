@@ -11,6 +11,7 @@
 
 #include <linux/kernel.h>
 #include <linux/initrd.h>
+#include <linux/memblock.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
@@ -158,16 +159,14 @@ int of_fdt_match(struct boot_param_header *blob, unsigned long node,
 }
 
 // [First] mem : &mem, size : 0x3C + 0x2, align : 4
-static void *unflatten_dt_alloc(unsigned long *mem, unsigned long size,
+static void *unflatten_dt_alloc(void **mem, unsigned long size,
 				       unsigned long align)
 {
 	void *res;
 
-	*mem = ALIGN(*mem, align);
-	// [First] *mem : 0
-
-	res = (void *)*mem;
-	// [First] res : 0
+	*mem = PTR_ALIGN(*mem, align);
+	
+	res = *mem;
 
 	*mem += size;
 	// [First] *mem : 0x3D
@@ -188,9 +187,9 @@ static void *unflatten_dt_alloc(unsigned long *mem, unsigned long size,
 //	   dad : NULL, allnextpp : NULL, fpsize : 0
 // [Second] blob : DTB의 struct 시작 주소, mem : 할당받은 공간의 시작 주소, p : &start
 // 	    dad : NULL, allnextpp : &allnextp, fpsize : 0
-static unsigned long unflatten_dt_node(struct boot_param_header *blob,
-				unsigned long mem,
-				unsigned long *p,
+static void * unflatten_dt_node(struct boot_param_header *blob,
+				void *mem,
+				void **p,
 				struct device_node *dad,
 				struct device_node ***allnextpp,
 				unsigned long fpsize)
@@ -203,24 +202,23 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 	int has_name = 0;
 	int new_format = 0;
 
-	tag = be32_to_cpup((__be32 *)(*p));
+	tag = be32_to_cpup(*p);
 	// [First] tag : OF_DT_BEGIN_NODE
 	// [Second.root] tag : OF_DT_BEGIN_NODE
-
+	
 	if (tag != OF_DT_BEGIN_NODE) {
 		pr_err("Weird tag at start of node: %x\n", tag);
 		return mem;
 	}
 	*p += 4;
-	pathp = (char *)*p;
+
+	pathp = *p;
 	// [First] pathp : '\0'
 	// [Second.root] pathp : '\0'
-
 	l = allocl = strlen(pathp) + 1;
 	// [First] l, allocl : 1
 	// [Second.root] l, allocl : 1
-
-	*p = ALIGN(*p + l, 4);
+	*p = PTR_ALIGN(*p + l, 4);
 	// [First] p : 첫 번째 property 시작 주소
 	// [Second.root] p : 첫 번째 property 시작 주소
 
@@ -270,9 +268,7 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 	// [Second.root] allnextpp : &allnextp
 	if (allnextpp) {
 		char *fn;
-		memset(np, 0, sizeof(*np));
-		// np 공간을 전부 0으로 초기화
-
+	
 		np->full_name = fn = ((char *)np) + sizeof(*np);
 		// np->full_name : struct device_node 바로 뒷 주소
 		//		   이 공간에 이름 문자열을 저장할 예정임
@@ -336,9 +332,9 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 		u32 sz, noff;
 		char *pname;
 
-		tag = be32_to_cpup((__be32 *)(*p));
+		tag = be32_to_cpup(*p);
 		// [First] tag : OF_DT_PROP
-
+		
 		if (tag == OF_DT_NOP) {
 			*p += 4;
 			continue;
@@ -347,17 +343,18 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 			break;		// OF_DT_PROP이 아닐 경우 현재 노드의 모든 property 처리가 완료된 것임
 
 		*p += 4;
-		sz = be32_to_cpup((__be32 *)(*p));
+
+		sz = be32_to_cpup(*p);
 		// sz : 현재 property의 value의 크기
 
-		noff = be32_to_cpup((__be32 *)((*p) + 4));
+		noff = be32_to_cpup(*p + 4);
 		// noff : 현재 property의 이름이 위치한 오프셋
 
 		*p += 8;
 		// *p가 property의 value가 위치한 공간을 가리키게 함
 
 		if (be32_to_cpu(blob->version) < 0x10)
-			*p = ALIGN(*p, sz >= 8 ? 8 : 4);
+			*p = PTR_ALIGN(*p, sz >= 8 ? 8 : 4);
 		// DTB 버전이 낮을 경우 처리
 
 		pname = of_fdt_get_string(blob, noff);
@@ -404,7 +401,7 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 			// 이름 문자열의 시작을 저장
 			pp->length = sz;
 			// property 값의 길이를 저장
-			pp->value = (void *)*p;
+			pp->value = *p;
 			// property 값이 저장된 시작 위치를 저장
 			*prev_pp = pp;
 			// 현재 property 주소를 이전 property의 next 멤버에 저장
@@ -412,7 +409,7 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 			// prev_pp 값을 현재 property의 next 멤버의 주소로 바꿈
 			// 위 두 문장을 통해 현재 노드의 모든 property가 리스트로 연결됨
 		}
-		*p = ALIGN((*p) + sz, 4);
+		*p = PTR_ALIGN((*p) + sz, 4);
 		// 다음 property의 시작으로 이동
 	}
 	// [First]  현재 노드의 모든 property를 저장하기 위한 struct property의 총 크기 계산
@@ -492,7 +489,7 @@ static unsigned long unflatten_dt_node(struct boot_param_header *blob,
 			// 자식 노드에 대해서도 똑같은 작업을 수행함
 			mem = unflatten_dt_node(blob, mem, p, np, allnextpp,
 						fpsize);
-		tag = be32_to_cpup((__be32 *)(*p));
+		tag = be32_to_cpup(*p);
 	}
 	if (tag != OF_DT_END_NODE) {
 		pr_err("Weird tag at end of node: %x\n", tag);
@@ -532,7 +529,8 @@ static void __unflatten_device_tree(struct boot_param_header *blob,
 			     struct device_node **mynodes,
 			     void * (*dt_alloc)(u64 size, u64 align))
 {
-	unsigned long start, mem, size;
+	unsigned long size;
+	void *start, *mem;
 	struct device_node **allnextp = mynodes;
 
 	pr_debug(" -> unflatten_device_tree()\n");
@@ -556,11 +554,10 @@ static void __unflatten_device_tree(struct boot_param_header *blob,
 	}
 
 	/* First pass, scan for size */
-	start = ((unsigned long)blob) +
-		be32_to_cpu(blob->off_dt_struct);
+	start = ((void *)blob) + be32_to_cpu(blob->off_dt_struct);
 	// start : DTB의 struct 시작 주소
-
-	size = unflatten_dt_node(blob, 0, &start, NULL, NULL, 0);
+	
+	size = (unsigned long)unflatten_dt_node(blob, 0, &start, NULL, NULL, 0);
 	// DTB를 트리 구조로 만들기 위해서는 다음 공간이 필요
 	// 	1. 각 노드당 struct device_node, 이름 용 공간이 필요함.
 	//	2. 각 property마다 struct property 공간이 필요함.
@@ -568,32 +565,28 @@ static void __unflatten_device_tree(struct boot_param_header *blob,
 	// DTB를 전부 돌면서 존재하는 모든 노드와 property를 관리하기 위해 필요한 공간의 크기를
 	// 계산한 후 이를 size에 저장
 
-	size = (size | 3) + 1;
+	size = ALIGN(size, 4);
 	// size를 4바이트 정렬 수행
 
 	pr_debug("  size is %lx, allocating...\n", size);
 
 	/* Allocate memory for the expanded device tree */
-	mem = (unsigned long)
-		dt_alloc(size + 4, __alignof__(struct device_node));
+	mem = dt_alloc(size + 4, __alignof__(struct device_node));
 	// 위에서 계산한 공간 크기 + 4 만큼의 메모리를 할당받음
-
-	memset((void *)mem, 0, size);
+	
+	memset(mem, 0, size);
 	// 모든 공간을 0으로 초기화
 
-	((__be32 *)mem)[size / 4] = cpu_to_be32(0xdeadbeef);
+	*(__be32 *)(mem + size) = cpu_to_be32(0xdeadbeef);
 	// 마지막 위치에 매직 넘버 0xdeadbeef 저장
 
-	pr_debug("  unflattening %lx...\n", mem);
+	pr_debug("  unflattening %p...\n", mem);
 
 	/* Second pass, do actual unflattening */
 	// 위에서는 DT를 저장할 공간의 크기를 계산하고 할당 받는 동작을 수행하였음
 	// 그 공간에 실제 데이터를 집어넣는 동작이 이제부터 수행됨
-
-	start = ((unsigned long)blob) +
-		be32_to_cpu(blob->off_dt_struct);
+	start = ((void *)blob) + be32_to_cpu(blob->off_dt_struct);
 	// DTB의 struct 시작 위치를 start에 저장
-
 	unflatten_dt_node(blob, mem, &start, NULL, &allnextp, 0);
 	// DT 생성, 루트 노드는 of_allnodes가 가리킴
 	// DTB를 실제 DT로 제작함
@@ -604,11 +597,11 @@ static void __unflatten_device_tree(struct boot_param_header *blob,
 	// 그 이후 property는 이전 property의 next 멤버에 연결되어 있음
 	// 루트 노드는 of_allnodes가 가리킴
 
-	if (be32_to_cpup((__be32 *)start) != OF_DT_END)
-		pr_warning("Weird tag at end of tree: %08x\n", *((u32 *)start));
-	if (be32_to_cpu(((__be32 *)mem)[size / 4]) != 0xdeadbeef)
+	if (be32_to_cpup(start) != OF_DT_END)
+		pr_warning("Weird tag at end of tree: %08x\n", be32_to_cpup(start));
+	if (be32_to_cpup(mem + size) != 0xdeadbeef)
 		pr_warning("End of tree marker overwritten: %08x\n",
-			   be32_to_cpu(((__be32 *)mem)[size / 4]));
+			   be32_to_cpup(mem + size));
 	*allnextp = NULL;
 	// 마지막 노드의 allnext 멤버를 NULL로 설정
 
@@ -785,14 +778,163 @@ int __init of_flat_dt_match(unsigned long node, const char *const *compat)
 	return of_fdt_match(initial_boot_params, node, compat);
 }
 
+struct fdt_scan_status {
+	const char *name;
+	int namelen;
+	int depth;
+	int found;
+	int (*iterator)(unsigned long node, const char *uname, int depth, void *data);
+	void *data;
+};
+
+/**
+ * fdt_scan_node_by_path - iterator for of_scan_flat_dt_by_path function
+ */
+static int __init fdt_scan_node_by_path(unsigned long node, const char *uname,
+					int depth, void *data)
+{
+	struct fdt_scan_status *st = data;
+
+	/*
+	 * if scan at the requested fdt node has been completed,
+	 * return -ENXIO to abort further scanning
+	 */
+	if (depth <= st->depth)
+		return -ENXIO;
+
+	/* requested fdt node has been found, so call iterator function */
+	if (st->found)
+		return st->iterator(node, uname, depth, st->data);
+
+	/* check if scanning automata is entering next level of fdt nodes */
+	if (depth == st->depth + 1 &&
+	    strncmp(st->name, uname, st->namelen) == 0 &&
+	    uname[st->namelen] == 0) {
+		st->depth += 1;
+		if (st->name[st->namelen] == 0) {
+			st->found = 1;
+		} else {
+			const char *next = st->name + st->namelen + 1;
+			st->name = next;
+			st->namelen = strcspn(next, "/");
+		}
+		return 0;
+	}
+
+	/* scan next fdt node */
+	return 0;
+}
+
+/**
+ * of_scan_flat_dt_by_path - scan flattened tree blob and call callback on each
+ *			     child of the given path.
+ * @path: path to start searching for children
+ * @it: callback function
+ * @data: context data pointer
+ *
+ * This function is used to scan the flattened device-tree starting from the
+ * node given by path. It is used to extract information (like reserved
+ * memory), which is required on ealy boot before we can unflatten the tree.
+ */
+int __init of_scan_flat_dt_by_path(const char *path,
+	int (*it)(unsigned long node, const char *name, int depth, void *data),
+	void *data)
+{
+	struct fdt_scan_status st = {path, 0, -1, 0, it, data};
+	int ret = 0;
+
+	if (initial_boot_params)
+                ret = of_scan_flat_dt(fdt_scan_node_by_path, &st);
+
+	if (!st.found)
+		return -ENOENT;
+	else if (ret == -ENXIO)	/* scan has been completed */
+		return 0;
+	else
+		return ret;
+}
+
+const char * __init of_flat_dt_get_machine_name(void)
+{
+	const char *name;
+	unsigned long dt_root = of_get_flat_dt_root();
+
+	name = of_get_flat_dt_prop(dt_root, "model", NULL);
+	if (!name)
+		name = of_get_flat_dt_prop(dt_root, "compatible", NULL);
+	return name;
+}
+
+/**
+ * of_flat_dt_match_machine - Iterate match tables to find matching machine.
+ *
+ * @default_match: A machine specific ptr to return in case of no match.
+ * @get_next_compat: callback function to return next compatible match table.
+ *
+ * Iterate through machine match tables to find the best match for the machine
+ * compatible string in the FDT.
+ */
+const void * __init of_flat_dt_match_machine(const void *default_match,
+		const void * (*get_next_compat)(const char * const**))
+{
+	const void *data = NULL;
+	const void *best_data = default_match;
+	const char *const *compat;
+	unsigned long dt_root;
+	unsigned int best_score = ~1, score = 0;
+
+	dt_root = of_get_flat_dt_root();
+	// root 노드의 첫 번째 property 시작 주소를 dt_root에 저장
+	
+	while ((data = get_next_compat(&compat))) {
+		score = of_flat_dt_match(dt_root, compat);
+		// DTB의 compatible property를 이용해 현재 mdesc와 일치 정도를 비교한 뒤 반환
+		// score : 1 (일치)
+		// score : 1 이상 (호환 가능)
+		// score : 0 (호환 불가)
+		if (score > 0 && score < best_score) {
+			best_data = data;
+			best_score = score;
+			// 호환 가능한 것을 찾은 경우 이 값을 저장해 둠.
+			// 스코어 점수를 기록해서 가장 일치하는 machine_desc를 찾아야 함.
+		}
+	}
+	// 모든 machine_desc를 비교 대상으로 삼아 DTB에 저장된 보드와 가장 일치하는 machine_desc를 찾아냄
+	// 즉, score가 최대한 1에 가까운 것으로 찾음
+	// 전체 machine_desc를 가지고 전부 비교해 봄
+	
+	if (!best_data) {
+		const char *prop;
+		long size;
+
+		pr_err("\n unrecognized device tree list:\n[ ");
+
+		prop = of_get_flat_dt_prop(dt_root, "compatible", &size);
+		if (prop) {
+			while (size > 0) {
+				printk("'%s' ", prop);
+				size -= strlen(prop) + 1;
+				prop += strlen(prop) + 1;
+			}
+		}
+		printk("]\n\n");
+		return NULL;
+	}
+
+	pr_info("Machine model: %s\n", of_flat_dt_get_machine_name());
+
+	return best_data;
+}
+
 #ifdef CONFIG_BLK_DEV_INITRD
 /**
  * early_init_dt_check_for_initrd - Decode initrd location from flat tree
  * @node: reference to node containing initrd location ('chosen')
  */
-void __init early_init_dt_check_for_initrd(unsigned long node)
+static void __init early_init_dt_check_for_initrd(unsigned long node)
 {
-	unsigned long start, end, len;
+	u64 start, end;
+	unsigned long len;
 	__be32 *prop;
 
 	pr_debug("Looking for initrd properties... ");
@@ -804,19 +946,22 @@ void __init early_init_dt_check_for_initrd(unsigned long node)
 
 	if (!prop)
 		return;
-
-	start = of_read_ulong(prop, len/4);
+	start = of_read_number(prop, len/4);
 
 	prop = of_get_flat_dt_prop(node, "linux,initrd-end", &len);
 	if (!prop)
 		return;
-	end = of_read_ulong(prop, len/4);
+	end = of_read_number(prop, len/4);
 
-	early_init_dt_setup_initrd_arch(start, end);
-	pr_debug("initrd_start=0x%lx  initrd_end=0x%lx\n", start, end);
+	initrd_start = (unsigned long)__va(start);
+	initrd_end = (unsigned long)__va(end);
+	initrd_below_start_ok = 1;
+
+	pr_debug("initrd_start=0x%llx  initrd_end=0x%llx\n",
+		 (unsigned long long)start, (unsigned long long)end);
 }
 #else
-inline void early_init_dt_check_for_initrd(unsigned long node)
+static inline void early_init_dt_check_for_initrd(unsigned long node)
 {
 }
 #endif /* CONFIG_BLK_DEV_INITRD */
@@ -990,6 +1135,77 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 	return 1;
 }
 
+#ifdef CONFIG_HAVE_MEMBLOCK
+void __init __weak early_init_dt_add_memory_arch(u64 base, u64 size)
+{
+	const u64 phys_offset = __pa(PAGE_OFFSET);
+	base &= PAGE_MASK;
+	size &= PAGE_MASK;
+	if (base + size < phys_offset) {
+		pr_warning("Ignoring memory block 0x%llx - 0x%llx\n",
+			   base, base + size);
+		return;
+	}
+	if (base < phys_offset) {
+		pr_warning("Ignoring memory range 0x%llx - 0x%llx\n",
+			   base, phys_offset);
+		size -= phys_offset - base;
+		base = phys_offset;
+	}
+	memblock_add(base, size);
+}
+
+/*
+ * called from unflatten_device_tree() to bootstrap devicetree itself
+ * Architectures can override this definition if memblock isn't used
+ */
+void * __init __weak early_init_dt_alloc_memory_arch(u64 size, u64 align)
+{
+	return __va(memblock_alloc(size, align));
+}
+#endif
+
+bool __init early_init_dt_scan(void *params)
+{
+	if (!params)
+		return false;
+
+	/* Setup flat device-tree pointer */
+	initial_boot_params = params;
+
+	/* check device tree validity */
+	if (be32_to_cpu(initial_boot_params->magic) != OF_DT_HEADER) {
+		initial_boot_params = NULL;
+		return false;
+	}
+
+	/* Retrieve various information from the /chosen node */
+	of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
+	// DTB chosen 노드의 bootargs property에서 데이터를 뽑아와 boot_command_line에 저장
+	// of_scan_flat_dt : DTB의 노드마다 첫 번째 인자로 주어진 함수를 호출함.
+	//		     그 함수가 1을 반환할 때까지 노드를 계속 바꾸면서 호출
+	// early_init_dt_scan_chosen : 노드가 chosen 노드인지 확인한 후
+	//			       맞으면 bootargs property의 데이터를 가져와 boot_command_line에 저장
+	// boot_command_line : "console=ttySAC2,115200 init=/linuxrc"
+
+	/* Initialize {size,address}-cells info */
+	of_scan_flat_dt(early_init_dt_scan_root, NULL);
+	// early_init_dt_scan_root : 노드가 root 노드인지 확인한 후
+	//			     맞으면 #size-cells, #address-cells 값을 뽑아와
+	//			     dt_root_size_cells, dt_root_addr_cells 변수에 각각 저장
+
+	/* Setup memory, calling early_init_dt_add_memory_arch */
+	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
+	// early_init_dt_scan_memory : 노드가 memory 정보인지 확인한 후
+	// 맞는 경우 base와 size 정보를 뽑아와 아래 구조체를 초기화함.
+	// meminfo.nr_banks : 1
+	// meminfo.bank[0].start : 0x20000000
+	// meminfo.bank[0].size : 0x80000000
+	// 정보를 뽑을 때 위에서 처리한 dt_root_size_cells, dt_root_addr_cells를 이용함
+
+	return true;
+}
+
 /**
  * unflatten_device_tree - create tree of device_nodes from flat blob
  *
@@ -1010,6 +1226,38 @@ void __init unflatten_device_tree(void)
 	of_alias_scan(early_init_dt_alloc_memory_arch);
 	// alias 정보를 실제 노드와 연결해 주는 작업을 진행
 	// struct aliase_prop에 값을 설정한 후, 전역 변수 aliases_lookup에 연결시킴
+}
+
+/**
+ * unflatten_and_copy_device_tree - copy and create tree of device_nodes from flat blob
+ *
+ * Copies and unflattens the device-tree passed by the firmware, creating the
+ * tree of struct device_node. It also fills the "name" and "type"
+ * pointers of the nodes so the normal device-tree walking functions
+ * can be used. This should only be used when the FDT memory has not been
+ * reserved such is the case when the FDT is built-in to the kernel init
+ * section. If the FDT memory is reserved already then unflatten_device_tree
+ * should be used instead.
+ */
+void __init unflatten_and_copy_device_tree(void)
+{
+	int size;
+	void *dt;
+
+	if (!initial_boot_params) {
+		pr_warn("No valid device tree found, continuing without\n");
+		return;
+	}
+
+	size = __be32_to_cpu(initial_boot_params->totalsize);
+	dt = early_init_dt_alloc_memory_arch(size,
+		__alignof__(struct boot_param_header));
+
+	if (dt) {
+		memcpy(dt, initial_boot_params, size);
+		initial_boot_params = dt;
+	}
+	unflatten_device_tree();
 }
 
 #endif /* CONFIG_OF_EARLY_FLATTREE */
