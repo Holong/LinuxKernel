@@ -855,9 +855,6 @@ static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
 	// alloc_init_pmd를 호출하고 끝냄.
 	// 현재 do while문은 아무 역할도 하지 않음
 	// 아마 LPAE 방식을 쓸 때 사용할 것으로 생각됨
-		alloc_init_pmd(pud, addr, next, phys, type);
-		phys += next - addr;
-	} while (pud++, addr = next, addr != end);
 }
 
 #ifndef CONFIG_ARM_LPAE
