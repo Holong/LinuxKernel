@@ -198,15 +198,22 @@ static unsigned long writeout_period_time = 0;
  * Returns the zone's number of pages potentially available for dirty
  * page cache.  This is the base value for the per-zone dirty limits.
  */
+// zone : &contig_page_data.node_zones[0]
 static unsigned long zone_dirtyable_memory(struct zone *zone)
 {
 	unsigned long nr_pages;
 
 	nr_pages = zone_page_state(zone, NR_FREE_PAGES);
+	// nr_pages : node_zones[0].vm_stat[NR_FREE_PAGES]
+	// 	      할당 가능한 node_zones[0]의 페이지 개수가 저장됨
+	
 	nr_pages -= min(nr_pages, zone->dirty_balance_reserve);
+	// reserve 페이지 개수를 뺌
+	// 현재는 0이기 때문에 그대로 nr_pages 유지
 
 	nr_pages += zone_page_state(zone, NR_INACTIVE_FILE);
 	nr_pages += zone_page_state(zone, NR_ACTIVE_FILE);
+	// NR_INACTIVE_FILE, NR_ACTIVE_FILE 페이지 개수를 더해줌
 
 	return nr_pages;
 }
@@ -316,18 +323,26 @@ void global_dirty_limits(unsigned long *pbackground, unsigned long *pdirty)
  * Returns the maximum number of dirty pages allowed in a zone, based
  * on the zone's dirtyable memory.
  */
+// zone : &contig_page_data.node_zones[0]
 static unsigned long zone_dirty_limit(struct zone *zone)
 {
 	unsigned long zone_memory = zone_dirtyable_memory(zone);
+	// zone_memory : node_zones[0].vm_stat[NR_FREE_PAGES] 값 저장
+	// lowmem에서 할당 가능한 free 페이지 개수가 저장됨
 	struct task_struct *tsk = current;
+	// tsk : init_task
 	unsigned long dirty;
 
+	// vm_dirty_bytes : 0
 	if (vm_dirty_bytes)
 		dirty = DIV_ROUND_UP(vm_dirty_bytes, PAGE_SIZE) *
 			zone_memory / global_dirtyable_memory();
 	else
+		// vm_dirty_ratio : 20, zone_memory : free 페이지 개수
 		dirty = vm_dirty_ratio * zone_memory / 100;
+		// free 페이지 갯수의 20%를 dirty 에 저장
 
+	// tsk->flags : PF_KTHREAD, rt_task(tsk) : 0
 	if (tsk->flags & PF_LESS_THROTTLE || rt_task(tsk))
 		dirty += dirty / 4;
 
@@ -341,13 +356,16 @@ static unsigned long zone_dirty_limit(struct zone *zone)
  * Returns %true when the dirty pages in @zone are within the zone's
  * dirty limit, %false if the limit is exceeded.
  */
+// zone : &contig_page_data.node_zones[0]
 bool zone_dirty_ok(struct zone *zone)
 {
 	unsigned long limit = zone_dirty_limit(zone);
+	// node_zones[0]의 free 페이지 갯수의 20%가 limit에 저장됨
 
 	return zone_page_state(zone, NR_FILE_DIRTY) +
 	       zone_page_state(zone, NR_UNSTABLE_NFS) +
 	       zone_page_state(zone, NR_WRITEBACK) <= limit;
+	// vm_stat에 저장된 개수가 limit보다 작은지 반환
 }
 
 int dirty_background_ratio_handler(struct ctl_table *table, int write,

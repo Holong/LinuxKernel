@@ -1327,7 +1327,7 @@ static inline struct page *alloc_slab_page(gfp_t flags, int node,
 	if (node == NUMA_NO_NODE)
 		return alloc_pages(flags, order);
 	else
-		// node : 0, flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK, order : 0
+		// node : 0, flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK & !__GFP_NOFAIL, order : 0
 		return alloc_pages_exact_node(node, flags, order);
 }
 

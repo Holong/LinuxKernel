@@ -1876,6 +1876,8 @@ static inline bool should_fail_alloc_page(gfp_t gfp_mask, unsigned int order)
  * Return true if free pages are above 'mark'. This takes into account the order
  * of the allocation.
  */
+// z: &contig_page_data.node_zones[0], order: 0, mark: 0
+// classzone_idx: 0, alloc_flags: ALLOC_WMARK_LOW|ALLOC_CPUSET, free_pages : vm_stat[NR_FREE_PAGES]
 static bool __zone_watermark_ok(struct zone *z, int order, unsigned long mark,
 		      int classzone_idx, int alloc_flags, long free_pages)
 {
@@ -1911,9 +1913,13 @@ static bool __zone_watermark_ok(struct zone *z, int order, unsigned long mark,
 	return true;
 }
 
+// z: &contig_page_data.node_zones[0], order: 0, mark: 0
+// classzone_idx: 0, alloc_flags: ALLOC_WMARK_LOW|ALLOC_CPUSET
 bool zone_watermark_ok(struct zone *z, int order, unsigned long mark,
 		      int classzone_idx, int alloc_flags)
 {
+	// z: &contig_page_data.node_zones[0], order: 0, mark: 0
+	// classzone_idx: 0, alloc_flags: ALLOC_WMARK_LOW|ALLOC_CPUSET, vm_stat[NR_FREE_PAGES]
 	return __zone_watermark_ok(z, order, mark, classzone_idx, alloc_flags,
 					zone_page_state(z, NR_FREE_PAGES));
 }
@@ -2108,7 +2114,7 @@ static inline void init_zone_allows_reclaim(int nid)
  * get_page_from_freelist goes through the zonelist trying to allocate
  * a page.
  */
-// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL
+// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL & !__GFP_NOFAIL
 // nodemask : NULL, order : 0, zonelist : contig_page_data.node_zones, high_zoneidx : 0
 // alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET, preferred_zone : node_zones[0]
 // migratetype : MIGRATE_UNMOVABLE
@@ -2126,6 +2132,9 @@ get_page_from_freelist(gfp_t gfp_mask, nodemask_t *nodemask, unsigned int order,
 	int did_zlc_setup = 0;		/* just call zlc_setup() one time */
 
 	classzone_idx = zone_idx(preferred_zone);
+	// classzone_idx : 0
+	// node_zones[0]이 몇 번째 zone인지 반환됨
+	
 zonelist_scan:
 	/*
 	 * Scan zonelist, looking for a zone with enough free.
@@ -2133,17 +2142,38 @@ zonelist_scan:
 	 */
 	for_each_zone_zonelist_nodemask(zone, z, zonelist,
 						high_zoneidx, nodemask) {
+	// for (z = first_zones_zonelist(zonelist, high_zoneidx, nodemask, &zone);
+	//	zone;							
+	//	z = next_zones_zonelist(++z, high_zoneidx, nodemask, &zone))
+	
+		// z : contig_page_data.node_zones[0]이 반환됨
 		unsigned long mark;
 
+		// IS_ENABLED(CONFIG_NUMA): 0, zlc_active: 0
+		// zonelist: contig_page_data->node_zonelists, allowednodes: NULL
+		// zlc_zone_worth_trying(contig_page_data->node_zonelists, z, NULL): 1
 		if (IS_ENABLED(CONFIG_NUMA) && zlc_active &&
 			!zlc_zone_worth_trying(zonelist, z, allowednodes))
 				continue;
+		// CONFIG_NUMA가 N이고, zlc_zone_worth_trying 함수는 항상 1을 반환하므로
+		// CONFIG에 의해 항상 수행되지 않음
+
+		// alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET, zone : contig_page_data.node_zones[0]
+		// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL & !__GFP_NOFAIL
 		if ((alloc_flags & ALLOC_CPUSET) &&
 			!cpuset_zone_allowed_softwall(zone, gfp_mask))
 				continue;
+		// cpuset_zone_allowed_softwall이 항상 1을 반환
+		// 수행되지 않음
+
+		// ALLOC_NO_WATERMARKS	0x04, NR_WMARK : 3
 		BUILD_BUG_ON(ALLOC_NO_WATERMARKS < NR_WMARK);
+
+		// alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET (0x41)
+		// ALLOC_NO_WATERMARKS : 0x04
 		if (unlikely(alloc_flags & ALLOC_NO_WATERMARKS))
-			goto try_this_zone;
+			goto try_this_zone; // 수행 안됨
+
 		/*
 		 * Distribute pages in proportion to the individual
 		 * zone size to ensure fair page aging.  The zone a
@@ -2160,11 +2190,21 @@ zonelist_scan:
 		 * NOTE: GFP_THISNODE allocations do not partake in
 		 * the kswapd aging protocol, so they can't be fair.
 		 */
+		// alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET
+		// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL & !__GFP_NOFAIL
 		if ((alloc_flags & ALLOC_WMARK_LOW) &&
 		    !gfp_thisnode_allocation(gfp_mask)) {
+			// gfp_thisnode_allocation(gpf_mask) : false
+			// CONFIG_NUMA에 의해 항상 false 반환
+
+			// zone: contig_page_data->node_zones[0], NR_ALLOC_BATCH: 1
 			if (zone_page_state(zone, NR_ALLOC_BATCH) <= 0)
+			// zone_page_state(contig_page_data->node_zones[0], NR_ALLOC_BATCH): 0x2efd6
+			// node_zones[0].vm_stat[NR_ALLOC_BATCH]에 있는 값을 반환함
+			// vm_stat[NR_~]에는 각 성질에 맞는 페이지 개수가 저장되어 있음
 				continue;
 			if (!zone_local(preferred_zone, zone))
+				// zone_local()는 CONFIG_NUMA에 의해 무조건 true 반환
 				continue;
 		}
 		/*
@@ -2193,13 +2233,23 @@ zonelist_scan:
 		 * will require awareness of zones in the
 		 * dirty-throttling and the flusher threads.
 		 */
+		// alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET
+		// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL & !__GFP_NOFAIL
+		// zone_dirty_ok(zone) : free_page의 20% 안에 특정 플래그 페이지 개수가 들어가는지 확인
 		if ((alloc_flags & ALLOC_WMARK_LOW) &&
 		    (gfp_mask & __GFP_WRITE) && !zone_dirty_ok(zone))
-			goto this_zone_full;
+			goto this_zone_full;	// 통과
 
+		// alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET
 		mark = zone->watermark[alloc_flags & ALLOC_WMARK_MASK];
+		// mark : node_zones[0].watermark[1] : 0
+
+		// zone: contig_page_data->node_zones[0], order: 0, mark: 0
+		// classzone_idx: 0, alloc_flags: ALLOC_WMARK_LOW|ALLOC_CPUSET
 		if (!zone_watermark_ok(zone, order, mark,
 				       classzone_idx, alloc_flags)) {
+			// zone_watermark_ok(contig_page_data->node_zones[0], 0, 0, 0, 0x41): 1
+			// 통과됨
 			int ret;
 
 			if (IS_ENABLED(CONFIG_NUMA) &&
@@ -2900,7 +2950,7 @@ got_pg:
 /*
  * This is the 'heart' of the zoned buddy allocator.
  */
-// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK, order : 0
+// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK & !__GFP_NOFAIL, order : 0
 // zonelist : contig_page_data.node_zonelist[0], nodemask : NULL
 struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
@@ -2921,16 +2971,16 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 	// alloc_flags : 0x41
 	struct mem_cgroup *memcg = NULL;
 
-	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK
+	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK & !__GFP_NOFAIL
 	// gfp_allowed_mask = GFP_BOOT_MASK
 	gfp_mask &= gfp_allowed_mask;
-	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK
+	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK & !__GFP_NOFAIL
 	// 변화 없음
 
 	lockdep_trace_alloc(gfp_mask);
 	// NULL 함수
 
-	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK
+	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK & !__GFP_NOFAIL
 	might_sleep_if(gfp_mask & __GFP_WAIT);
 	// __GFP_WAIT 플래그가 존재하는 지 검사
 	// 없으므로 아무 것도 하지 않음
@@ -2978,7 +3028,7 @@ retry_cpuset:
 		alloc_flags |= ALLOC_CMA;
 #endif
 	/* First allocation attempt */
-	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL
+	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL & !__GFP_NOFAIL
 	// nodemask : NULL, order : 0, zonelist : contig_page_data.node_zones, high_zoneidx : 0
 	// alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET, preferred_zone : node_zones[0]
 	// migratetype : MIGRATE_UNMOVABLE
