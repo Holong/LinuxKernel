@@ -211,6 +211,7 @@ void set_pgdat_percpu_threshold(pg_data_t *pgdat,
  */
 // zone : node_zones[ZONE_NORMAL], item : 0, delta : 32
 // zone : node_zones[ZONE_NORMAL], item : 0, delta : 1
+// zone : node_zones[0], item : 30, delta : -1
 void __mod_zone_page_state(struct zone *zone, enum zone_stat_item item,
 				int delta)
 {
