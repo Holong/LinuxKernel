@@ -349,7 +349,8 @@ static int __init exynos_fdt_map_chipid(unsigned long node, const char *uname,
 
 void __init exynos_init_io(void)
 {
-	debug_ll_io_init(); // 통과
+	debug_ll_io_init();
+	// NULL 함수
 
 	// function 포인터를 넣어줌
 	of_scan_flat_dt(exynos_fdt_map_chipid, NULL);

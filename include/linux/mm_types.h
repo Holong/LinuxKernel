@@ -45,6 +45,8 @@ struct page {
 	/* First double word block */
 	unsigned long flags;		/* Atomic flags, some possibly
 					 * updated asynchronously */
+					// 페이지에 대한 각종 플래그
+					// PG_~
 	union {
 		struct address_space *mapping;	/* If low bit clear, points to
 						 * inode address_space, or NULL.
@@ -105,7 +107,7 @@ struct page {
 					 * never succeed on tail
 					 * pages.
 					 */
-					atomic_t _mapcount;
+					atomic_t _mapcount;		// 현재 free buddy 선두인지 저장
 
 					struct { /* SLUB */
 						unsigned inuse:16;
@@ -115,6 +117,7 @@ struct page {
 					int units;	/* SLOB */
 				};
 				atomic_t _count;		/* Usage count, see below. */
+								// 참조 횟수
 			};
 			unsigned int active;	/* SLAB */
 		};
@@ -125,6 +128,7 @@ struct page {
 		struct list_head lru;	/* Pageout list, eg. active_list
 					 * protected by zone->lru_lock !
 					 */
+					// 리스트에 연결하는 용도로 이용
 		struct {		/* slub per cpu partial pages */
 			struct page *next;	/* Next partial slab */
 #ifdef CONFIG_64BIT
@@ -155,6 +159,8 @@ struct page {
 						 * indicates order in the buddy
 						 * system if PG_buddy is set.
 						 */
+						// buddy의 선두일 경우
+						// order 값이 저장됨
 #if USE_SPLIT_PTE_PTLOCKS
 #if ALLOC_SPLIT_PTLOCKS
 		spinlock_t *ptl;

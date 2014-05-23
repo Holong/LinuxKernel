@@ -613,7 +613,7 @@ static inline void __free_one_page(struct page *page,
 			// 이 쪽으로 옴
 			list_del(&buddy->lru);
 			// contig_page_data.node_zones[ZONE_NORMAL].free_area[order].free_list[MIGRATE_MOVABLE]
-			// 에 달려있던 기존 리스트를 날림
+			// 에서 buddy를 빼냄
 
 			zone->free_area[order].nr_free--;
 			// 기록해둔 카운트 값도 감소
@@ -622,6 +622,7 @@ static inline void __free_one_page(struct page *page,
 			// buddy의 page->_mapcount : -1
 			// 	   page->private : 0
 			// 으로 초기화 해줌
+			// 즉 free인 buddy 선두가 아니라고 표시함
 		}
 		// buddy_idx : 0, page_idx : 1
 		combined_idx = buddy_idx & page_idx;
@@ -663,10 +664,14 @@ static inline void __free_one_page(struct page *page,
 			goto out;
 		}
 	}
+	// buddy 알고리즘 최적화
+	// FREE NOT FREE FREE 상태인 경우 첫 번째 FREE 페이지를 최대한 늦게 할당하도록 만듬
+	// 이러한 동작을 추가하면 두 번째 NOT 페이지가 FREE로 바뀔 경우 order를 두 단계 올려서 합칠 수 있게 됨
 
 	list_add(&page->lru, &zone->free_area[order].free_list[migratetype]);
 	// contig_page_data.node_zones[ZONE_NORMAL].free_area[5].free_list[MIGRATE_MOVABLE] 에
 	// 0x20000 (pfn) struct page를 연결
+	// 위의 최적화에 해당하지 않을 경우 최대한 빠르게 할당하도록 리스트에 연결함
 out:
 	zone->free_area[order].nr_free++;
 	// contig_page_data.node_zones[ZONE_NORMAL].free_area[5].nr_free: 1
@@ -695,7 +700,7 @@ static inline int free_pages_check(struct page *page)
 	// PAGE_FLAGS_CHECK_AT_PREP : 0x1FFFF
 	if (page->flags & PAGE_FLAGS_CHECK_AT_PREP)
 		page->flags &= ~PAGE_FLAGS_CHECK_AT_PREP;
-	// MR_PAGEFLAGS 만큼의 하위 비트를 전부 삭제
+	// NR_PAGEFLAGS 만큼의 하위 비트를 전부 삭제
 	return 0;
 }
 

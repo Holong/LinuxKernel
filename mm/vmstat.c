@@ -218,7 +218,7 @@ void __mod_zone_page_state(struct zone *zone, enum zone_stat_item item,
 	struct per_cpu_pageset __percpu *pcp = zone->pageset;
 	// pcp : &boot_pageset
 	s8 __percpu *p = pcp->vm_stat_diff + item;
-	// p : &pcp->vm_stat_diff
+	// p : &pcp->vm_stat_diff[NR_FREE_PAGES]
 	long x;
 	long t;
 

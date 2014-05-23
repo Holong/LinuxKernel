@@ -1059,8 +1059,11 @@ void __init setup_arch(char **cmdline_p)
 	// 이며 1개 밖에 존재하지 않기 때문에 정렬이 수행되지 않음
 
 	early_paging_init(mdesc, lookup_processor_type(read_cpuid_id()));
+	// 수행 내용 없음
+	// 현재 타깃에 맞는 mdesc->init_meminfo 함수가 존재하지 않음
 
 	setup_dma_zone(mdesc);
+	// NULL 함수
 
 	sanity_check_meminfo();
 	// 뱅크가 lowmem, highmem 2개로 분리 됨.
