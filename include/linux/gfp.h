@@ -337,6 +337,8 @@ static inline struct page *alloc_pages_exact_node(int nid, gfp_t gfp_mask,
 
 	// gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK & !__GFP_NOFAIL, order : 0, nid : 0
 	return __alloc_pages(gfp_mask, order, node_zonelist(nid, gfp_mask));
+	// gfp_mask를 이용해 order 값에 맞게 buddy에서 페이지를 뽑아옴
+	// order가 0인 경우 pcp에 연결되어 있던 것 중에 뽑아옴
 }
 
 #ifdef CONFIG_NUMA

@@ -1050,22 +1050,35 @@ static inline int check_new_page(struct page *page)
 	return 0;
 }
 
+// page : pcp의 리스트에 연결되어 있는 migratetype이 일치하는 첫 번째 페이지
+// order : 0
+// gfp_flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL & !__GFP_NOFAIL
 static int prep_new_page(struct page *page, int order, gfp_t gfp_flags)
 {
 	int i;
 
+	// order : 0
 	for (i = 0; i < (1 << order); i++) {
 		struct page *p = page + i;
 		if (unlikely(check_new_page(p)))
+			// check_new_page : 현재 페이지가 new 인지 아닌지 확인
+			// 확인은 _mapcount와 mapping, _count 멤버를 이용함
 			return 1;
 	}
 
 	set_page_private(page, 0);
+	// private 멤버를 0으로 바꿈
+
 	set_page_refcounted(page);
+	// _count를 1로 바꿈
 
 	arch_alloc_page(page, order);
-	kernel_map_pages(page, 1 << order, 1);
+	// null 함수
 
+	kernel_map_pages(page, 1 << order, 1);
+	// NULL 함수
+
+	// gfp_flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL & !__GFP_NOFAIL
 	if (gfp_flags & __GFP_ZERO)
 		prep_zero_page(page, order, gfp_flags);
 
@@ -1925,13 +1938,29 @@ again:
 	if (!gfp_thisnode_allocation(gfp_flags))	// false 반환
 		__mod_zone_page_state(zone, NR_ALLOC_BATCH, -(1 << order));
 		// node_zones[0].vm_stat[NR_ALLOC_BATCH]에서 1 감소 
+		// 버디에서 관리하는 페이지 개수를 한 개 뺌
 
+	// PGALLOC : 4(PGALLOC_NORMAL) - 0(ZONE_NORMAL) + 0(zone_idx(zone))
+	// zone : node_zones[0], order : 0
 	__count_zone_vm_events(PGALLOC, zone, 1 << order);
+	// __count_vm_events(PGALLOC_NORMAL - ZONE_NORMAL + zone_idx(zone), 1)
+	// 현재 cpu에 해당하는 vm_event_states.event[PGALLOC_NORMAL]에 1을 증가시킴
+
+	// preferred_zone : 0, zone : node_zones[0],
+	// gfp_flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL & !__GFP_NOFAIL
 	zone_statistics(preferred_zone, zone, gfp_flags);
+	// NULL 함수
+
 	local_irq_restore(flags);
+	// irq 복구
 
 	VM_BUG_ON(bad_range(zone, page));
+
+	// page : pcp의 리스트에 연결되어 있는 migratetype이 일치하는 첫 번째 페이지
+	// order : 0
+	// gfp_flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK | __GFP_HARDWALL & !__GFP_NOFAIL
 	if (prep_new_page(page, order, gfp_flags))
+		// page의 private 멤버를 0으로 바꾸고, _count를 1로 바꿈
 		goto again;
 	return page;
 
@@ -2458,6 +2487,7 @@ try_this_zone:
 		// migratetype : MIGRATE_UNMOVABLE
 		page = buffered_rmqueue(preferred_zone, zone, order,
 						gfp_mask, migratetype);
+		// cpu0의 pcp에서 migratetype이 일치하는 page를 가져옴
 		if (page)
 			break;
 this_zone_full:
@@ -2479,6 +2509,7 @@ this_zone_full:
 		 * memory. The caller should avoid the page being used
 		 * for !PFMEMALLOC purposes.
 		 */
+		// alloc_flags : ALLOC_WMARK_LOW|ALLOC_CPUSET
 		page->pfmemalloc = !!(alloc_flags & ALLOC_NO_WATERMARKS);
 
 	return page;
@@ -3183,6 +3214,8 @@ retry_cpuset:
 	page = get_page_from_freelist(gfp_mask|__GFP_HARDWALL, nodemask, order,
 			zonelist, high_zoneidx, alloc_flags,
 			preferred_zone, migratetype);
+	// cpu0의 pcp에서 migratetype이 일치하는 page를 가져옴
+
 	if (unlikely(!page)) {
 		/*
 		 * Runtime PM, block IO and its error handling path
@@ -3193,9 +3226,11 @@ retry_cpuset:
 		page = __alloc_pages_slowpath(gfp_mask, order,
 				zonelist, high_zoneidx, nodemask,
 				preferred_zone, migratetype);
+		// 안들어옴
 	}
 
 	trace_mm_page_alloc(page, order, gfp_mask, migratetype);
+	// 디버깅 관련 함수
 
 out:
 	/*
@@ -3204,10 +3239,13 @@ out:
 	 * the mask is being updated. If a page allocation is about to fail,
 	 * check if the cpuset changed during allocation and if so, retry.
 	 */
+	// cpuset_mems_cookie : 0
 	if (unlikely(!put_mems_allowed(cpuset_mems_cookie) && !page))
 		goto retry_cpuset;
+		// 항상 통과
 
 	memcg_kmem_commit_charge(page, memcg, order);
+	// Null 함수
 
 	return page;
 }

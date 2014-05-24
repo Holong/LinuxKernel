@@ -523,6 +523,7 @@ static inline compound_page_dtor *get_compound_page_dtor(struct page *page)
 // page : empty_zero_page
 static inline int compound_order(struct page *page)
 {
+	// page->flags : NR_PAGEFLAGS 비트만큼 0으로 되어 있음
 	if (!PageHead(page))
 		return 0;
 	return (unsigned long)page[1].lru.prev;

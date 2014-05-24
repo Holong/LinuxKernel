@@ -1329,6 +1329,8 @@ static inline struct page *alloc_slab_page(gfp_t flags, int node,
 	else
 		// node : 0, flags : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK & !__GFP_NOFAIL, order : 0
 		return alloc_pages_exact_node(node, flags, order);
+		// gfp_mask를 이용해 order 값에 맞게 buddy에서 페이지를 뽑아옴
+		// order가 0인 경우 pcp에 연결되어 있던 것 중에 뽑아옴
 }
 
 // s : boot_keme_cache_node, flags : 0, node : 0
@@ -1365,6 +1367,9 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 	// alloc_gfp : 0x1200
 
 	page = alloc_slab_page(alloc_gfp, node, oo);
+	// gfp_mask를 이용해 order 값에 맞게 buddy에서 페이지를 뽑아옴
+	// order가 0인 경우 pcp에 연결되어 있던 것 중에 뽑아옴
+
 	if (unlikely(!page)) {
 		oo = s->min;
 		/*
@@ -1376,6 +1381,7 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 		if (page)
 			stat(s, ORDER_FALLBACK);
 	}
+	// 페이지를 받아 왔으므로 통과됨
 
 	if (kmemcheck_enabled && page
 		&& !(s->flags & (SLAB_NOTRACK | DEBUG_DEFAULT_FLAGS))) {
@@ -1393,16 +1399,25 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 			kmemcheck_mark_unallocated_pages(page, pages);
 	}
 
+	// flags : 0, __GFP_WAIT : 0x10
 	if (flags & __GFP_WAIT)
 		local_irq_disable();
+		// irq는 건드리지 않음
+		// 즉 메모리 할당 도중에 잠들지 않았다는 것임
 	if (!page)
 		return NULL;
 
 	page->objects = oo_objects(oo);
+	// oo_objects : 0x40
+	// slab의 캐시 내부에 존재하는 오브젝트의 개수가 됨
+	// 이를 page->objects에 저장함
+
+	// page_zone(page) : node_zones[0], NR_SLAB_UNRECLAIMABLE, 1
 	mod_zone_page_state(page_zone(page),
 		(s->flags & SLAB_RECLAIM_ACCOUNT) ?
 		NR_SLAB_RECLAIMABLE : NR_SLAB_UNRECLAIMABLE,
 		1 << oo_order(oo));
+	// node_zones의 vm_stat[NR_SLAB_UNRECLAIMABLE]을 1 증가시켜줌
 
 	return page;
 }
@@ -1430,10 +1445,13 @@ static struct page *new_slab(struct kmem_cache *s, gfp_t flags, int node)
 	// s : &boot_keme_cache_node, flags : 0, node : 0
 	page = allocate_slab(s,
 		flags & (GFP_RECLAIM_MASK | GFP_CONSTRAINT_MASK), node);
+	// page를 할당 받아옴
 	if (!page)
 		goto out;
 
 	order = compound_order(page);
+	// order : 0
+
 	inc_slabs_node(s, page_to_nid(page), page->objects);
 	memcg_bind_pages(s, order);
 	page->slab_cache = s;

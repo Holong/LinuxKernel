@@ -111,7 +111,7 @@ struct page {
 
 					struct { /* SLUB */
 						unsigned inuse:16;
-						unsigned objects:15;
+						unsigned objects:15;	// slab에 저장되는 오브젝트 개수가 저장됨
 						unsigned frozen:1;
 					};
 					int units;	/* SLOB */

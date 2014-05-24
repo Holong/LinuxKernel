@@ -38,9 +38,11 @@ static inline void count_vm_event(enum vm_event_item item)
 }
 
 // item : 7(PGFREE), delta : 32
+// item : 4(PGALLOC_NORMAL), delta :  1
 static inline void __count_vm_events(enum vm_event_item item, long delta)
 {
 	// vm_event_states.event[PGFREE] : 0, delta : 32
+	// vm_event_states.event[PGALLOC_NORMAL] : 0, delta : 1
 	__this_cpu_add(vm_event_states.event[item], delta);
 
 	// __pcpu_size_call(__this_cpu_add_, vm_event_states.event[PGFREE], delta)
@@ -62,6 +64,8 @@ static inline void __count_vm_events(enum vm_event_item item, long delta)
 	//              *__this_cpu_ptr(&(vm_event_states.event[7])) += delta;
 	//
 	// vm_event_states.event[PGFREE]: 32
+
+	// vm_event_states.event[PGALLOC_NORMAL]: 1
 
 }
 
