@@ -63,6 +63,7 @@ struct page {
 		union {
 			pgoff_t index;		/* Our offset within mapping. */
 			void *freelist;		/* sl[aou]b first free object */
+						// 첫 번째 free 상태인 object를 저장
 			bool pfmemalloc;	/* If set by the page allocator,
 						 * ALLOC_NO_WATERMARKS was set
 						 * and the low watermark was not
@@ -110,9 +111,9 @@ struct page {
 					atomic_t _mapcount;		// 현재 free buddy 선두인지 저장
 
 					struct { /* SLUB */
-						unsigned inuse:16;
+						unsigned inuse:16;	// 사용 중인 오브젝트 개수가 저장됨
 						unsigned objects:15;	// slab에 저장되는 오브젝트 개수가 저장됨
-						unsigned frozen:1;
+						unsigned frozen:1;	// 초기화시 1로 설정
 					};
 					int units;	/* SLOB */
 				};
@@ -169,6 +170,7 @@ struct page {
 #endif
 #endif
 		struct kmem_cache *slab_cache;	/* SL[AU]B: Pointer to slab */
+		// &boot_kmem_cache_node를 저장
 		struct page *first_page;	/* Compound tail pages */
 	};
 

@@ -367,6 +367,7 @@ static int pcpu_need_to_extend(struct pcpu_chunk *chunk)
 {
 	int new_alloc;
 
+	// chunk->map_alloc : 128, chunk->map_used : 2
 	if (chunk->map_alloc >= chunk->map_used + 2)
 		return 0;
 
@@ -492,11 +493,15 @@ static void pcpu_split_block(struct pcpu_chunk *chunk, int i,
 static int pcpu_alloc_area(struct pcpu_chunk *chunk, int size, int align)
 {
 	int oslot = pcpu_chunk_slot(chunk);
+	// oslot : 11
 	int max_contig = 0;
 	int i, off;
 
+	// chunk->map_used : 4
+	// abs(chunk->map[0]) : (__per_cpu 실제 할당한 size + 0x2000)
 	for (i = 0, off = 0; i < chunk->map_used; off += abs(chunk->map[i++])) {
 		bool is_last = i + 1 == chunk->map_used;
+		// is_last = 0
 		int head, tail;
 
 		/* extra for alignment requirement */
@@ -715,6 +720,7 @@ static struct pcpu_chunk *pcpu_chunk_addr_search(void *addr)
  * RETURNS:
  * Percpu pointer to the allocated area on success, NULL on failure.
  */
+// size : 16, align : 8, reserved : false
 static void __percpu *pcpu_alloc(size_t size, size_t align, bool reserved)
 {
 	static int warn_limit = 10;
@@ -731,9 +737,13 @@ static void __percpu *pcpu_alloc(size_t size, size_t align, bool reserved)
 	}
 
 	mutex_lock(&pcpu_alloc_mutex);
+	// mutex 락을 걸음
+
 	spin_lock_irqsave(&pcpu_lock, flags);
+	// spin 락을 검
 
 	/* serve reserved allocations from the reserved chunk if available */
+	// reserved : false
 	if (reserved && pcpu_reserved_chunk) {
 		chunk = pcpu_reserved_chunk;
 
@@ -761,12 +771,20 @@ static void __percpu *pcpu_alloc(size_t size, size_t align, bool reserved)
 
 restart:
 	/* search through normal chunks */
+	// size : 16 (kmem_cache_cpu의 크기), pcpu_nr_slots : 15
+	// pcpu_size_to_slot(16) : 1
 	for (slot = pcpu_size_to_slot(size); slot < pcpu_nr_slots; slot++) {
+
+		// slot 11일 때 아래로 들어옴
 		list_for_each_entry(chunk, &pcpu_slot[slot], list) {
+
+			// chunk->contig_hint : 0x3000
 			if (size > chunk->contig_hint)
 				continue;
 
 			new_alloc = pcpu_need_to_extend(chunk);
+			// new_alloc : 0
+
 			if (new_alloc) {
 				spin_unlock_irqrestore(&pcpu_lock, flags);
 				if (pcpu_extend_area_map(chunk,
@@ -782,6 +800,7 @@ restart:
 				goto restart;
 			}
 
+			// chunk : 이전에 만들어 둔 것, size : 16, align : 8
 			off = pcpu_alloc_area(chunk, size, align);
 			if (off >= 0)
 				goto area_found;
@@ -847,6 +866,7 @@ fail_unlock_mutex:
  * RETURNS:
  * Percpu pointer to the allocated area on success, NULL on failure.
  */
+// size : 16, align : 8
 void __percpu *__alloc_percpu(size_t size, size_t align)
 {
 	return pcpu_alloc(size, align, false);

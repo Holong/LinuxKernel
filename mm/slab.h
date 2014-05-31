@@ -251,7 +251,7 @@ static inline struct kmem_cache *cache_from_obj(struct kmem_cache *s, void *x)
 struct kmem_cache_node {
 	spinlock_t list_lock;
 
-#ifdef CONFIG_SLAB
+#ifdef CONFIG_SLAB	// N
 	struct list_head slabs_partial;	/* partial list first, better asm code */
 	struct list_head slabs_full;
 	struct list_head slabs_free;
