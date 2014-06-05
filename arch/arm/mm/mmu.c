@@ -1643,7 +1643,8 @@ static void __init devicemaps_init(const struct machine_desc *mdesc)
 	else
 		debug_ll_io_init();
 	fill_pmd_gaps();
-	// section 단위로 io 맵 할당 시 사용하는 section의 갯수가 홀수개일 경우 reserve 처리함
+	// section 단위로 io 맵 할당 시 사용하는 section의 갯수가 홀수개일 경우
+	// 짝수개가 되도록 강제로 메모리 매핑 수행
 
 	/* Reserve fixed i/o space in VMALLOC region */
 	pci_reserve_io();
@@ -1824,12 +1825,16 @@ void __init paging_init(const struct machine_desc *mdesc)
 	
 	devicemaps_init(mdesc);
 	// vectors, io memory map 설정
+	// io memory map은 static_vm과 vmlist에도 등록함
+	
 	kmap_init();
 	// pkmap_page_table 을 설정해 줌
 	// 가상 주소 0xBFE00000 에 해당하는 page table과 small page table만 만듬
 	// small page table 내부 값은 설정하지 않음
+	
 	tcm_init();
 	// 그냥 통과 됨.
+	// TCM 지원 안함
 
 	top_pmd = pmd_off_k(0xffff0000);
 
