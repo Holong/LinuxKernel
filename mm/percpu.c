@@ -243,6 +243,7 @@ static int __maybe_unused pcpu_page_idx(unsigned int cpu, int page_idx)
 	return pcpu_unit_map[cpu] * pcpu_unit_pages + page_idx;
 }
 
+// chunk : pcpu_slot[11]의 chunk, cpu : 0, page_idx : 0
 static unsigned long pcpu_chunk_addr(struct pcpu_chunk *chunk,
 				     unsigned int cpu, int page_idx)
 {
@@ -257,11 +258,16 @@ static void __maybe_unused pcpu_next_unpop(struct pcpu_chunk *chunk,
 	*re = find_next_bit(chunk->populated, end, *rs + 1);
 }
 
+// chunk : pcpu_slot[11]에 걸린 chunk, rs, re, end : 4
 static void __maybe_unused pcpu_next_pop(struct pcpu_chunk *chunk,
 					 int *rs, int *re, int end)
 {
+	// *rs = 3, chunk->populated : 0xFF
 	*rs = find_next_bit(chunk->populated, end, *rs);
+	// *rs : 0x4
+
 	*re = find_next_zero_bit(chunk->populated, end, *rs + 1);
+	// *re : 0x4
 }
 
 /*
@@ -294,10 +300,12 @@ static void __maybe_unused pcpu_next_pop(struct pcpu_chunk *chunk,
  * RETURNS:
  * Pointer to the allocated area on success, NULL on failure.
  */
+// size : 128
 static void *pcpu_mem_zalloc(size_t size)
 {
+	// slab_is_available() : 0
 	if (WARN_ON_ONCE(!slab_is_available()))
-		return NULL;
+		return NULL; // NULL 반환
 
 	if (size <= PAGE_SIZE)
 		return kzalloc(size, GFP_KERNEL);
@@ -490,26 +498,33 @@ static void pcpu_split_block(struct pcpu_chunk *chunk, int i,
  * Allocated offset in @chunk on success, -1 if no matching area is
  * found.
  */
+// chunk : 이전에 만들어 둔 dchunk, size : 16, align : 8
 static int pcpu_alloc_area(struct pcpu_chunk *chunk, int size, int align)
 {
 	int oslot = pcpu_chunk_slot(chunk);
 	// oslot : 11
+	// pcpu_slot 11번 리스트에 묶어두었음
 	int max_contig = 0;
 	int i, off;
 
-	// chunk->map_used : 4
-	// abs(chunk->map[0]) : (__per_cpu 실제 할당한 size + 0x2000)
+	// chunk->map_used : 2
+	// abs(chunk->map[0]) : -(__per_cpu 실제 할당한 size + 0x2000)
 	for (i = 0, off = 0; i < chunk->map_used; off += abs(chunk->map[i++])) {
 		bool is_last = i + 1 == chunk->map_used;
+		// chunk->map_used : 2
 		// is_last = 0
 		int head, tail;
 
 		/* extra for alignment requirement */
 		head = ALIGN(off, align) - off;
+		// head : 0
 		BUG_ON(i == 0 && head != 0);
 
+		// chunk->map[0] : -(0x1D00 + 0x2000)
 		if (chunk->map[i] < 0)
-			continue;
+			continue; // 첫 번째 루프에서는 걸림
+
+		// [2] i : 1, chunk->map[1] : 0x3000, head : 0, size : 16
 		if (chunk->map[i] < head + size) {
 			max_contig = max(chunk->map[i], max_contig);
 			continue;
@@ -521,6 +536,7 @@ static int pcpu_alloc_area(struct pcpu_chunk *chunk, int size, int align)
 		 * than sizeof(int), which is very small but isn't too
 		 * uncommon for percpu allocations.
 		 */
+		// [2] i : 1, chunk->map[0] : -(0x1D00 + 0x2000), head : 0, size : 16
 		if (head && (head < sizeof(int) || chunk->map[i - 1] > 0)) {
 			if (chunk->map[i - 1] > 0)
 				chunk->map[i - 1] += head;
@@ -535,9 +551,12 @@ static int pcpu_alloc_area(struct pcpu_chunk *chunk, int size, int align)
 
 		/* if tail is small, just keep it around */
 		tail = chunk->map[i] - head - size;
+		// tail : 0x2FF0
+
 		if (tail < sizeof(int))
 			tail = 0;
 
+		// head : 0, tail : 0x2FF0
 		/* split if warranted */
 		if (head || tail) {
 			pcpu_split_block(chunk, i, head, tail);
@@ -802,6 +821,8 @@ restart:
 
 			// chunk : 이전에 만들어 둔 것, size : 16, align : 8
 			off = pcpu_alloc_area(chunk, size, align);
+			// chunk에서 size 만큼의 공간을 확보한 뒤 offset을 반환함
+
 			if (off >= 0)
 				goto area_found;
 		}
@@ -822,9 +843,13 @@ restart:
 
 area_found:
 	spin_unlock_irqrestore(&pcpu_lock, flags);
+	// spin lock 해제
 
 	/* populate, map and clear the area */
+	// chunk : dchunk, off : kmem_cache_cpu를 넣을 위치의 offset, size : 16(kmem_cache_cpu의 크기)
 	if (pcpu_populate_chunk(chunk, off, size)) {
+		// chunk가 담당하는 공간의 cpu0부터 cpu3번까지 dynamic 영역 중에
+		// kmem_cache_cpu를 넣을 공간을 0 으로 초기화
 		spin_lock_irqsave(&pcpu_lock, flags);
 		pcpu_free_area(chunk, off);
 		err = "failed to populate";
@@ -832,10 +857,15 @@ area_found:
 	}
 
 	mutex_unlock(&pcpu_alloc_mutex);
+	// mutex 해제
 
 	/* return address relative to base address */
 	ptr = __addr_to_pcpu_ptr(chunk->base_addr + off);
+	// ptr : chunk->base_addr + off - pcpu_base_addr + __per_cpu_start
+	// 결국 ptr은 off + __per_cpu_start가 됨
 	kmemleak_alloc_percpu(ptr, size);
+	// NULL 함수
+
 	return ptr;
 
 fail_unlock:
