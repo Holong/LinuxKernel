@@ -1283,7 +1283,7 @@ int __init pcpu_setup_first_chunk(const struct pcpu_alloc_info *ai,
 
 	// sizeof(cpus_buf) : 4096, cpu_possible_mask : 0b1111
 	cpumask_scnprintf(cpus_buf, sizeof(cpus_buf), cpu_possible_mask);
-	// cpus_buf : "f" 문자열이 들어감 (cpu_possible_mask를 문자열로 바꾼 것)`
+	// cpus_buf : "f" 문자열이 들어감 (cpu_possible_mask를 문자열로 바꾼 것)
 
 #define PCPU_SETUP_BUG_ON(cond)	do {					\
 	if (unlikely(cond)) {						\
@@ -1652,7 +1652,11 @@ static struct pcpu_alloc_info * __init pcpu_build_alloc_info(
 	// group_map[1] = 0
 	// group_map[2] = 0
 	// group_map[3] = 0
+	// 각 cpu가 어느 그룹에 속하는 지 저장함
+	//
 	// group_cnt[0] = 4
+	// 0번 그룹에 속한 cpu의 갯수
+	// cpu_distance_fn이 null이기 때문에 모든 cpu가 그룹 0번에 속하게 됨
 
 	/*
 	 * Expand unit size until address space usage goes over 75%
@@ -1708,6 +1712,7 @@ static struct pcpu_alloc_info * __init pcpu_build_alloc_info(
 	for (group = 0; group < nr_groups; group++)
 		nr_units += roundup(group_cnt[group], upa);
 	// nr_units : 4
+	// 모든 cpu를 위한 unit의 갯수
 
 	// nr_groups : 1, nr_units : 4
 	ai = pcpu_alloc_alloc_info(nr_groups, nr_units);
