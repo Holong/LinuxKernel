@@ -1879,12 +1879,20 @@ static inline void note_cmpxchg_failure(const char *n,
 	stat(s, CMPXCHG_DOUBLE_CPU_FAIL);
 }
 
+// s : boot_kmem_cache_node
 static void init_kmem_cache_cpus(struct kmem_cache *s)
 {
 	int cpu;
 
 	for_each_possible_cpu(cpu)
+		// cpu : 0 ~ 3까지 변하면서 루프 수행
 		per_cpu_ptr(s->cpu_slab, cpu)->tid = init_tid(cpu);
+		// per_cpu_ptr(ptr, cpu) : SHIFT_PERCPU_PTR(s->cpu_slab, per_cpu_offset(cpu))
+		// SHIFT_PERCPU_PTR(s->cpu_slab, __per_cpu_offset[cpu])
+
+	// 이전에 확보해둔 percpu의 dynamic 공간의 kmem_cache_cpu의 tid 멤버에
+	// init_tid(cpu) : cpu와 동일한 값을 저장함
+	// 각 cpu 번호의 kmem_cache_cpu마다 이 동작을 수행
 }
 
 /*
@@ -3002,11 +3010,19 @@ static inline int alloc_kmem_cache_cpus(struct kmem_cache *s)
 	// sizeof(struct kmem_cache_cpu) : 16, 8
 	s->cpu_slab = __alloc_percpu(sizeof(struct kmem_cache_cpu),
 				     2 * sizeof(void *));
+	// percpu 공간으로 사용하는 메모리에서 kmem_cache_cpu만큼을 할당할 수 있는 공간을 찾음
+	// 이 공간을 찾기 위해 pcpu_slot 배열을 뒤져 chunk를 확보하는 작업이 진행됨
+	// 그 공간의 베이스 값을 cpu_slab 멤버에 저장함
+	// 베이스 값에 __per_cpu_offset[cpu번호]를 더하면 그 메모리 주소를 얻을 수 있게 됨
 
 	if (!s->cpu_slab)
 		return 0;
 
+	// s : boot_kmem_cache_node
 	init_kmem_cache_cpus(s);
+	// 이전에 확보해둔 percpu의 dynamic 공간의 kmem_cache_cpu의 tid 멤버에
+	// init_tid(cpu) : cpu와 동일한 값을 저장함
+	// 각 cpu 번호의 kmem_cache_cpu마다 이 동작을 수행
 
 	return 1;
 }
@@ -3390,12 +3406,16 @@ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 
 	// s : boot_kmem_cache_node
 	if (!init_kmem_cache_nodes(s))
-		// kmem_cache_node를 설정해줌
+		// boot_kmem_cache_node를 설정함
+		// 확보한 kmem_cache_node object는 boot_kmem_cache_node.node에 연결해둠
+		// object가 존재하는 page는 object의 partial 리스트에 달아둠
 		goto error;
 
 	// s : boot_kmem_cache_node
 	if (alloc_kmem_cache_cpus(s))
-		return 0;
+		// percpu dynamic 공간에서 kmem_cache_cpu용 공간을 확보하고 그 곳의 tid 멤버에
+		// init_tid(cpu) : cpu와 동일한 값을 저장함
+		return 0; // 0 반환
 
 	free_kmem_cache_nodes(s);
 error:
@@ -3890,6 +3910,8 @@ void __init kmem_cache_init(void)
 	boot_kmem_cache_node : 
 	struct kmem_cache {
 		struct kmem_cache_cpu __percpu *cpu_slab;
+					// kmem_cache_cpu의 베이스 주소를 저장
+					// 이 구조는 percpu 공간에 존재하고 있음
 		// Used for retriving partial slabs etc
 		unsigned long flags;	// SLAB_HWCACHE_ALIGN
 		unsigned long min_partial;
@@ -3928,15 +3950,18 @@ void __init kmem_cache_init(void)
 		struct kobject kobj;	// For sysfs
 
 		struct kmem_cache_node *node[MAX_NUMNODES];
+					// node[0] : kmem_cache_node object의 시작 주소가 저장
+					// 이 object 내부에 partial page 리스트가 존재함
 	};
-
-
 	*/
 
 	register_hotmemory_notifier(&slab_memory_callback_nb);
+	// NULL 함수
 
 	/* Able to allocate the per node structures */
 	slab_state = PARTIAL;
+	// slab_state : PARTIAL로 변경
+	// kmem_cache_node 까지 활성화 된 상태임
 
 	create_boot_cache(kmem_cache, "kmem_cache",
 			offsetof(struct kmem_cache, node) +
@@ -4066,6 +4091,13 @@ int __kmem_cache_create(struct kmem_cache *s, unsigned long flags)
 	int err;
 
 	err = kmem_cache_open(s, flags);
+	// boot_kmem_cache_node를 설정함
+	// 확보한 kmem_cache_node object는 boot_kmem_cache_node.node에 연결해둠
+	// object가 존재하는 page는 object의 partial 리스트에 달아둠
+	// percpu dynamic 공간에서 kmem_cache_cpu용 공간을 확보하고 그 곳의 tid 멤버에
+	// init_tid(cpu) : cpu와 동일한 값을 저장함
+
+	// err : 0
 	if (err)
 		return err;
 

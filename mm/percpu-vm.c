@@ -45,6 +45,7 @@ static struct page **pcpu_get_pages_and_bitmap(struct pcpu_chunk *chunk,
 	static struct page **pages;
 	static unsigned long *bitmap;
 	size_t pages_size = pcpu_nr_units * pcpu_unit_pages * sizeof(pages[0]);
+
 	size_t bitmap_size = BITS_TO_LONGS(pcpu_unit_pages) *
 			     sizeof(unsigned long);
 
@@ -53,6 +54,7 @@ static struct page **pcpu_get_pages_and_bitmap(struct pcpu_chunk *chunk,
 			pages = pcpu_mem_zalloc(pages_size);
 		if (may_alloc && !bitmap)
 			bitmap = pcpu_mem_zalloc(bitmap_size);
+
 		if (!pages || !bitmap)
 			return NULL;
 	}
@@ -298,11 +300,16 @@ static void pcpu_post_map_flush(struct pcpu_chunk *chunk,
  * CONTEXT:
  * pcpu_alloc_mutex, does GFP_KERNEL allocation.
  */
+// chunk : dchunk, off : kmem_cache_cpu를 넣을 위치의 offset(0x1D00 + 0x2000)
+// size : 16 (kmem_cache_cpu의 크기)
 static int pcpu_populate_chunk(struct pcpu_chunk *chunk, int off, int size)
 {
 	int page_start = PFN_DOWN(off);
+	// page_start : 3
 	int page_end = PFN_UP(off + size);
+	// page_end : 4
 	int free_end = page_start, unmap_end = page_start;
+	// free_end : 3, unmap_end : 3
 	struct page **pages;
 	unsigned long *populated;
 	unsigned int cpu;
@@ -310,14 +317,20 @@ static int pcpu_populate_chunk(struct pcpu_chunk *chunk, int off, int size)
 
 	/* quick path, check whether all pages are already there */
 	rs = page_start;
+	// rs : 3
+
+	// chunk : pcpu_slot[11]에 걸린 chunk, rs, re, page_end : 4
 	pcpu_next_pop(chunk, &rs, &re, page_end);
+	// rs : 3, re : 4
+
 	if (rs == page_start && re == page_end)
-		goto clear;
+		goto clear; // clear로 이동
 
 	/* need to allocate and map pages, this chunk can't be immutable */
 	WARN_ON(chunk->immutable);
 
 	pages = pcpu_get_pages_and_bitmap(chunk, &populated, true);
+
 	if (!pages)
 		return -ENOMEM;
 
@@ -341,7 +354,14 @@ static int pcpu_populate_chunk(struct pcpu_chunk *chunk, int off, int size)
 	bitmap_copy(chunk->populated, populated, pcpu_unit_pages);
 clear:
 	for_each_possible_cpu(cpu)
-		memset((void *)pcpu_chunk_addr(chunk, cpu, 0) + off, 0, size);
+	// nr_cpu_ids : 4
+	// for (cpu = -1; cpu = cpumask_next(cpu, cpu_possible_mask), cpu < nr_cpu_ids;)
+	// cpu : 0 >> 1 >> 2 >> 3 으로 변경되면서 아래 함수 수행
+		// chunk : pcpu_slot[11]의 chunk, cpu : 0, off : 0x3D00, size : 16
+		memset((void *)pcpu_chunk_addr(chunk, cpu, 0) + off, 0, size);\
+		// 이전에 만들어둔 chunk가 담당하는 공간이 존재
+		// 그 곳에 존재하는 cpu0부터 cpu3번까지 dynamic 영역 중에
+		// kmem_cache_cpu를 넣을 공간을 0으로 설정
 	return 0;
 
 err_unmap:

@@ -317,6 +317,11 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name, size_t siz
 	// boot_kmem_cache_node.align : 64
 	
 	err = __kmem_cache_create(s, flags);
+	// boot_kmem_cache_node를 설정함
+	// 확보한 kmem_cache_node object는 boot_kmem_cache_node.node에 연결해둠
+	// object가 존재하는 page는 object의 partial 리스트에 달아둠
+	// percpu dynamic 공간에서 kmem_cache_cpu용 공간을 확보하고 그 곳의 tid 멤버에
+	// init_tid(cpu) : cpu와 동일한 값을 저장함
 
 	if (err)
 		panic("Creation of kmalloc slab %s size=%zu failed. Reason %d\n",
