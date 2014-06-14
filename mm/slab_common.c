@@ -116,7 +116,8 @@ out:
  * Figure out what the alignment of the objects will be given a set of
  * flags, a user specified alignment and the size of the objects.
  */
-// flags : SLAB_HWCACHE_ALIGN(0x2000), align : ARCH_KMALLOC_MINALIGN(64), size : 44
+// [D] flags : SLAB_HWCACHE_ALIGN(0x2000), align : ARCH_KMALLOC_MINALIGN(64), size : 44
+// [P] flags : 0x2000, ARCH_KMALLOC_MINALIGN : 64(L1 cache 크기), size : 132
 unsigned long calculate_alignment(unsigned long flags,
 		unsigned long align, unsigned long size)
 {
@@ -299,22 +300,29 @@ int slab_is_available(void)
 
 #ifndef CONFIG_SLOB		// N
 /* Create a cache during boot when no slab services are available yet */
-// s : &boot_kmem_cache_node, name : "kmem_cache_node", size : 44byte, flags : SLAB_HWCACHE_ALIGN(0x2000)
+// [D] s : &boot_kmem_cache_node, name : "kmem_cache_node", size : 44byte, flags : SLAB_HWCACHE_ALIGN(0x2000)
+// [P] s : &boot_kmem_cache, name : "kmem_cache", size : 132byte, flags : SLAB_HWCACHE_ALIGN(0x2000)
+// [P] size : offsetof(struct kmem_cache, node) + nr_node_ids * sizeof(struct kmem_cache_node *)
 void __init create_boot_cache(struct kmem_cache *s, const char *name, size_t size,
 		unsigned long flags)
 {
 	int err;
 
 	s->name = name;
-	// boot_kmem_cache_node.name : "kmem_cache_node"
+	// [D] boot_kmem_cache_node.name : "kmem_cache_node"
+	// [P] boot_kmem_cache.name : "kmem_cache"
 
 	s->size = s->object_size = size;
-	// boot_kmem_cache_node.size : 44;
-	// boot_kmem_cache_node.object_size : 44;
+	// [D] boot_kmem_cache_node.size : 44;
+	// [D] boot_kmem_cache_node.object_size : 44;
+	// [P] boot_kmem_cache.size : 132;
+	// [P] boot_kmem_cache.object_size : 132;
 
-	// flags : 0x2000, ARCH_KMALLOC_MINALIGN : 64(L1 cache 크기), size : 44
+	// [D] flags : 0x2000, ARCH_KMALLOC_MINALIGN : 64(L1 cache 크기), size : 44
+	// [P] flags : 0x2000, ARCH_KMALLOC_MINALIGN : 64(L1 cache 크기), size : 132
 	s->align = calculate_alignment(flags, ARCH_KMALLOC_MINALIGN, size);
-	// boot_kmem_cache_node.align : 64
+	// [D] boot_kmem_cache_node.align : 64
+	// [P] boot_kmem_cache.align : 64
 	
 	err = __kmem_cache_create(s, flags);
 	// boot_kmem_cache_node를 설정함

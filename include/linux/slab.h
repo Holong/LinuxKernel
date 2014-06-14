@@ -311,6 +311,7 @@ static __always_inline void *__kmalloc_node(size_t size, gfp_t flags, int node)
 	return __kmalloc(size, flags);
 }
 
+// [P] s : &boot_kmem_cache_node, flags : GFP_KERNEL, node : 0
 static __always_inline void *kmem_cache_alloc_node(struct kmem_cache *s, gfp_t flags, int node)
 {
 	return kmem_cache_alloc(s, flags);
