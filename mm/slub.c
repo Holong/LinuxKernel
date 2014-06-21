@@ -221,6 +221,7 @@ static inline void sysfs_slab_remove(struct kmem_cache *s) { }
 static inline void memcg_propagate_slab_attrs(struct kmem_cache *s) { }
 #endif
 
+// s : &boot_kmem_cache_node, ALLOC_FROM_PARTIAL : 7
 static inline void stat(const struct kmem_cache *s, enum stat_item si)
 {
 #ifdef CONFIG_SLUB_STATS
@@ -257,6 +258,7 @@ static inline int check_valid_pointer(struct kmem_cache *s,
 	return 1;
 }
 
+// s : &boot_kmem_cache_node, freelist : 얻어 온 object의 첫 번째 것
 static inline void *get_freepointer(struct kmem_cache *s, void *object)
 {
 	return *(void **)(object + s->offset);
@@ -361,23 +363,31 @@ static inline int oo_objects(struct kmem_cache_order_objects x)
 /*
  * Per slab locking using the pagelock
  */
+// page : kmem_cache_node용 page
 static __always_inline void slab_lock(struct page *page)
 {
 	bit_spin_lock(PG_locked, &page->flags);
+	// flags의 PG_locked를 이용해 락을 획득함
 }
 
+// page : kmem_cache_node용 page
 static __always_inline void slab_unlock(struct page *page)
 {
 	__bit_spin_unlock(PG_locked, &page->flags);
 }
 
 /* Interrupts must be disabled (for the fallback code to work right) */
+// s : &boot_kmem_cache_node, page : kmem_cache_node용 page
+// freelist_old : 2번째 object의 시작 주소, counters_old : objects(64) | inuse(1) | frozen(0)
+// freelist_new : NULL, counters_new : objects(64) | inuse(64) | frozen(0)
+// n : "acquire_slab"
 static inline bool __cmpxchg_double_slab(struct kmem_cache *s, struct page *page,
 		void *freelist_old, unsigned long counters_old,
 		void *freelist_new, unsigned long counters_new,
 		const char *n)
 {
 	VM_BUG_ON(!irqs_disabled());
+
 #if defined(CONFIG_HAVE_CMPXCHG_DOUBLE) && \
     defined(CONFIG_HAVE_ALIGNED_STRUCT_PAGE)
 	if (s->flags & __CMPXCHG_DOUBLE) {
@@ -385,15 +395,28 @@ static inline bool __cmpxchg_double_slab(struct kmem_cache *s, struct page *page
 			freelist_old, counters_old,
 			freelist_new, counters_new))
 		return 1;
-	} else
+	} else		// 통과
 #endif
+
 	{
+		// page : kmem_cache_node용 page
 		slab_lock(page);
+		// flags의 PG_locked를 이용해 락을 획득함
+		// 선점도 금지
+
+		// paeg->freelist : 2번째 object의 시작 주소
+		// freelist_old : 2번째 object의 시작 주소
+		// page->counters, counters_old도 동일
 		if (page->freelist == freelist_old &&
 					page->counters == counters_old) {
 			page->freelist = freelist_new;
+			// page->freelist : NULL로 변경
+
 			page->counters = counters_new;
+			// page->counters : objects(64) | inuse(64) | frozen(0)
+			// inuse 값이 변경됨
 			slab_unlock(page);
+			// PG_locked로 획득한 락을 해제
 			return 1;
 		}
 		slab_unlock(page);
@@ -981,12 +1004,16 @@ static inline int slab_pre_alloc_hook(struct kmem_cache *s, gfp_t flags)
 	// 무조건 0 반환
 }
 
+// s : &boot_kmem_cache_node, flags : GFP_KERNEL, object : 두 번째 object
 static inline void slab_post_alloc_hook(struct kmem_cache *s,
 					gfp_t flags, void *object)
 {
+	// flags : GFP_KERNEL
 	flags &= gfp_allowed_mask;
+
 	kmemcheck_slab_alloc(s, flags, object, slab_ksize(s));
 	kmemleak_alloc_recursive(object, s->object_size, 1, s->flags, flags);
+	// 둘 다 NULL 함수
 }
 
 static inline void slab_free_hook(struct kmem_cache *s, void *x)
@@ -1643,11 +1670,14 @@ static inline void add_partial(struct kmem_cache_node *n,
 /*
  * list_lock must be held.
  */
+// n : boot_kmem_cache_node.node[0], page : kmem_cache_node용 page
 static inline void remove_partial(struct kmem_cache_node *n,
 					struct page *page)
 {
 	list_del(&page->lru);
 	n->nr_partial--;
+	// boot_kmem_cache_node.node[0]에서 kmem_cache_node용 page를 빼냄
+	// partial에 등록된 공간이 하나 줄어 드는 것임
 }
 
 /*
@@ -1658,6 +1688,8 @@ static inline void remove_partial(struct kmem_cache_node *n,
  *
  * Must hold list_lock since we modify the partial list.
  */
+// s : &boot_kmem_cache_node, n : boot_kmem_cache_node.node[0]
+// page : kmem_cache_node용 page, mode : 1, objects : &objects
 static inline void *acquire_slab(struct kmem_cache *s,
 		struct kmem_cache_node *n, struct page *page,
 		int mode, int *objects)
@@ -1672,11 +1704,21 @@ static inline void *acquire_slab(struct kmem_cache *s,
 	 * per cpu allocation list.
 	 */
 	freelist = page->freelist;
+	// freelist : 2번째 object의 시작 주소
+
 	counters = page->counters;
+	// counters : page->inuse, page->objects, page->frozen 값을 이용해 만들어짐
+	// 64 << 16 | 1 << 1 | 0 << 0
+
 	new.counters = counters;
 	*objects = new.objects - new.inuse;
+	// objects : 63
+	// 아직 사용하지 않은 objects의 개수
+
+	// mode : 1
 	if (mode) {
 		new.inuse = page->objects;
+		// new.inuse : 64
 		new.freelist = NULL;
 	} else {
 		new.freelist = freelist;
@@ -1685,15 +1727,29 @@ static inline void *acquire_slab(struct kmem_cache *s,
 	VM_BUG_ON(new.frozen);
 	new.frozen = 1;
 
+	// s : &boot_kmem_cache_node, page : kmem_cache_node용 page
+	// freelist : 2번째 object의 시작 주소, counters : objects(64) | inuse(1) | frozen(0)
+	// new.freelist : NULL, new.counters : objects(64) | inuse(64) | frozen(0)
 	if (!__cmpxchg_double_slab(s, page,
 			freelist, counters,
 			new.freelist, new.counters,
 			"acquire_slab"))
+		// page->freelist : NULL로 변경
+		// page->counters : objects(64) | inuse(64) | frozen(0)
+		// inuse 값이 변경됨
+		// object를 전부 사용하겠다는 뜻으로 보임
 		return NULL;
 
+	// n : boot_kmem_cache_node.node[0], page : kmem_cache_node용 page
 	remove_partial(n, page);
+	// kmem_cache_node용 page를 partial 리스트에서 제거함.
+	// 왜냐하면 모든 object를 전부 사용하게 될 것이기 때문임.
+
 	WARN_ON(!freelist);
 	return freelist;
+	// freelist 반환
+	// kmem_cache_node용 page 내부의 두 번째 오브젝트 시작 주소가 반환됨
+	// 이제 partial에서 뽑아온 오브젝트 공간을 사용하려고 할 것임
 }
 
 static void put_cpu_partial(struct kmem_cache *s, struct page *page, int drain);
@@ -1727,30 +1783,54 @@ static void *get_partial_node(struct kmem_cache *s, struct kmem_cache_node *n,
 	// kmem_cache_node에 락을 걸었음
 
 	list_for_each_entry_safe(page, page2, &n->partial, lru) {
+		// page, page2 : page는 n->partial에 연결된 노드를 가리키고,
+		//               page2는 이전 리스트 노드를 가리킴
+
 		void *t;
 
+		// flags : GFP_KERNEL
 		if (!pfmemalloc_match(page, flags))
+			// PG_active이 page flag에 체크 되어 있는지 확인
+			// 체크한 적 없음
 			continue;
 
+		// s : &boot_kmem_cache_node, n : boot_kmem_cache_node.node[0]
+		// page : kmem_cache_node용 page, object : NULL, &objects
 		t = acquire_slab(s, n, page, object == NULL, &objects);
+		// kmem_cache_node용 page 내부의 두 번째 오브젝트 시작 주소가 반환됨
+		// objects : partial page에 존재하는 objects 개수임
+		//	     여기서는 63이 됨. (첫 번째 오브젝트는 이미 사용 중)
+
 		if (!t)
 			break;
 
 		available += objects;
+		// available : 63
+
 		if (!object) {
 			c->page = page;
+			// kmem_cache_cpu의 page에 현재 partial page를 집어 넣음
+			// kmem_cache_cpu는 per cpu dynamic 공간에 존재함 (cpu0번용)
+
+			// s : &boot_kmem_cache_node, ALLOC_FROM_PARTIAL : 7
 			stat(s, ALLOC_FROM_PARTIAL);
+			// NULL 함수
 			object = t;
+			// object : kmem_cache_cpu 공간의 두 번째 object 위치가 됨
+
 		} else {
 			put_cpu_partial(s, page, 0);
 			stat(s, CPU_PARTIAL_NODE);
 		}
 		if (!kmem_cache_has_cpu_partial(s)
 			|| available > s->cpu_partial / 2)
+			// s->cpu_partial : 30
+			// available이 크므로 루프에서 빠져 나옴
 			break;
 
 	}
 	spin_unlock(&n->list_lock);
+	// 락 해제
 	return object;
 }
 
@@ -1834,6 +1914,10 @@ static void *get_partial(struct kmem_cache *s, gfp_t flags, int node,
 	// s : &boot_kmem_cache_node, get_node(s, searchnode) : boot_kmem_cache_node.node[0]
 	// c : &kmem_cache_cpu, flags : GFP_KERNEL
 	object = get_partial_node(s, get_node(s, searchnode), c, flags);
+	// object : boot_kmem_cache_node.node[0]의 partial에 달려 있는 page 중에서
+	//	    적절한 page를 선택해 object화하고 그 object들의 첫 번째 것의 시작 주소를 반환
+	// page->freelist : NULL 로 변경
+	// page->counters : inuse(64), objects(64), frozen(0)으로 변경
 	if (object || node != NUMA_NO_NODE)
 		return object;
 
@@ -2314,6 +2398,10 @@ static inline void *new_slab_objects(struct kmem_cache *s, gfp_t flags,
 
 	// s : &boot_kmem_cache_node, flags : GFP_KERNEL, node : -1, c : &kmem_cache_cpu
 	freelist = get_partial(s, flags, node, c);
+	// object : boot_kmem_cache_node.node[0]의 partial에 달려 있는 page 중에서
+	//	    적절한 page를 선택해 object화하고 그 object들의 첫 번째 것의 시작 주소를 반환
+	// page->freelist : NULL 로 변경
+	// page->counters : inuse(64), objects(64), frozen(0)으로 변경
 
 	if (freelist)
 		return freelist;
@@ -2340,6 +2428,7 @@ static inline void *new_slab_objects(struct kmem_cache *s, gfp_t flags,
 	return freelist;
 }
 
+// page : kmem_cache_node용 page, flags : GFP_KERNEL
 static inline bool pfmemalloc_match(struct page *page, gfp_t gfpflags)
 {
 	if (unlikely(PageSlabPfmemalloc(page)))
@@ -2469,9 +2558,16 @@ load_freelist:
 	 * page is pointing to the page from which the objects are obtained.
 	 * That page must be frozen for per cpu allocations to work.
 	 */
+	// c->page->frozen : 1
 	VM_BUG_ON(!c->page->frozen);
+	
+	// s : &boot_kmem_cache_node, freelist : 얻어 온 object의 첫 번째 것(두 번째 object)
 	c->freelist = get_freepointer(s, freelist);
+	// c->freelist : 세 번째 object를 가리킴
+
 	c->tid = next_tid(c->tid);
+	// c->tid : 4	(NR_CPUS 만큼 증가)
+			
 	local_irq_restore(flags);
 	return freelist;
 
@@ -2488,6 +2584,8 @@ new_slab:
 
 	// s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL, node : -1, c : &kmem_cache_cpu
 	freelist = new_slab_objects(s, gfpflags, node, &c);
+	// freelist : boot_kmem_cache_node.node[0]의 partial에 달려 있는 page 중에서
+	//	      적절한 page를 선택해 object화하고 그 object들의 첫 번째 것의 시작 주소를 반환
 
 	if (unlikely(!freelist)) {
 		if (!(gfpflags & __GFP_NOWARN) && printk_ratelimit())
@@ -2498,8 +2596,13 @@ new_slab:
 	}
 
 	page = c->page;
+	// page : freelist가 속해있는 공간의 struct page 주소
+
+	// s : &boot_kmem_cache_node, page, gfpflags : GFP_KERNEL
 	if (likely(!kmem_cache_debug(s) && pfmemalloc_match(page, gfpflags)))
-		goto load_freelist;
+		// kmem_cache_debug(s) : 0
+		// pfmemalloc_match(page, gfpflags) : 1
+		goto load_freelist; 	// 이 쪽 수행
 
 	/* Only entered in the debug case */
 	if (kmem_cache_debug(s) &&
@@ -2575,6 +2678,10 @@ redo:
 	if (unlikely(!object || !node_match(page, node)))
 		// [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL, node : -1, addr : ret, c : &kmem_cache_cpu
 		object = __slab_alloc(s, gfpflags, node, addr, c);
+		// object : boot_kmem_cache_node.node[0]의 partial 리스트에 연결되어 있던 page에서
+		//	    object를 가져옴. 여기서는 두 번째 object 위치의 것을 가져옴
+		//          첫 번째 object는 이미 사용중임
+		//          세 번째 object부터 끝까지는 kmem_cache_cpu의 freelist에 붙어 있음
 
 	else {
 		void *next_object = get_freepointer_safe(s, object);
@@ -2609,6 +2716,7 @@ redo:
 		memset(object, 0, s->object_size);
 
 	slab_post_alloc_hook(s, gfpflags, object);
+	// 내부 호출 함수들이 NULL 함수라 하는 일이 없음
 
 	return object;
 }
@@ -2619,6 +2727,10 @@ static __always_inline void *slab_alloc(struct kmem_cache *s,
 {
 	// NUMA_NO_NODE : -1
 	return slab_alloc_node(s, gfpflags, NUMA_NO_NODE, addr);
+	// boot_kmem_cache_node.node[0]의 partial 리스트에 연결되어 있던 page에서
+	// object를 가져옴. 여기서는 두 번째 object 위치의 것을 가져옴
+	// 첫 번째 object는 이미 사용중임
+	// 세 번째 object부터 끝까지는 kmem_cache_cpu의 freelist에 붙어 있음
 }
 
 // [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL
@@ -2626,6 +2738,7 @@ void *kmem_cache_alloc(struct kmem_cache *s, gfp_t gfpflags)
 {
 	// [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL
 	void *ret = slab_alloc(s, gfpflags, _RET_IP_);
+	// ret : partial에서 가져온 object
 
 	trace_kmem_cache_alloc(_RET_IP_, ret, s->object_size,
 				s->size, gfpflags);
@@ -3063,7 +3176,8 @@ init_kmem_cache_node(struct kmem_cache_node *n)
 #endif
 }
 
-// s : boot_kmem_cache_node
+// [D] s : &boot_kmem_cache_node
+// [P] s : &boot_kmem_cache
 static inline int alloc_kmem_cache_cpus(struct kmem_cache *s)
 {
 	BUILD_BUG_ON(PERCPU_DYNAMIC_EARLY_SIZE <
@@ -3207,6 +3321,7 @@ static int init_kmem_cache_nodes(struct kmem_cache *s)
 		// [P] kmem_cache_node : &boot_kmem_cache_node, GFP_KERNEL, node : 0
 		n = kmem_cache_alloc_node(kmem_cache_node,
 						GFP_KERNEL, node);
+		// [P] n : partial page에서 가져온 object
 
 		if (!n) {
 			free_kmem_cache_nodes(s);
@@ -3214,7 +3329,9 @@ static int init_kmem_cache_nodes(struct kmem_cache *s)
 		}
 
 		s->node[node] = n;
+		// boot_kmem_cache.node[0] : partial page에서 가져온 object의 시작 주소를 저장
 		init_kmem_cache_node(n);
+		// 가져온 object의 nr_partial, partial 값 초기화
 	}
 	return 1;
 }
@@ -3507,12 +3624,17 @@ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 	// [D] s : boot_kmem_cache_node
 	// [P] s : boot_kmem_cache
 	if (!init_kmem_cache_nodes(s))
-		// boot_kmem_cache_node를 설정함
-		// 확보한 kmem_cache_node object는 boot_kmem_cache_node.node에 연결해둠
-		// object가 존재하는 page는 object의 partial 리스트에 달아둠
+		// [D] boot_kmem_cache_node를 설정함
+		//     확보한 kmem_cache_node object는 boot_kmem_cache_node.node에 연결해둠
+		//     object가 존재하는 page는 object의 partial 리스트에 달아둠
+		// [P] 위 동작을 boot_kmem_cache에 대해 수행
+		//     확보한 kmem_cache_node object는 page 내의 두 번째 것임
+		//     partial 리스트에 달려 있던 이 page는 그 곳에서 빠져나와 
+		//     kmem_cache_cpu의 freelist로 다시 매달림 (62개 object)
 		goto error;
 
-	// s : boot_kmem_cache_node
+	// [D] s : boot_kmem_cache_node
+	// [P] s : boot_kmem_cache
 	if (alloc_kmem_cache_cpus(s))
 		// percpu dynamic 공간에서 kmem_cache_cpu용 공간을 확보하고 그 곳의 tid 멤버에
 		// init_tid(cpu) : cpu와 동일한 값을 저장함

@@ -12,6 +12,7 @@
  * Don't use this unless you really need to: spin_lock() and spin_unlock()
  * are significantly faster.
  */
+// bitnum : PG_locked, addr : kmem_cache_node용 page->flags
 static inline void bit_spin_lock(int bitnum, unsigned long *addr)
 {
 	/*
@@ -22,8 +23,12 @@ static inline void bit_spin_lock(int bitnum, unsigned long *addr)
 	 * attempt to acquire the lock bit.
 	 */
 	preempt_disable();
+	// preempt 끄기
+
 #if defined(CONFIG_SMP) || defined(CONFIG_DEBUG_SPINLOCK)
 	while (unlikely(test_and_set_bit_lock(bitnum, addr))) {
+		// test_and_set_bit_lock : page의 flags 내부의 PG_locked를 1로 설정하고
+		//			   이전에 존재하던 비트 값을 가져옴
 		preempt_enable();
 		do {
 			cpu_relax();
@@ -32,6 +37,7 @@ static inline void bit_spin_lock(int bitnum, unsigned long *addr)
 	}
 #endif
 	__acquire(bitlock);
+	// NULL 함수
 }
 
 /*
