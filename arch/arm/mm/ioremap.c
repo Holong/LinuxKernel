@@ -129,6 +129,11 @@ void __init add_static_vm_early(struct static_vm *svm)
 	//	(static_vm *)( (char *)__mptr - offsetof(static_vm, list));
 	// }
 	//
+	// {
+	// 	const typeof( ((static_vm *)0)->list ) *__mptr = curr_svm->list.next;
+	// 	(static_vm *)( (char *)__mptr - offsetof(static_vm, list));
+	// }
+	//
 	//#define container_of(ptr, type, member) ({			
 	// const typeof( ((type *)0)->member ) *__mptr = (ptr);	
 	// (type *)( (char *)__mptr - offsetof(type,member) );})

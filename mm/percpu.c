@@ -202,8 +202,9 @@ static bool pcpu_addr_in_reserved_chunk(void *addr)
 static int __pcpu_size_to_slot(int size)
 {
 	int highbit = fls(size);	/* size is in bytes */
+	// highbit : 14
+	
 	return max(highbit - PCPU_SLOT_BASE_SHIFT + 2, 1);
-	// 13 반환
 }
 
 // size : 0x3000
@@ -346,6 +347,7 @@ static void pcpu_chunk_relocate(struct pcpu_chunk *chunk, int oslot)
 {
 	int nslot = pcpu_chunk_slot(chunk);
 	// nslot : 11
+	// chunk->free_size 값을 이용해 계산함
 
 	// pcpu_reserved_chunk : schunk, oslot : -1, nslot : 11
 	if (chunk != pcpu_reserved_chunk && oslot != nslot) {
@@ -800,6 +802,9 @@ restart:
 			// chunk->contig_hint : 0x3000
 			if (size > chunk->contig_hint)
 				continue;
+			// contig_hint에는 현재 chunk의 남은 공간이 저장되어 있음
+			// 이것보다 size가 크면 현재 chunk에는 저장이 불가능하다는 뜻이 되므로
+			// 다음 chunk를 찾도록 함
 
 			new_alloc = pcpu_need_to_extend(chunk);
 			// new_alloc : 0
@@ -1388,9 +1393,9 @@ int __init pcpu_setup_first_chunk(const struct pcpu_alloc_info *ai,
 			// unit_map[3] : 3
 
 			unit_off[cpu] = gi->base_offset + i * ai->unit_size;
-			// unit_off[0] : unit_size
-			// unit_off[1] : 2 * unit_size
-			// unit_off[2] : 3 * unit_size
+			// unit_off[0] : 0
+			// unit_off[1] : 1 * unit_size
+			// unit_off[2] : 2 * unit_size
 			// unit_off[3] : 3 * unit_size
 			// 
 			// 각 cpu별로 static + reserve + dynamic의 offset 값이 저장
@@ -1499,7 +1504,7 @@ int __init pcpu_setup_first_chunk(const struct pcpu_alloc_info *ai,
 
 	// schunk->map_used : 0
 	schunk->map[schunk->map_used++] = -ai->static_size;
-	// schunk->map[0] = - static_size
+	// schunk->map[0] = -static_size
 
 	// schunk->free_size : 0x2000
 	if (schunk->free_size)
@@ -1512,15 +1517,32 @@ int __init pcpu_setup_first_chunk(const struct pcpu_alloc_info *ai,
 		// dynamic용 chunk를 저장하기 위한 공간을 할당받음
 
 		INIT_LIST_HEAD(&dchunk->list);
+		// dchunk->list 초기화
+
 		dchunk->base_addr = base_addr;
+		// dchunk->base_addr : CPU 갯수만큼 할당받은 reserved + static + dynamic 공간
+
 		dchunk->map = dmap;
+		// dchunk->map : dmap[PERCPU_DYNAMIC_EARLY_SLOTS]
+
+		// ARRAY_SIZE(dmap) : 128
 		dchunk->map_alloc = ARRAY_SIZE(dmap);
+		// dchunk->map_alloc : 128
+
 		dchunk->immutable = true;
+
+		// pcpu_unit_pages : 0x08
 		bitmap_fill(dchunk->populated, pcpu_unit_pages);
+		// dchunk->populated[0] : 0xFF
 
 		dchunk->contig_hint = dchunk->free_size = dyn_size;
+		// dchunk->contig_hint : 0x3000
+
 		dchunk->map[dchunk->map_used++] = -pcpu_reserved_chunk_limit;
+		// dchunk->map[0] : -(static + reserved 크기)
+
 		dchunk->map[dchunk->map_used++] = dchunk->free_size;
+		// dchunk->map[1] : 0x3000
 		// dchunk 값 초기화
 	}
 
