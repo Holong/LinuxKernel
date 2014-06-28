@@ -621,8 +621,10 @@ extern void *__kmalloc_node_track_caller(size_t, gfp_t, int, unsigned long);
 /*
  * Shortcuts
  */
+// kmem_cache : &boot_kmem_cache, flags : GFP_NOWAIT
 static inline void *kmem_cache_zalloc(struct kmem_cache *k, gfp_t flags)
 {
+	// k : &boot_kmem_cache, GFP_NOWAIT | __GFP_ZERO
 	return kmem_cache_alloc(k, flags | __GFP_ZERO);
 }
 

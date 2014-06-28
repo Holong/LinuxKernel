@@ -331,11 +331,15 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name, size_t siz
 	// percpu dynamic 공간에서 kmem_cache_cpu용 공간을 확보하고 그 곳의 tid 멤버에
 	// init_tid(cpu) : cpu와 동일한 값을 저장함
 
+	// 두 번째 호출 시에는 boot_kmem_cache를 설정
+	// 이전에 확보한 kmem_cache_node용 page는 boot_kmem_cache_node의 partial 리스트에 연결되어 있었는데, 
+	// 그 page의 쓰지 않은 object 중 첫 번째 것을 빼와 boot_kmem_cache의 node[0] 멤버에 저장
 	if (err)
 		panic("Creation of kmalloc slab %s size=%zu failed. Reason %d\n",
 					name, size, err);
 
 	s->refcount = -1;	/* Exempt from merging for now */
+	// refcount 설정
 }
 
 struct kmem_cache *__init create_kmalloc_cache(const char *name, size_t size,
