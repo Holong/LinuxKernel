@@ -1077,8 +1077,9 @@ static inline unsigned long node_nr_slabs(struct kmem_cache_node *n)
 	return atomic_long_read(&n->nr_slabs);
 }
 
-// [1] s : &boot_kmem_cache_node, node : 0, objects : 0x40
-// [2] kmem_cache_node : &boot_kmem_cache_node, node : 0, page->objects : 64
+// [P1] s : &boot_kmem_cache_node, node : 0, objects : 0x40
+// [P2] kmem_cache_node : &boot_kmem_cache_node, node : 0, page->objects : 64
+// [B] s : &boot_kmem_cache, page_to_nid(page) : 0, page->objects : 0x20
 static inline void inc_slabs_node(struct kmem_cache *s, int node, int objects)
 {
 	// s : &boot_kmem_cache_node, node : 0
@@ -1086,6 +1087,7 @@ static inline void inc_slabs_node(struct kmem_cache *s, int node, int objects)
 	// n : &boot_kmem_cache_node.node[0]
 	//     [1] NULL
 	//     [2] 1번 object
+	//     [B] 2번 object
 
 	/*
 	 * May be called early in order to allocate a slab for the
@@ -1096,9 +1098,10 @@ static inline void inc_slabs_node(struct kmem_cache *s, int node, int objects)
 	if (likely(n)) {
 		atomic_long_inc(&n->nr_slabs);
 		atomic_long_add(objects, &n->total_objects);
-		// [2] nr_slabs : 1, total_objects : 64
+		// [P2] nr_slabs : 1, total_objects : 64
+		// [B] nr_slabs : 1, total_objects : 32 
 	}
-	// [1] 통과
+	// [P1] 통과
 }
 
 static inline void dec_slabs_node(struct kmem_cache *s, int node, int objects)
@@ -1390,8 +1393,8 @@ static inline struct page *alloc_slab_page(gfp_t flags, int node,
 		// order가 0인 경우 pcp에 연결되어 있던 것 중에 뽑아옴
 }
 
-// s : boot_keme_cache_node, flags : 0, node : 0
-// [B] s : &boot_kmem_cache, flags : GFP_NOWAIT | __GFP_ZERO, node : -1
+// [P] s : boot_keme_cache_node, flags : 0, node : 0
+// [B] s : &boot_kmem_cache, flags : GFP_NOWAIT, node : -1
 static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 {
 	struct page *page;
@@ -1509,17 +1512,21 @@ static struct page *new_slab(struct kmem_cache *s, gfp_t flags, int node)
 	// [B] s : &boot_kmem_cache, flags :  GFP_NOWAIT | __GFP_ZERO, node : -1
 	page = allocate_slab(s,
 		flags & (GFP_RECLAIM_MASK | GFP_CONSTRAINT_MASK), node);
-	// page를 할당 받아옴
+	// page를 buddy에서 할당 받아옴
+	
 	if (!page)
 		goto out;
 
 	order = compound_order(page);
 	// order : 0
 
-	// s : &boot_kmem_cache_node, page_to_nid(page) : 0, page->objects : 0x40
+	// [P] s : &boot_kmem_cache_node, page_to_nid(page) : 0, page->objects : 0x40
+	// [B] s : &boot_kmem_cache, page_to_nid(page) : 0, page->objects : 0x20
 	inc_slabs_node(s, page_to_nid(page), page->objects);
-	// 따로 하는 일은 없음
-	// 닭-달걀 문제
+	// [P] 따로 하는 일은 없음
+	//     닭-달걀 문제
+	// [B] boot_kmem_cache.node[0]에 2번 kmem_cache_node 오브젝트가 연결되어 있기 때문에
+	//     그 곳의 멤버 값을 변경 (nr_partial : 1, total_objects : 32)
 
 	// s : &boot_kmem_cache_node, order : 0
 	memcg_bind_pages(s, order);
@@ -1565,10 +1572,15 @@ static struct page *new_slab(struct kmem_cache *s, gfp_t flags, int node)
 	// 다음 object의 시작 주소를 이전 object 내부에 저장함(s->offset에 의해 위치가 결정됨)
 
 	setup_object(s, page, last);
+	// 하는 일 없음
+	
 	set_freepointer(s, last, NULL);
+	// 페이지 내부의 마지막 object의 freepointer는 NULL로 초기화함
 
 	page->freelist = start;
 	page->inuse = page->objects;
+	// [P] page->inuse : 64
+	// [B] page->inuse : 32
 	page->frozen = 1;
 out:
 	return page;
@@ -2419,31 +2431,48 @@ static inline void *new_slab_objects(struct kmem_cache *s, gfp_t flags,
 	//     page->freelist : NULL 로 변경
 	//     page->counters : inuse(64), objects(64), frozen(0)으로 변경
 	// [B] object : NULL이 반환됨
+	// 		오브젝트는 현재 kmem_cache_node가 관리하는 partial 페이지에서 가져와야 하는데,
+	// 		현재 boot_kmem_cache가 관리하는 partial 페이지가 아예 없음
 
 	if (freelist)
 		return freelist;
 
 	// [B] s : &boot_kmem_cache, flags :  GFP_NOWAIT | __GFP_ZERO, node : -1
 	page = new_slab(s, flags, node);
+	// 페이지를 할당 받아오고, 내부의 object의 freepointer를 설정해둠.
+	// 해당하는 페이지를 관리하는 struct page의 멤버인 inuse, freelist, frozen과 같은 것을 설정해둠
+	
 	if (page) {
 		c = __this_cpu_ptr(s->cpu_slab);
+		// kmem_cache_cpu 오브젝트 중에 2번째 것임
+
 		if (c->page)
 			flush_slab(s, c);
+		// kmem_cache_cpu 내부는 전부 0이기 때문에 통과됨
 
 		/*
 		 * No other reference to the page yet so we can
 		 * muck around with it freely without cmpxchg
 		 */
 		freelist = page->freelist;
+		// page의 첫 번째 오브젝트를 가리키게 함
+
 		page->freelist = NULL;
+		// NULL로 변경
 
 		stat(s, ALLOC_SLAB);
+		// NULL 함수
+		
 		c->page = page;
+		// kmem_cache_cpu의 page 멤버에 앞에서 할당받아온 페이지를 연결함
+
 		*pc = c;
+		// 이 함수를 호출한 함수의 지역 변수에 kmem_cache_cpu의 주소를 집어 넣음
 	} else
 		freelist = NULL;
 
 	return freelist;
+	// 첫 번째 오브젝트의 주소 반환
 }
 
 // page : kmem_cache_node용 page, flags : GFP_KERNEL
@@ -2524,6 +2553,7 @@ static void *__slab_alloc(struct kmem_cache *s, gfp_t gfpflags, int node,
 	 * pointer.
 	 */
 	c = this_cpu_ptr(s->cpu_slab);
+	// c가 이전에 할당받은 kmem_cache_cpu를 가리키게 함
 #endif
 
 	page = c->page;
@@ -2606,6 +2636,7 @@ new_slab:
 	freelist = new_slab_objects(s, gfpflags, node, &c);
 	// freelist : boot_kmem_cache_node.node[0]의 partial에 달려 있는 page 중에서
 	//	      적절한 page를 선택해 object화하고 그 object들의 첫 번째 것의 시작 주소를 반환
+	//	      partial에 페이지가 없으면 buddy에서 새로운 페이지를 받아서 object화 수행
 
 	if (unlikely(!freelist)) {
 		if (!(gfpflags & __GFP_NOWARN) && printk_ratelimit())
@@ -2660,6 +2691,7 @@ static __always_inline void *slab_alloc_node(struct kmem_cache *s,
 	// [B] s : &boot_kmem_cache, gfpflags :  GFP_NOWAIT | __GFP_ZERO, node : -1, addr : ret
 	if (slab_pre_alloc_hook(s, gfpflags))
 		// slab_pre_alloc_hook : 0
+		// 하는 일 없이 무조건 0을 반환함
 		return NULL;
 
 	// [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL
@@ -2667,6 +2699,7 @@ static __always_inline void *slab_alloc_node(struct kmem_cache *s,
 	s = memcg_kmem_get_cache(s, gfpflags);
 	// [P] s : &boot_kmem_cache_node
 	// [B] s : &boot_kmem_cache
+	// 하는 일 없이 s 값을 그대로 다시 반환
 redo:
 	/*
 	 * Must read kmem_cache cpu data via this cpu ptr. Preemption is
@@ -2681,9 +2714,9 @@ redo:
 	 */
 	preempt_disable();
 	c = __this_cpu_ptr(s->cpu_slab);
-	// c : 이전에 설정한 kmem_cache_cpu 구조체의 시작 주소를 가져옴
-	//     이 구조체는 per cpu의 dynamic 영역에 만들어 두었음
-	//     tid 만 설정한 상태임
+	// [P] c : 이전에 설정한 kmem_cache_cpu 구조체의 시작 주소를 가져옴
+	//         이 구조체는 per cpu의 dynamic 영역에 만들어 두었음
+	//         tid 만 설정한 상태임
 	// [B] 에서 가져올 때는 하나 더 할당 받은 kmem_cache_cpu의 시작 주소를 땡겨옴
 	// 위의 c는 첫 번째 kmem_cache_cpu임
 
@@ -2694,21 +2727,28 @@ redo:
 	 * linked list in between.
 	 */
 	tid = c->tid;
-	// tid : 0
+	// [P] tid : 0
+	// [B] tid : 0
 	preempt_enable();
 
 	object = c->freelist;
-	// object : 0
+	// [P] object : 0
+	// [B] object : 0
 	page = c->page;
-	// page : 0
+	// [P] page : 0
+	// [B] page : 0
 	if (unlikely(!object || !node_match(page, node)))
 		// [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL, node : -1, addr : ret, c : &kmem_cache_cpu(1)
 		// [B] s : &boot_kmem_cache, gfpflags :  GFP_NOWAIT | __GFP_ZERO, node : -1, addr : ret, c : &kmem_cache_cpu(2)
 		object = __slab_alloc(s, gfpflags, node, addr, c);
-		// object : boot_kmem_cache_node.node[0]의 partial 리스트에 연결되어 있던 page에서
-		//	    object를 가져옴. 여기서는 두 번째 object 위치의 것을 가져옴
-		//          첫 번째 object는 이미 사용중임
-		//          세 번째 object부터 끝까지는 kmem_cache_cpu의 freelist에 붙어 있음
+		// [P] object : boot_kmem_cache_node.node[0]의 partial 리스트에 연결되어 있던 page에서
+		//  	        object를 가져옴. 여기서는 두 번째 object 위치의 것을 가져옴
+		//              첫 번째 object는 이미 사용중임
+		//              세 번째 object부터 끝까지는 kmem_cache_cpu(1)의 freelist에 붙어 있음
+		// [B] object : boot_kmem_cache.node[0]의 partial 리스트에 연결되어 있던 page가 존재하는지 확인
+		// 		현재는 page가 존재하지 않으므로 새로운 page를 할당받고 그 곳을 object화함.
+		// 		그리고 첫 번째 object의 주소를 반환
+		// 		두 번째 object부터 끝까지는 kmem_cache_cpu(2)의 freelist에 붙어 있음
 
 	else {
 		void *next_object = get_freepointer_safe(s, object);
@@ -2749,7 +2789,7 @@ redo:
 }
 
 // [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL, addr : ret
-// s : &boot_kmem_cache, gfpflags :  GFP_NOWAIT | __GFP_ZERO, addr : ret
+// [B] s : &boot_kmem_cache, gfpflags :  GFP_NOWAIT | __GFP_ZERO, addr : ret
 static __always_inline void *slab_alloc(struct kmem_cache *s,
 		gfp_t gfpflags, unsigned long addr)
 {
@@ -2763,11 +2803,11 @@ static __always_inline void *slab_alloc(struct kmem_cache *s,
 
 // [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL
 // bootstrap 함수에서 부를 때
-// s : &boot_kmem_cache, GFP_NOWAIT | __GFP_ZERO
+// [B] s : &boot_kmem_cache, GFP_NOWAIT | __GFP_ZERO
 void *kmem_cache_alloc(struct kmem_cache *s, gfp_t gfpflags)
 {
 	// [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL
-	// s : &boot_kmem_cache, GFP_NOWAIT | __GFP_ZERO
+	// [B] s : &boot_kmem_cache, GFP_NOWAIT | __GFP_ZERO
 	void *ret = slab_alloc(s, gfpflags, _RET_IP_);
 	// ret : partial에서 가져온 object
 
