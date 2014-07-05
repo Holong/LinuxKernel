@@ -381,6 +381,11 @@ static __always_inline void slab_unlock(struct page *page)
 // freelist_old : 2번째 object의 시작 주소, counters_old : objects(64) | inuse(1) | frozen(0)
 // freelist_new : NULL, counters_new : objects(64) | inuse(64) | frozen(0)
 // n : "acquire_slab"
+//
+// s : boot_kmem_cache 복사본, page : 할당 받은 것
+// freelist_old : NULL, counters_old : inuse(32) | objects(32) | frozen(1)
+// freelist_new : 두 번째 오브젝트, counters_new : inuse(31) | objects(32) | frozen(1)
+// n : "drain percpu freelist"
 static inline bool __cmpxchg_double_slab(struct kmem_cache *s, struct page *page,
 		void *freelist_old, unsigned long counters_old,
 		void *freelist_new, unsigned long counters_new,
@@ -1669,11 +1674,13 @@ static void discard_slab(struct kmem_cache *s, struct page *page)
  * list_lock must be held.
  */
 // n : 1번 objects, page : 할당 받은 page, DEACTIVATE_TO_HEAD : 15
+// n : boot_kmem_cache.node[0], page : struct kmem_cache 오브젝트를 받기 위한 page, tail : DEACTIVATE_TO_HEAD;
 static inline void add_partial(struct kmem_cache_node *n,
 				struct page *page, int tail)
 {
 	n->nr_partial++;
-	// 1번 오브젝트의 nr_partial을 증가
+	// 0번 kmem_cache_node 오브젝트의 nr_partial을 증가
+	// 1번 kmem_cache_node 오브젝트의 nr_partial을 증가
 
 	if (tail == DEACTIVATE_TO_TAIL)
 		list_add_tail(&page->lru, &n->partial);
@@ -2027,11 +2034,15 @@ static void init_kmem_cache_cpus(struct kmem_cache *s)
 /*
  * Remove the cpu slab
  */
+// s : boot_kmem_cache의 복사본, page : 할당 받은 page
+// freelist : page 안의 두 번째 오브젝트 주소
 static void deactivate_slab(struct kmem_cache *s, struct page *page,
 				void *freelist)
 {
 	enum slab_modes { M_NONE, M_PARTIAL, M_FULL, M_FREE };
 	struct kmem_cache_node *n = get_node(s, page_to_nid(page));
+	// n : boot_kmem_cache.node[0]
+	//     즉, kmem_cache_node 두 번째 것
 	int lock = 0;
 	enum slab_modes l = M_NONE, m = M_NONE;
 	void *nextfree;
@@ -2039,6 +2050,7 @@ static void deactivate_slab(struct kmem_cache *s, struct page *page,
 	struct page new;
 	struct page old;
 
+	// page->freelist : NULL
 	if (page->freelist) {
 		stat(s, DEACTIVATE_REMOTE_FREES);
 		tail = DEACTIVATE_TO_TAIL;
@@ -2057,20 +2069,41 @@ static void deactivate_slab(struct kmem_cache *s, struct page *page,
 		unsigned long counters;
 
 		do {
+			// page->freelist : NULL
 			prior = page->freelist;
+			// prior : NULL
+
+			// counters : inuse, objects, frozen 멤버를 이용해 설정된 값임
 			counters = page->counters;
+			// inuse : 32, objects : 32, frozen : 1
+
 			set_freepointer(s, freelist, prior);
+			// 1번 object의 freepointer를 NULL로 변경
+			// 2번 object 부터는 freepointer를 이전 object를 가리키게 만듬
+
 			new.counters = counters;
 			new.inuse--;
+			// new의 counters와 inuse 값을 변경
+			// new.inuse : 31, objects : 32, frozen : 1
 			VM_BUG_ON(!new.frozen);
 
+			// s : boot_kmem_cache 복사본, page : 할당 받은 것, prior : NULL
+			// counters : inuse(32) | objects(32) | frozen(1)
+			// freelist : 2번째 object
+			// new.counters : inuse(31) | objects(32) | frozen(1)
 		} while (!__cmpxchg_double_slab(s, page,
 			prior, counters,
 			freelist, new.counters,
 			"drain percpu freelist"));
+		// page->freelist를 두 번째 오브젝트 주소로 바꾸고, counters 멤버를 new.counters로 변경함
+		// 그 뒤 1을 반환
 
 		freelist = nextfree;
+		// freelist는 세 번째 오브젝트가 됨
 	}
+	// 1번 오브젝트의 freepointer를 NULL로 설정
+	// 2번 오브젝트부터 30번째 오브젝트까지는 freepointer를 이전 오브젝트의 주소로 변경
+	// page->freelist는 결국 31번째 오브젝트의 주소가 됨
 
 	/*
 	 * Stage two: Ensure that the page is unfrozen while the
@@ -2089,24 +2122,37 @@ static void deactivate_slab(struct kmem_cache *s, struct page *page,
 redo:
 
 	old.freelist = page->freelist;
+	// old.freelist : 31번째 오브젝트의 주소
+
 	old.counters = page->counters;
+	// inuse : 1
+
 	VM_BUG_ON(!old.frozen);
 
 	/* Determine target state of the slab */
 	new.counters = old.counters;
+	// new.counters : inuse(1) | objects(32) | frozen(1)
+	
+	// freelist : 31번째 오브젝트의 주소
 	if (freelist) {
 		new.inuse--;
+		// new.counters : inuse(0) | objects(32) | frozen(1)
 		set_freepointer(s, freelist, old.freelist);
+		// 31번째 오브젝트의 freepointer를 31번째 오브젝트로 바꿈
 		new.freelist = freelist;
+		// new.freelist : 31번째 오브젝트의 주소가 됨
 	} else
 		new.freelist = old.freelist;
 
 	new.frozen = 0;
+	// new.counters : inuse(0) | objects(32) | frozen(0)
 
+	// new.inuse : 0, n->nr_partial : 0, s->min_partial : 5
 	if (!new.inuse && n->nr_partial > s->min_partial)
-		m = M_FREE;
-	else if (new.freelist) {
+		m = M_FREE; // 수행 안됨
+	else if (new.freelist) {	// new.freelist : 31번째 오브젝트의 주소
 		m = M_PARTIAL;
+		// lock : 0
 		if (!lock) {
 			lock = 1;
 			/*
@@ -2115,6 +2161,7 @@ redo:
 			 * is frozen
 			 */
 			spin_lock(&n->list_lock);
+			// boot_kmem_cache.node[0]->list_lock을 이용해 스핀락을 검
 		}
 	} else {
 		m = M_FULL;
@@ -2129,6 +2176,7 @@ redo:
 		}
 	}
 
+	// l : M_NONE, m : M_PARTIAL
 	if (l != m) {
 
 		if (l == M_PARTIAL)
@@ -2139,9 +2187,13 @@ redo:
 
 			remove_full(s, page);
 
-		if (m == M_PARTIAL) {
+		if (m == M_PARTIAL) {	// 이 쪽으로 진행됨
 
+			// n : boot_kmem_cache.node[0], page : struct kmem_cache 오브젝트를 받기 위한 page
+			// tail : DEACTIVATE_TO_HEAD;
 			add_partial(n, page, tail);
+			// boot_kmem_cache.node[0]의 nr_partial을 증가시키고,
+			// page를 partial 리스트에 연결함
 			stat(s, tail);
 
 		} else if (m == M_FULL) {
@@ -2153,6 +2205,8 @@ redo:
 	}
 
 	l = m;
+	// l : M_PARTIAL 로 변경됨
+
 	if (!__cmpxchg_double_slab(s, page,
 				old.freelist, old.counters,
 				new.freelist, new.counters,
@@ -2289,12 +2343,19 @@ static void put_cpu_partial(struct kmem_cache *s, struct page *page, int drain)
 #endif
 }
 
+// s : boot_kmem_cache, c : kmem_cache_cpu(2)
 static inline void flush_slab(struct kmem_cache *s, struct kmem_cache_cpu *c)
 {
 	stat(s, CPUSLAB_FLUSH);
+	
+	// s : boot_kmem_cache의 복사본, c->page : 할당 받은 page
+	// c->freelist : c->page 안의 두 번째 오브젝트 주소
 	deactivate_slab(s, c->page, c->freelist);
+	// kmem_cache를 위해 할당받은 page의 object 사이의 freepointer를 거꾸로 연결해줌
+	// 마지막 31번 오브젝트의 freepointer는 자기 자신을 가리킴
 
 	c->tid = next_tid(c->tid);
+	// c->tid : 8로 변경
 	c->page = NULL;
 	c->freelist = NULL;
 }
@@ -2304,15 +2365,20 @@ static inline void flush_slab(struct kmem_cache *s, struct kmem_cache_cpu *c)
  *
  * Called from IPI handler with interrupts disabled.
  */
+// s : 할당 받은 page(boot_kmem_cache의 복사본), smp_processor_id : 0
 static inline void __flush_cpu_slab(struct kmem_cache *s, int cpu)
 {
+	// s->cpu_slab : percpu 영역의 베이스 주소(kmem_cache_cpu(2)), cpu : 0
 	struct kmem_cache_cpu *c = per_cpu_ptr(s->cpu_slab, cpu);
+	// c : kmem_cache_cpu(2)
 
 	if (likely(c)) {
+		// c->page : 할당 받은 page, s와 같은 값임
 		if (c->page)
 			flush_slab(s, c);
 
 		unfreeze_partials(s, c);
+		// 하는 일 없음
 	}
 }
 
@@ -2751,7 +2817,10 @@ redo:
 		// 		두 번째 object부터 끝까지는 kmem_cache_cpu(2)의 freelist에 붙어 있음
 
 	else {
+		// bootstrap 두 번째 호출 시 이쪽으로 들어옴
+		// s : boot_kmem_cache_node, object : 세 번째 오브젝트(kmem_cache_node)의 주소
 		void *next_object = get_freepointer_safe(s, object);
+		// next_object : 네 번째 오브젝트의 주소
 
 		/*
 		 * The cmpxchg will only match if there was no additional
@@ -4159,22 +4228,32 @@ static struct kmem_cache * __init bootstrap(struct kmem_cache *static_cache)
 	// kmem_cache : struct kmem_cache* 전역변수
 	// kmem_cache : &boot_kmem_cache
 	struct kmem_cache *s = kmem_cache_zalloc(kmem_cache, GFP_NOWAIT);
+	// page를 할당받아 옴
 
 	memcpy(s, static_cache, kmem_cache->object_size);
+	// 할당 받아 온 page의 첫 번째 오브젝트에 boot_kmem_cache의 값을 복사
 
 	/*
 	 * This runs very early, and only the boot processor is supposed to be
 	 * up.  Even if it weren't true, IRQs are not up so we couldn't fire
 	 * IPIs around.
 	 */
+	// s : 할당 받은 page, smp_processor_id : 0
 	__flush_cpu_slab(s, smp_processor_id());
+	// kmem_cache_cpu에서 관리하던 빈 object들을 kmem_cache_node에게로 돌려줌
+	// 그 object들이 들어있는 page를 partial 리스트에 연결함
+
 	for_each_node_state(node, N_NORMAL_MEMORY) {
 		struct kmem_cache_node *n = get_node(s, node);
+		// n : boot_kmem_cache.node[0]가 나옴
+		// 즉, kmem_cache_node(2)임
 		struct page *p;
 
 		if (n) {
 			list_for_each_entry(p, &n->partial, lru)
 				p->slab_cache = s;
+				// partial 리스트에 연결한 페이지의 slab_cache 멤버에
+				// 그 페이지를 관리하는 kmem_cache_cpu 구조체의 주소를 저장
 
 #ifdef CONFIG_SLUB_DEBUG
 			list_for_each_entry(p, &n->full, lru)
@@ -4183,6 +4262,7 @@ static struct kmem_cache * __init bootstrap(struct kmem_cache *static_cache)
 		}
 	}
 	list_add(&s->list, &slab_caches);
+	// kmem_cache_cpu를 slab_caches 전역 변수에 등록
 	return s;
 }
 
@@ -4269,6 +4349,7 @@ void __init kmem_cache_init(void)
 	// 이전에 만든 kmem_cache_node를 kmem_cache의 node[0]에 저장했음
 
 	kmem_cache = bootstrap(&boot_kmem_cache);
+	// 새로 만든 kmem_cache용 오브젝트의 주소를 kmem_cache에 저장함
 
 	/*
 	 * Allocate kmem_cache_node properly from the kmem_cache slab.
