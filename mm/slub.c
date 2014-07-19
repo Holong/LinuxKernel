@@ -2818,9 +2818,9 @@ redo:
 
 	else {
 		// bootstrap 두 번째 호출 시 이쪽으로 들어옴
-		// s : boot_kmem_cache_node, object : 세 번째 오브젝트(kmem_cache_node)의 주소
+		// s : boot_kmem_cache 복사본, object : 두 번째 오브젝트(kmem_cache)의 주소
 		void *next_object = get_freepointer_safe(s, object);
-		// next_object : 네 번째 오브젝트의 주소
+		// next_object : 세 번째 오브젝트의 주소
 
 		/*
 		 * The cmpxchg will only match if there was no additional
