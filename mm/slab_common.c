@@ -303,6 +303,7 @@ int slab_is_available(void)
 // [D] s : &boot_kmem_cache_node, name : "kmem_cache_node", size : 44byte, flags : SLAB_HWCACHE_ALIGN(0x2000)
 // [P] s : &boot_kmem_cache, name : "kmem_cache", size : 132byte, flags : SLAB_HWCACHE_ALIGN(0x2000)
 // [P] size : offsetof(struct kmem_cache, node) + nr_node_ids * sizeof(struct kmem_cache_node *)
+// s : kmem_cache#2, name : NULL, size : 64, flags : 0
 void __init create_boot_cache(struct kmem_cache *s, const char *name, size_t size,
 		unsigned long flags)
 {
@@ -348,13 +349,23 @@ struct kmem_cache *__init create_kmalloc_cache(const char *name, size_t size,
 {
 	// kmem_cache : boot_kmem_cache를 복사한 것(object)
 	struct kmem_cache *s = kmem_cache_zalloc(kmem_cache, GFP_NOWAIT);
+	// s : kmem_cache#2
+	//     kmem_cache#1  : kmem_cache 용
+	//     kmem_cache#32 : kmem_cache_node 용
 
 	if (!s)
 		panic("Out of memory when creating slab %s\n", name);
 
+	// s : kmem_cache#2, name : NULL, size : 64, flags : 0
 	create_boot_cache(s, name, size, flags);
+	// kmem_cache#2를 위한 kmem_cache_node를 확보하고, kmem_cache_cpu도 확보함
+	// 이 두 값을 kmem_cache#2의 node 멤버와 cpu_slab 멤버에 저장함
+	
 	list_add(&s->list, &slab_caches);
+	// kmem_cache#2를 slab_caches 리스트에 추가함
+	
 	s->refcount = 1;
+	// kmem_cache#2의 refcount를 1로 설정함
 	return s;
 }
 
@@ -409,29 +420,38 @@ static inline int size_index_elem(size_t bytes)
  * Find the kmem_cache structure that serves a given size of
  * allocation
  */
+// size : 12, gfpflags : GFP_NOWAIT
 struct kmem_cache *kmalloc_slab(size_t size, gfp_t flags)
 {
 	int index;
 
+	// size : 12, KMALLOC_MAX_SIZE : 1G
 	if (unlikely(size > KMALLOC_MAX_SIZE)) {
 		WARN_ON_ONCE(!(flags & __GFP_NOWARN));
 		return NULL;
 	}
-
+	
+	// size : 12
 	if (size <= 192) {
 		if (!size)
 			return ZERO_SIZE_PTR;
 
+		// size_index_elem(12) : 2
 		index = size_index[size_index_elem(size)];
+		// size_index[2] : KMALLOC_SHIFT_LOW(6)이 저장되어 있음
+		// index : 6이 됨
+		
 	} else
 		index = fls(size - 1);
 
-#ifdef CONFIG_ZONE_DMA
+#ifdef CONFIG_ZONE_DMA // N
 	if (unlikely((flags & GFP_DMA)))
 		return kmalloc_dma_caches[index];
 
 #endif
 	return kmalloc_caches[index];
+	// kmalloc_caches[6]이 반환됨
+	// 즉, kmem_cache#2가 반환됨
 }
 
 /*
@@ -506,6 +526,10 @@ void __init create_kmalloc_caches(unsigned long flags)
 			// i : 6, flags : 0
 			kmalloc_caches[i] = create_kmalloc_cache(NULL,
 							1 << i, flags);
+			// 관리하는 오브젝트의 크기가 64인 kmem_cache 구조체를 하나 생성하고,
+			// 이를 위한 kmem_cache_node, kmem_cache_cpu를 새로 할당받아 설정함
+			// 그리고 이 새로운 구조체의 주소를 kmalloc_caches[6]에 저장함
+			// 결국 kmalloc_caches[6]의 값은 kmem_cache#2가 됨
 		}
 
 		/*
@@ -523,19 +547,26 @@ void __init create_kmalloc_caches(unsigned long flags)
 	/* Kmalloc array is now usable */
 	slab_state = UP;
 
+	// KMALLOC_SHIFT_HIGH : 13
 	for (i = 0; i <= KMALLOC_SHIFT_HIGH; i++) {
 		struct kmem_cache *s = kmalloc_caches[i];
 		char *n;
 
 		if (s) {
+			// kmalloc_size(2) : 192
 			n = kasprintf(GFP_NOWAIT, "kmalloc-%d", kmalloc_size(i));
+			// kmem_cache#2-o1 오브젝트를 받아오고, 그 공간에 위에서 만든
+			// 문자열을 만들어 저장함
+			// 즉, 앞에서 만든 슬랩 할당자를 이용해 메모리를 확보하고
+			// 그 공간에 문자열을 저장
 
 			BUG_ON(!n);
 			s->name = n;
 		}
 	}
+	// 위에서 만든 각 kmem_cache의 name 멤버에 각각 크기를 이용해 이름을 만들어 연결해 줌
 
-#ifdef CONFIG_ZONE_DMA
+#ifdef CONFIG_ZONE_DMA	// N
 	for (i = 0; i <= KMALLOC_SHIFT_HIGH; i++) {
 		struct kmem_cache *s = kmalloc_caches[i];
 

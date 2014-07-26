@@ -159,6 +159,7 @@ void cpu_hotplug_enable(void)
 
 /* Need to know about CPUs going up/down? */
 // nb : &page_alloc_cpu_notify_nb
+// nb : &slab_notifier
 int __ref register_cpu_notifier(struct notifier_block *nb)
 {
 	int ret;
@@ -167,8 +168,13 @@ int __ref register_cpu_notifier(struct notifier_block *nb)
 
 	// struct raw_notifier_head cpu_chain, head 멤버는 NULL로 초기화 되어 있음
 	// nb : &page_alloc_cpu_notify_nb
-	ret = raw_notifier_chain_register(&cpu_chain, nb);
 	//
+	// struct raw_notifier_head cpu_chain, head 멤버는 NULL로 초기화 되어 있음
+	// nb : &slab_notifier
+	ret = raw_notifier_chain_register(&cpu_chain, nb);
+	// cpu_chain에 nb로 넘어오는 notifier_block을 차례대로 연결해둠
+	// 현재는 cpu_chain->head가 slab_notifier를 가리키고, slab_notifier의 next가
+	// page_alloc_cpu_notify_nb를 가리키며, 그 곳의 next는 NULL이 됨
 
 	cpu_maps_update_done();
 	// 뮤텍스 변수 cpu_add_remove_lock의 락을 해제

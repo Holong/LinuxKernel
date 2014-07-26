@@ -2817,10 +2817,7 @@ redo:
 		// 		두 번째 object부터 끝까지는 kmem_cache_cpu(2)의 freelist에 붙어 있음
 
 	else {
-		// bootstrap 두 번째 호출 시 이쪽으로 들어옴
-		// s : boot_kmem_cache 복사본, object : 두 번째 오브젝트(kmem_cache)의 주소
 		void *next_object = get_freepointer_safe(s, object);
-		// next_object : 세 번째 오브젝트의 주소
 
 		/*
 		 * The cmpxchg will only match if there was no additional
@@ -2873,6 +2870,7 @@ static __always_inline void *slab_alloc(struct kmem_cache *s,
 // [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL
 // bootstrap 함수에서 부를 때
 // [B] s : &boot_kmem_cache, GFP_NOWAIT | __GFP_ZERO
+// [U] s : kmem_cache#6, flags : GFP_KERNEL | __GFP_ZERP
 void *kmem_cache_alloc(struct kmem_cache *s, gfp_t gfpflags)
 {
 	// [P] s : &boot_kmem_cache_node, gfpflags : GFP_KERNEL
@@ -4360,9 +4358,18 @@ void __init kmem_cache_init(void)
 
 	/* Now we can use the kmem_cache to allocate kmalloc slabs */
 	create_kmalloc_caches(0);
+	// kmalloc_cache 배열을 위한 kmem_cache 구조체와 kmem_cache_node, kmem_cache_cpu를 만들어
+	// 내부를 설정해 줌
+	// 추가적으로 size_index 배열의 값을 설정함
 
 #ifdef CONFIG_SMP
+	// static struct notifier_block slab_notifier = {
+	// 	.notifier_call = slab_cpuup_callback,
+	// 	.next = 0,
+	// 	.priority = 0
+	// };
 	register_cpu_notifier(&slab_notifier);
+	// cpu_chain에 notifier_block을 새로 연결함
 #endif
 
 	printk(KERN_INFO
@@ -4537,20 +4544,28 @@ static struct notifier_block slab_notifier = {
 
 #endif
 
+// size : 12, gfpflags : GFP_NOWAIT, caller _RET_IP_
 void *__kmalloc_track_caller(size_t size, gfp_t gfpflags, unsigned long caller)
 {
 	struct kmem_cache *s;
 	void *ret;
 
+	// size : 12, KMALLOC_MAX_CACHE_SIZE : 8KB
 	if (unlikely(size > KMALLOC_MAX_CACHE_SIZE))
 		return kmalloc_large(size, gfpflags);
+		// 통과
 
+	// size : 12, gfpflags : GFP_NOWAIT
 	s = kmalloc_slab(size, gfpflags);
-
+	// size를 이용해 적절한 kmem_cache를 찾아서 반환
+	// s : kmem_cache#2가 반환됨
+	
 	if (unlikely(ZERO_OR_NULL_PTR(s)))
 		return s;
 
+	// s: kmem_cache#2, gfpflags : GFP_NOWAIT, caller : ret_ip
 	ret = slab_alloc(s, gfpflags, caller);
+	// 64바이트 크기의 오브젝트를 하나 받아 옴
 
 	/* Honor the call site pointer we received. */
 	trace_kmalloc(caller, ret, size, s->size, gfpflags);

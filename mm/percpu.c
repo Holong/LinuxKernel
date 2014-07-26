@@ -302,14 +302,19 @@ static void __maybe_unused pcpu_next_pop(struct pcpu_chunk *chunk,
  * Pointer to the allocated area on success, NULL on failure.
  */
 // size : 128
+// size : 512
 static void *pcpu_mem_zalloc(size_t size)
 {
 	// slab_is_available() : 0
 	if (WARN_ON_ONCE(!slab_is_available()))
 		return NULL; // NULL 반환
 
+	// size : 512, PAGE_SIZE : 4KB
 	if (size <= PAGE_SIZE)
+		// 이 쪽으로 들어옴
 		return kzalloc(size, GFP_KERNEL);
+		// slab 할당자를 이용해 512크기의 오브젝트를 생성해 반환함
+		// kmem_cache#6-o1이 반환됨
 	else
 		return vzalloc(size);
 }
@@ -2253,22 +2258,38 @@ void __init percpu_init_late(void)
 {
 	struct pcpu_chunk *target_chunks[] =
 		{ pcpu_first_chunk, pcpu_reserved_chunk, NULL };
+	// pcpu_first_chunk : pcpu_setup_first_chunk() 함수에서 할당한 dchunk
+	// pcpu_reserved_chunk : pcpu_setup_first_chunk() 함수에서 할당한 schunk
+
 	struct pcpu_chunk *chunk;
 	unsigned long flags;
 	int i;
 
 	for (i = 0; (chunk = target_chunks[i]); i++) {
 		int *map;
+
+		// PERCPU_DYNAMIC_EARLY_SLOTS : 128
 		const size_t size = PERCPU_DYNAMIC_EARLY_SLOTS * sizeof(map[0]);
+		// size : 128 * 4
+		// 	  512
 
 		BUILD_BUG_ON(size > PAGE_SIZE);
 
+		// size : 512
 		map = pcpu_mem_zalloc(size);
+		// slab 할당자를 이용해 512크기의 오브젝트를 생성해 반환함
+		// kmem_cache#6-o1이 반환됨
+		
 		BUG_ON(!map);
 
 		spin_lock_irqsave(&pcpu_lock, flags);
 		memcpy(map, chunk->map, size);
+		// chunk->map의 정보를 kmem_cache#6-o1에 전부 복사
+		// 이전에 만든 kmem_cache_cpu 정보들을 전부 슬랩 공간으로 복사함
+
 		chunk->map = map;
+		// 이제부터 percpu_alloc이 걸리면 슬랩 공간에서 가져다 씀(?)
+
 		spin_unlock_irqrestore(&pcpu_lock, flags);
 	}
 }

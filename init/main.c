@@ -506,8 +506,14 @@ static void __init mm_init(void)
 	// slub으로 이동. CONFIG에 의해 slab, slub, slob 중에
 	// 필요에 맞는 것으로 사용됨
 	kmem_cache_init();
+	// slub 할당자 활성화 하였음 (UP)
+	
 	percpu_init_late();
+	// 이전에 만든 kmem_cache_cpu 정보들을 전부 슬랩 공간으로 복사함
+	
 	pgtable_cache_init();
+	// NULL 함수
+	
 	vmalloc_init();
 }
 

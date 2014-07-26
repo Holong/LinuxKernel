@@ -349,7 +349,9 @@ EXPORT_SYMBOL_GPL(blocking_notifier_call_chain);
  *	Currently always returns zero.
  */
 // struct raw_notifier_head cpu_chain, head 멤버는 NULL로 초기화 되어 있음
-// nb : &page_alloc_cpu_notify_nb
+// nh : &cpu_chain, n : &page_alloc_cpu_notify_nb
+// struct raw_notifier_head cpu_chain, head 멤버는 NULL로 초기화 되어 있음
+// nh : &cpu_chain, n : &slab_notifier
 int raw_notifier_chain_register(struct raw_notifier_head *nh,
 		struct notifier_block *n)
 {

@@ -256,6 +256,7 @@ extern struct kmem_cache *kmalloc_dma_caches[KMALLOC_SHIFT_HIGH + 1];
  * 2 = 120 .. 192 bytes
  * n = 2^(n-1) .. 2^n -1
  */
+// size : 512
 static __always_inline int kmalloc_index(size_t size)
 {
 	if (!size)
@@ -336,10 +337,13 @@ kmem_cache_alloc_node_trace(struct kmem_cache *s,
 #endif /* CONFIG_NUMA */
 
 #else /* CONFIG_TRACING */
+// kmalloc_caches[9] : kmem_cache#6, flags : GFP_KERNEL | __GFP_ZERP, size : 512
 static __always_inline void *kmem_cache_alloc_trace(struct kmem_cache *s,
 		gfp_t flags, size_t size)
 {
 	return kmem_cache_alloc(s, flags);
+	// slab 할당자를 이용해 512크기의 오브젝트를 생성해 반환함
+	// kmem_cache#6-o1이 반환됨
 }
 
 static __always_inline void *
@@ -439,20 +443,27 @@ static __always_inline void *kmalloc_large(size_t size, gfp_t flags)
  * for general use, and so are not documented here. For a full list of
  * potential flags, always refer to linux/gfp.h.
  */
+// size : 512, flags : GFP_KERNEL | __GFP_ZERO
 static __always_inline void *kmalloc(size_t size, gfp_t flags)
 {
 	if (__builtin_constant_p(size)) {
+		// size : 512, KMALLOC_MAX_CACHE_SIZE : 8192
 		if (size > KMALLOC_MAX_CACHE_SIZE)
 			return kmalloc_large(size, flags);
-#ifndef CONFIG_SLOB
+#ifndef CONFIG_SLOB	// N
 		if (!(flags & GFP_DMA)) {
+			// size : 512
 			int index = kmalloc_index(size);
+			// index : 9
 
 			if (!index)
 				return ZERO_SIZE_PTR;
 
+			// kmalloc_caches[9] : kmem_cache#6, flags : GFP_KERNEL | __GFP_ZERP, size : 512
 			return kmem_cache_alloc_trace(kmalloc_caches[index],
 					flags, size);
+			// slab 할당자를 이용해 512크기의 오브젝트를 생성해 반환함
+			// kmem_cache#6-o1이 반환됨
 		}
 #endif
 	}
@@ -633,9 +644,12 @@ static inline void *kmem_cache_zalloc(struct kmem_cache *k, gfp_t flags)
  * @size: how many bytes of memory are required.
  * @flags: the type of memory to allocate (see kmalloc).
  */
+// size : 512, flags : GFP_KERNEL
 static inline void *kzalloc(size_t size, gfp_t flags)
 {
 	return kmalloc(size, flags | __GFP_ZERO);
+	// slab 할당자를 이용해 512크기의 오브젝트를 생성해 반환함
+	// kmem_cache#6-o1이 반환됨
 }
 
 /**

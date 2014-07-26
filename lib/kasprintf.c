@@ -11,6 +11,7 @@
 #include <linux/string.h>
 
 /* Simplified asprintf. */
+// gfp :: GFP_NOWAIT, fmt : "kmalloc-192", ap : 
 char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
 {
 	unsigned int len;
@@ -21,7 +22,11 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
 	len = vsnprintf(NULL, 0, fmt, aq);
 	va_end(aq);
 
+	// len : 11, gfp : GFP_NOWAIT
 	p = kmalloc_track_caller(len+1, gfp);
+	// __kmalloc_track_caller(12, GFP_NOWAIT, _RET_IP_)가 호출됨
+	// kmem_cache#2-o1 오브젝트를 받아 p에 저장
+	
 	if (!p)
 		return NULL;
 
@@ -31,6 +36,7 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
 }
 EXPORT_SYMBOL(kvasprintf);
 
+// gfp :: GFP_NOWAIT, fmt : "kmalloc-192"
 char *kasprintf(gfp_t gfp, const char *fmt, ...)
 {
 	va_list ap;
