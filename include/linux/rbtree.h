@@ -76,6 +76,7 @@ extern struct rb_node *rb_next_postorder(const struct rb_node *);
 extern void rb_replace_node(struct rb_node *victim, struct rb_node *new, 
 			    struct rb_root *root);
 
+// node : SYSC의 rb_node 멤버 주소, parent : NULL, rb_link : &vmap_area_root.rb_node
 static inline void rb_link_node(struct rb_node * node, struct rb_node * parent,
 				struct rb_node ** rb_link)
 {

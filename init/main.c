@@ -633,6 +633,7 @@ asmlinkage void __init start_kernel(void)
 	// 하는 일 없음
 
 	mm_init();
+	// 커널 메모리 할당자를 활성화함
 
 	/*
 	 * Set up the scheduler prior starting any interrupts (such as the
