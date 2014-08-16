@@ -791,7 +791,8 @@ static void __init free_highpages(void)
 			free_area_high(start, end);
 	}
 	// reserved에 등록되지 않은 모든 highmem 메모리를 전부
-	// 메모리에 등록
+	// buddy로 등록
+	// 등록될 때, node_zones[ZONE_HIGHMEM]에 등록됨
 #endif
 }
 
@@ -815,7 +816,7 @@ void __init mem_init(void)
 
 	/* this will put all unused low memory onto the freelists */
 	// meminfo : 뱅크 정보가 들어가 있는 공간
-	// 		region 1개에 lowmem, highmem 으로 뱅크가 두 개 존재
+	// 	     region 1개에 lowmem, highmem 으로 뱅크가 두 개 존재
 	free_unused_memmap(&meminfo);
 	// bank 사이에 빈 공간이 존재하거나, 64K로 정렬이 되어 있지 않은 부분을 free 해 줌
 
@@ -830,8 +831,10 @@ void __init mem_init(void)
 #endif
 
 	free_highpages();
-	// reserved에 등록되지 않은 모든 highmem 메모리를 전부
-	// 메모리에 등록
+	// reserved에 등록되지 않은 모든 highmem 메모리를 전부 버디로 등록
+	// 등록될 때, node_zones[ZONE_HIGHMEM]에 등록됨
+	// 최종적으로 node_zones[ZONE_NORMAL]에는 lowmem 메모리가,
+	// node_zones[ZONE_HIGHMEM]에는 highmem 메모리가 등록됨
 
 	mem_init_print_info(NULL);
 	// 로그 출력
