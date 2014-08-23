@@ -2147,7 +2147,7 @@ redo:
 	new.frozen = 0;
 	// new.counters : inuse(0) | objects(32) | frozen(0)
 
-	// new.inuse : 0, n->nr_partial : 0, s->min_partial : 5
+	// new.inuse : 1, n->nr_partial : 0, s->min_partial : 5
 	if (!new.inuse && n->nr_partial > s->min_partial)
 		m = M_FREE; // 수행 안됨
 	else if (new.freelist) {	// new.freelist : 31번째 오브젝트의 주소
@@ -4260,7 +4260,7 @@ static struct kmem_cache * __init bootstrap(struct kmem_cache *static_cache)
 		}
 	}
 	list_add(&s->list, &slab_caches);
-	// kmem_cache_cpu를 slab_caches 전역 변수에 등록
+	// 복사한 boot_kmem_cache를 slab_caches 전역 변수에 등록
 	return s;
 }
 
