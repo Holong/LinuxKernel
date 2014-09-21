@@ -498,10 +498,13 @@ static void __init mm_init(void)
 	// NULL 함수
 
 	mem_init();
-	// bootmem 할당자에 저장되어 있던 할당 정보와
-	// reserved 정보를 이용해서 free 상태인 페이지들을 전부
-	// 버디 할당자에게 넘겨줌
+	// lowmem과 highmem에 존재하는 모든 free 상태 페이지를 버디(contig_page_data)에 등록
+	// 버디는 contig_page_data와 struct page를 이용해 관리됨
 	// contig_page_data.node_zones 안의 리스트로 연결되어 있음
+	// lowmem : bootmem 할당자에 저장되어 있던 할당 정보 이용
+	//          node_zones[ZONE_NORMAL]에 등록됨
+	// highmem : memblock 전역 변수에 저장되어 있던 reserved 정보 이용
+	//           node_zones[ZONE_HIGHMEM]에 등록됨
 
 	// slub으로 이동. CONFIG에 의해 slab, slub, slob 중에
 	// 필요에 맞는 것으로 사용됨
@@ -633,6 +636,7 @@ asmlinkage void __init start_kernel(void)
 	// 하는 일 없음
 
 	mm_init();
+	// 커널 메모리 할당자를 활성화함
 
 	/*
 	 * Set up the scheduler prior starting any interrupts (such as the

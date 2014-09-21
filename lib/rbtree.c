@@ -69,6 +69,8 @@ __rb_rotate_set_parents(struct rb_node *old, struct rb_node *new,
 	__rb_change_child(old, new, parent, root);
 }
 
+// node : &va->rb_node, root : &vmap_area_root
+// augment_rotate : NULL 함수
 static __always_inline void
 __rb_insert(struct rb_node *node, struct rb_root *root,
 	    void (*augment_rotate)(struct rb_node *old, struct rb_node *new))
@@ -383,8 +385,11 @@ static const struct rb_augment_callbacks dummy_callbacks = {
 	dummy_propagate, dummy_copy, dummy_rotate
 };
 
+// node : &va->rb_node, root : &vmap_area_root
 void rb_insert_color(struct rb_node *node, struct rb_root *root)
 {
+	// node : &va->rb_node, root : &vmap_area_root
+	// dummy_rotate : NULL 함수
 	__rb_insert(node, root, dummy_rotate);
 }
 EXPORT_SYMBOL(rb_insert_color);

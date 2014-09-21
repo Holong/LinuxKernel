@@ -301,12 +301,14 @@ static struct vmap_area *__find_vmap_area(unsigned long addr)
 	return NULL;
 }
 
+// va : [SYSC : 0xF6100000 + 64KB, PA : 0x10050000] kmem_cache#2-o10
 static void __insert_vmap_area(struct vmap_area *va)
 {
 	struct rb_node **p = &vmap_area_root.rb_node;
 	struct rb_node *parent = NULL;
 	struct rb_node *tmp;
 
+	// *p : vmap_area_root.rb_node : NULL
 	while (*p) {
 		struct vmap_area *tmp_va;
 
@@ -320,7 +322,10 @@ static void __insert_vmap_area(struct vmap_area *va)
 			BUG();
 	}
 
+	// &va->rb_node : SYSC의 rb_node 멤버 주소, parent : NULL, p : &vmap_area_root.rb_node
 	rb_link_node(&va->rb_node, parent, p);
+	// va->rb_node의 parent color를 parent 변수 값으로 설정해주고, p가 가리키는 곳의 값을 &(va->rb_node)로 변경
+	
 	rb_insert_color(&va->rb_node, &vmap_area_root);
 
 	/* address-sort this list */
@@ -1198,20 +1203,54 @@ void __init vmalloc_init(void)
 		struct vfree_deferred *p;
 
 		vbq = &per_cpu(vmap_block_queue, i);
+		// vmap_block_queue라는 percpu 변수들 중 cpu i의 주소를 가져옴
+		
 		spin_lock_init(&vbq->lock);
+		// 락 변수 초기화
+		
 		INIT_LIST_HEAD(&vbq->free);
+		// list 변수 초기화
+		
 		p = &per_cpu(vfree_deferred, i);
+		// vfree_deferred라는 percpu 변수들 중 cpu i의 주소를 가져옴
+
 		init_llist_head(&p->list);
+		// list 변수 초기화
+
+		// free_work : 함수 포인터
 		INIT_WORK(&p->wq, free_work);
+		// __init_work(&p->wq, 0): 
+		//   NULL 함수
+		//
+		// (p->wq).data = (atomic_long_t) WORK_DATA_INIT();
+		//   (p->wq).data = 0xFFFFFFE0  이 됨
+		//
+		// INIT_LIST_HEAD(&(_work)->entry);
+		//   리스트 초기화
+		//   
+		// PREPARE_WORK((_work), (_func));
+		//  p->wq.func = free_workd 포인터를 넣어줌
+	
 	}
+	// 각 코어마다 work queue와 관련된 멤버 변수 최ㅘ
 
 	/* Import existing vmlist entries. */
+	// vmlist : 예전에 만들어 준 디바이스 관련 가상 주소 정보들임
+	// 	    exynos5 관련 초기화 함수에서 설정해 주었음
 	for (tmp = vmlist; tmp; tmp = tmp->next) {
 		va = kzalloc(sizeof(struct vmap_area), GFP_NOWAIT);
+		// vmap_area에 맞는 오브젝트 하나를 할당받아서 그 주소를 가져옴
+		// va : kmem_cache#2-o10
+
+		// VM_VM_AREA : 0x04
 		va->flags = VM_VM_AREA;
 		va->va_start = (unsigned long)tmp->addr;
 		va->va_end = va->va_start + tmp->size;
 		va->vm = tmp;
+		// kmem_cache#2-o10에 멤버 값을 설정해 줌
+		//
+		// tmp : [SYSC : 0xF6100000 + 64KB, PA : 0x10050000]
+
 		__insert_vmap_area(va);
 	}
 

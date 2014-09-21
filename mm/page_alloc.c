@@ -590,7 +590,7 @@ static inline void __free_one_page(struct page *page,
 
 		// page: 0x20000 (pfn), buddy_idx: 32, page_idx: 0
 		buddy = page + (buddy_idx - page_idx);
-		// buddy : 0x20001을 담당하는 struct page의 주소
+		// buddy : 0x20020을 담당하는 struct page의 주소
 
 		// page: 0x20000 (pfn), buddy: 0x20020 (pfn), order: 5
 		// page_is_buddy(page, buddy, 5): 0
