@@ -4804,18 +4804,29 @@ static void rq_attach_root(struct rq *rq, struct root_domain *rd)
 		call_rcu_sched(&old_rd->rcu, free_rootdomain);
 }
 
+// rd : &def_root_domain
 static int init_rootdomain(struct root_domain *rd)
 {
 	memset(rd, 0, sizeof(*rd));
+	// def_root_domain 구조체를 0으로 초기화 함
 
+	// &rd->span : &def_root_domain.span, GFP_KERNEL
 	if (!alloc_cpumask_var(&rd->span, GFP_KERNEL))
+		// alloc_cpumask_var : 그냥 true 반환함
 		goto out;
+	// &rd->online : &def_root_domain.online, GFP_KERNEL
 	if (!alloc_cpumask_var(&rd->online, GFP_KERNEL))
 		goto free_span;
+	// &rd->rto_mask : &def_root_domain.rto_mask, GFP_KERNEL
 	if (!alloc_cpumask_var(&rd->rto_mask, GFP_KERNEL))
 		goto free_online;
-
+	// alloc_cpumask_var()가 그냥 true 반환하기 때문에 아무 일도
+	// 발생하지 않음
+	
+	// &rd->cpupri : &def_root_domain.cpupri
 	if (cpupri_init(&rd->cpupri) != 0)
+		// cpupri_init : def_root_domain.cpupri 내부 값을 초기화해 줌
+		// 0이 반환됨
 		goto free_rto_mask;
 	return 0;
 
@@ -4837,9 +4848,13 @@ struct root_domain def_root_domain;
 
 static void init_defrootdomain(void)
 {
+	// def_root_domain : 전역 변수
 	init_rootdomain(&def_root_domain);
-
+	// def_root_domain 값을 전부 0으로 초기화 한 뒤,
+	// def_root_domain.cpupri.pri_to_cpu들만 -1로 변경
+	
 	atomic_set(&def_root_domain.refcount, 1);
+	// def_root_domain.refcount를 1로 변경함
 }
 
 static struct root_domain *alloc_rootdomain(void)
@@ -6205,15 +6220,18 @@ void __init sched_init(void)
 	int i, j;
 	unsigned long alloc_size = 0, ptr;
 
-#ifdef CONFIG_FAIR_GROUP_SCHED
+#ifdef CONFIG_FAIR_GROUP_SCHED	// N
 	alloc_size += 2 * nr_cpu_ids * sizeof(void **);
 #endif
-#ifdef CONFIG_RT_GROUP_SCHED
+#ifdef CONFIG_RT_GROUP_SCHED	// N
 	alloc_size += 2 * nr_cpu_ids * sizeof(void **);
 #endif
-#ifdef CONFIG_CPUMASK_OFFSTACK
+#ifdef CONFIG_CPUMASK_OFFSTACK	// N
 	alloc_size += num_possible_cpus() * cpumask_size();
 #endif
+	// 여기부터 수행됨
+
+	// alloc_size : 0
 	if (alloc_size) {
 		ptr = (unsigned long)kzalloc(alloc_size, GFP_NOWAIT);
 
@@ -6240,9 +6258,13 @@ void __init sched_init(void)
 		}
 #endif /* CONFIG_CPUMASK_OFFSTACK */
 	}
+	// 윗 부분 그냥 통과됨
 
-#ifdef CONFIG_SMP
+#ifdef CONFIG_SMP	// Y
 	init_defrootdomain();
+	// def_root_domain 값을 전부 0으로 초기화 한 뒤,
+	// def_root_domain.cpupri.pri_to_cpu[]은 -1로 변경
+	// def_root_domain.refcount은 1로 변경함
 #endif
 
 	init_rt_bandwidth(&def_rt_bandwidth,

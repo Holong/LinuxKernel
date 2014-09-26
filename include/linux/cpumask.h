@@ -715,6 +715,7 @@ void free_bootmem_cpumask_var(cpumask_var_t mask);
 #else
 typedef struct cpumask cpumask_var_t[1];
 
+// mask : def_root_domain.span, flags : GFP_KERNEL
 static inline bool alloc_cpumask_var(cpumask_var_t *mask, gfp_t flags)
 {
 	return true;
