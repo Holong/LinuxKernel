@@ -103,17 +103,20 @@ static inline void seqcount_lockdep_reader_access(const seqcount_t *s)
  * Use carefully, only in critical code, and comment how the barrier is
  * provided.
  */
+// s : &cd.seq
 static inline unsigned __read_seqcount_begin(const seqcount_t *s)
 {
 	unsigned ret;
 
 repeat:
 	ret = ACCESS_ONCE(s->sequence);
+	// ret : 0
 	if (unlikely(ret & 1)) {
 		cpu_relax();
 		goto repeat;
 	}
 	return ret;
+	// return 0
 }
 
 /**
@@ -125,9 +128,11 @@ repeat:
  * seqcount, but without any lockdep checking. Validity of the critical
  * section is tested by checking read_seqcount_retry function.
  */
+// s : &cd.seq
 static inline unsigned raw_read_seqcount_begin(const seqcount_t *s)
 {
 	unsigned ret = __read_seqcount_begin(s);
+	// ret : 0
 	smp_rmb();
 	return ret;
 }

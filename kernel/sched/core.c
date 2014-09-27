@@ -479,18 +479,27 @@ static inline void init_hrtick(void)
 }
 #endif /* CONFIG_SMP */
 
+// rq : runqueues[0]
 static void init_rq_hrtick(struct rq *rq)
 {
 #ifdef CONFIG_SMP
 	rq->hrtick_csd_pending = 0;
+	// runqueues[0].hrtick_csd_pending : 0
 
 	rq->hrtick_csd.flags = 0;
 	rq->hrtick_csd.func = __hrtick_start;
 	rq->hrtick_csd.info = rq;
+	// runqueues[0].hrtick_csd 구조체 설정
 #endif
 
 	hrtimer_init(&rq->hrtick_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	// 이전에 &def_rt_bandwidth.rt_period_timer 내부를 설정한 것과 같은 동작을 수행함
+	// runqueues[0].hrtick_timer의 값을 0으로 초기화
+	// runqueues[0].hrtick_timer.base : &hrtimer_bases->clock_base[0]
+	// RB Tree인 runqueues[0].hrtick_timer.node.node를 초기화
+
 	rq->hrtick_timer.function = hrtick;
+	// 함수 포인터 초기화
 }
 #else	/* CONFIG_SCHED_HRTICK */
 static inline void hrtick_clear(struct rq *rq)
@@ -742,22 +751,37 @@ int tg_nop(struct task_group *tg, void *data)
 }
 #endif
 
+// p : &init_task
 static void set_load_weight(struct task_struct *p)
 {
+	// init_task.static_prio : 120, MAX_RT_PRIO : 100
 	int prio = p->static_prio - MAX_RT_PRIO;
+	// prio : 20
+	
 	struct load_weight *load = &p->se.load;
+	// load : &init_task.se.load
 
 	/*
 	 * SCHED_IDLE tasks get minimal weight:
 	 */
+	// p->policy : SCHED_NORMAL
 	if (p->policy == SCHED_IDLE) {
 		load->weight = scale_load(WEIGHT_IDLEPRIO);
 		load->inv_weight = WMULT_IDLEPRIO;
 		return;
 	}
+	// 통과
 
+	// prio : 20
+	// prio_to_weight[20] : 1024
+	// scale_load(1024) : 1024
 	load->weight = scale_load(prio_to_weight[prio]);
+	// init_task.se.load.weight : 1024 가 저장됨
+	
+	// prio : 20
+	// prio_to_wmult[20] : 4194304
 	load->inv_weight = prio_to_wmult[prio];
+	// init_task.se.load.inv_weight : 4194304
 }
 
 static void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
@@ -1701,6 +1725,7 @@ int wake_up_state(struct task_struct *p, unsigned int state)
  *
  * __sched_fork() is basic setup used by init_idle() too:
  */
+// clone_flags : 0, p : &init_task
 static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 {
 	p->on_rq			= 0;
@@ -1712,18 +1737,20 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	p->se.nr_migrations		= 0;
 	p->se.vruntime			= 0;
 	INIT_LIST_HEAD(&p->se.group_node);
-
-#ifdef CONFIG_SCHEDSTATS
+	// init_task 값을 변경함
+	
+#ifdef CONFIG_SCHEDSTATS	// N
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
 #endif
 
 	INIT_LIST_HEAD(&p->rt.run_list);
-
-#ifdef CONFIG_PREEMPT_NOTIFIERS
+	// init_task 값을 변경함
+	
+#ifdef CONFIG_PREEMPT_NOTIFIERS		// N
 	INIT_HLIST_HEAD(&p->preempt_notifiers);
 #endif
 
-#ifdef CONFIG_NUMA_BALANCING
+#ifdef CONFIG_NUMA_BALANCING		// N
 	if (p->mm && atomic_read(&p->mm->mm_users) == 1) {
 		p->mm->numa_next_scan = jiffies + msecs_to_jiffies(sysctl_numa_balancing_scan_delay);
 		p->mm->numa_scan_seq = 0;
@@ -3930,18 +3957,31 @@ void init_idle_bootup_task(struct task_struct *idle)
  * NOTE: this function does not set the idle thread's NEED_RESCHED
  * flag, to make booting more robust.
  */
+// idle : &init_task, cpu : 0
 void init_idle(struct task_struct *idle, int cpu)
 {
 	struct rq *rq = cpu_rq(cpu);
+	// rq : runqueues[0]
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&rq->lock, flags);
+	// 스핀락 획득
 
+	// 0, idle : &init_task
 	__sched_fork(0, idle);
+	// init_task 내부 멤버 변수 값을 설정
+	
 	idle->state = TASK_RUNNING;
 	idle->se.exec_start = sched_clock();
-
+	// sched_clock() : 0
+	// init_task.se.exec_start : 0
+	
+	// idle : &init_task, cpumask_of(0) : &cpu_bit_bitmap[1][0]
 	do_set_cpus_allowed(idle, cpumask_of(cpu));
+	// init_task.cpus_allowed.bits[0] : 1
+	// init_task.nr_cpus_allowed : 1
+	// 위 두 값을 설정함
+	
 	/*
 	 * We're having a chicken and egg problem, even though we are
 	 * holding rq->lock, the cpu isn't yet set to this cpu so the
@@ -3953,37 +3993,65 @@ void init_idle(struct task_struct *idle, int cpu)
 	 * Silence PROVE_RCU
 	 */
 	rcu_read_lock();
-	__set_task_cpu(idle, cpu);
-	rcu_read_unlock();
+	// init_task.rcu_read_lock_nesting : 1로 설정
 
+	// idle : &init_task, cpu : 0
+	__set_task_cpu(idle, cpu);
+	// ((struct thread_info *)(&init_task)->stack)->cpu: 0
+	// (&init_task)->wake_cpu: 0
+	
+	rcu_read_unlock();
+	// init_task.rcu_read_lock_nesting : 0로 설정
+	
 	rq->curr = rq->idle = idle;
-#if defined(CONFIG_SMP)
+	// runqueues[0].curr, runqueues[0].idle : &init_task 로 설정
+	
+#if defined(CONFIG_SMP)	// Y
 	idle->on_cpu = 1;
+	// init_task.on_cpu : 1
 #endif
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
+	// 스핀락 해제
 
 	/* Set the preempt count _outside_ the spinlocks! */
 	init_idle_preempt_count(idle, cpu);
+	// init_task.stack->preempt_count : PREEMPT_ENABLED
 
 	/*
 	 * The idle tasks have their own, simple scheduling class:
 	 */
 	idle->sched_class = &idle_sched_class;
+	// init_task.sched_class 변수에 미리 만들어져 있는 idle_sched_class의 주소를 대입
+	
 	ftrace_graph_init_idle_task(idle, cpu);
+	// NULL 함수
+	
 	vtime_init_idle(idle, cpu);
+	// NULL 함수
 #if defined(CONFIG_SMP)
+	// INIT_TASK_COMM : "swapper", cpu : 0
 	sprintf(idle->comm, "%s/%d", INIT_TASK_COMM, cpu);
+	// init_task.comm : "swapper/0" 문자열의 주소 저장
 #endif
 }
 
 #ifdef CONFIG_SMP
+// p : &init_task, new_mask : &cpu_bit_bitmap[1][0]
 void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 {
+	// p->sched_class : NULL
+	// p->sched_class->set_cpus_allowed : NULL
 	if (p->sched_class && p->sched_class->set_cpus_allowed)
 		p->sched_class->set_cpus_allowed(p, new_mask);
 
+	// &init_task.cpus_allowed, &cpu_bit_bitmap[1][0]
 	cpumask_copy(&p->cpus_allowed, new_mask);
+	// &init_task.cpus_allowed.bits[0] : 1
+	
+	// new_mask : &cpu_bit_bitmap[1][0]
+	// cpumask_weight(&cpu_bit_bitmap[1][0]) : 1
 	p->nr_cpus_allowed = cpumask_weight(new_mask);
+	// p->nr_cpus_allowed : 1
 }
 
 /*
@@ -4767,13 +4835,16 @@ static void free_rootdomain(struct rcu_head *rcu)
 	kfree(rd);
 }
 
+// rq : runqueues[0], rd : &def_root_domain
 static void rq_attach_root(struct rq *rq, struct root_domain *rd)
 {
 	struct root_domain *old_rd = NULL;
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&rq->lock, flags);
+	// 스핀락 획득
 
+	// rq->rd : runqueues[0].rd : NULL
 	if (rq->rd) {
 		old_rd = rq->rd;
 
@@ -4792,14 +4863,25 @@ static void rq_attach_root(struct rq *rq, struct root_domain *rd)
 	}
 
 	atomic_inc(&rd->refcount);
+	// runqueues[0].refcount : 1 증가
+	
 	rq->rd = rd;
+	// runqueues[0].rd = &def_root_domain
 
+	// rq->cpu : runqueues[0].cpu : 0, rd->span : def_root_domain.span : 0
 	cpumask_set_cpu(rq->cpu, rd->span);
+	// def_root_domain.span의 0번 비트에 1이 설정됨
+	// 즉 runqueues[0].rd.span의 0번 비트에 1이 설정된 것과 동일함
+	
+	// cpu 번호에 해당하는 비트가 cpu_active_mask에 설정되어 있는지 확인
+	// 현재는 설정되어 있지 않음
 	if (cpumask_test_cpu(rq->cpu, cpu_active_mask))
 		set_rq_online(rq);
 
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
+	// 획득한 스핀락 해제
 
+	// old_rd : NULL
 	if (old_rd)
 		call_rcu_sched(&old_rd->rcu, free_rootdomain);
 }
@@ -6267,15 +6349,24 @@ void __init sched_init(void)
 	// def_root_domain.refcount은 1로 변경함
 #endif
 
+	// global_rt_period() : 1E9, global_rt_runtime : 0.95E9
 	init_rt_bandwidth(&def_rt_bandwidth,
 			global_rt_period(), global_rt_runtime());
+	// def_rt_bandwidth를 초기화 함
+	// def_rt_bandwidth.rt_period: 1000000000
+	// def_rt_bandwidth.rt_runtime: 950000000
+	// def_rt_bandwidth.rt_runtime_lock 스핀락 변수 초기화
+	// def_rt_bandwidth.rt_period_timer의 값을 0으로 초기화
+	// def_rt_bandwidth.rt_period_timer.base : &hrtimer_bases->clock_base[0]
+	// def_rt_bandwidth.rt_period_timer.node : RB Tree의 초기화
+	// def_rt_bandwidth.rt_period_timer.function: sched_rt_period_timer
 
-#ifdef CONFIG_RT_GROUP_SCHED
+#ifdef CONFIG_RT_GROUP_SCHED	// N
 	init_rt_bandwidth(&root_task_group.rt_bandwidth,
 			global_rt_period(), global_rt_runtime());
 #endif /* CONFIG_RT_GROUP_SCHED */
 
-#ifdef CONFIG_CGROUP_SCHED
+#ifdef CONFIG_CGROUP_SCHED	// N
 	list_add(&root_task_group.list, &task_groups);
 	INIT_LIST_HEAD(&root_task_group.children);
 	INIT_LIST_HEAD(&root_task_group.siblings);
@@ -6283,17 +6374,53 @@ void __init sched_init(void)
 
 #endif /* CONFIG_CGROUP_SCHED */
 
+	// for_each_possible_cpu : 0 ~ 3까지 i가 변경되면서 반복문 동작
 	for_each_possible_cpu(i) {
 		struct rq *rq;
 
+		// i : 0
 		rq = cpu_rq(i);
+		// rq : runqueues percpu 변수 중에서 0번째 것의 주소가 저장됨
+
 		raw_spin_lock_init(&rq->lock);
+		// 스핀락 변수 초기화
+
 		rq->nr_running = 0;
+		// nr_running 초기화
+
 		rq->calc_load_active = 0;
+		// calc_load_active 초기화
+
+		// jiffies : -30000, LOAD_FREQ : 501
 		rq->calc_load_update = jiffies + LOAD_FREQ;
+		// calc_load_update : -29499
+		
+		// &rq->cfs : &runqueues[0].cfs
 		init_cfs_rq(&rq->cfs);
+		// runqueues[0].cfs 초기화 작업 수행
+		// (&(&runqueues)->cfs)->tasks_timeline: (struct rb_root) { NULL, }
+		// (&(&runqueues)->cfs)->min_vruntime: 0xFFFFFFFFFFF00000
+		// (&(&runqueues)->cfs)->min_vruntime_copy: 0xFFFFFFFFFFF00000
+		// (&(&runqueues)->cfs)->decay_counter: 1
+		// (&(&runqueues)->cfs)->removed_load: 0
+
+		// &rq->rt : &runqueues[0].rt, rq : &runqueues[0]
 		init_rt_rq(&rq->rt, rq);
-#ifdef CONFIG_FAIR_GROUP_SCHED
+		// runqueues[0].rt 구조체를 초기화해줌
+		// runqueues[0].rt.active.bitmap의 0 ... 99 bit를 클리어
+		// runqueues[0].rt.active.queue[0 ... 99] 의 리스트 초기화
+		// runqueues[0].rt.active.bitmap의 100 bit를 1로 세팅
+		// runqueues[0].rt.rt_runtime_lock 을 사용한 spinlock 초기화
+		// runqueues[0].rt.rt_runtime: 0
+		// runqueues[0].rt.rt_throttled: 0
+		// runqueues[0].rt.rt_time: 0
+		// runqueues[0].rt.pushable_tasks 리스트 초기화
+		// runqueues[0].rt.overloaded: 0
+		// runqueues[0].rt.rt_nr_migratory: 0
+		// runqueues[0].rt.highest_prio.next: 100
+		// runqueues[0].rt.highest_prio.curr: 100
+
+#ifdef CONFIG_FAIR_GROUP_SCHED		// N
 		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);
 		/*
@@ -6319,60 +6446,94 @@ void __init sched_init(void)
 		init_tg_cfs_entry(&root_task_group, &rq->cfs, NULL, i, NULL);
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 
+		// rq->rt.rt_runtime : runqueues[0].rt.rt_runtime
+		// def_rt_bandwidth.rt_runtime : 0.95E9
 		rq->rt.rt_runtime = def_rt_bandwidth.rt_runtime;
-#ifdef CONFIG_RT_GROUP_SCHED
+		// rq->rt.rt_runtime : 0.95E9
+#ifdef CONFIG_RT_GROUP_SCHED	// N
 		INIT_LIST_HEAD(&rq->leaf_rt_rq_list);
 		init_tg_rt_entry(&root_task_group, &rq->rt, NULL, i, NULL);
 #endif
-
+		// CPU_LOAD_IDX_MAX : 5
 		for (j = 0; j < CPU_LOAD_IDX_MAX; j++)
 			rq->cpu_load[j] = 0;
+		// runqueues[0].cpu_load[0 ~ 5]를 0으로 설정해 줌
 
+		// jiffies : -30000
 		rq->last_load_update_tick = jiffies;
+		// runqueues[0].last_load_update_tick : -30000
 
 #ifdef CONFIG_SMP
 		rq->sd = NULL;
 		rq->rd = NULL;
+		// SCHED_POWER_SCALE : 0x400
 		rq->cpu_power = SCHED_POWER_SCALE;
 		rq->post_schedule = 0;
 		rq->active_balance = 0;
+		// jiffies : -30000
 		rq->next_balance = jiffies;
 		rq->push_cpu = 0;
 		rq->cpu = i;
 		rq->online = 0;
 		rq->idle_stamp = 0;
+		// sysctl_sched_migration_cost : 500000
 		rq->avg_idle = 2*sysctl_sched_migration_cost;
+		// runqueues[0].avg_idle : 1000000
 		rq->max_idle_balance_cost = sysctl_sched_migration_cost;
+		// runqueues[0].max_idle_balance_cost : 1000000
+		// runqueues[0] 멤버 초기화
 
 		INIT_LIST_HEAD(&rq->cfs_tasks);
+		// runqueues[0].cfs_tasks 리스트 초기화
 
+		// rq : runqueues[0], &def_root_domain
 		rq_attach_root(rq, &def_root_domain);
-#ifdef CONFIG_NO_HZ_COMMON
+		// runqueues[0].rd : &def_root_domain 저장
+		// runqueues[0].refcount : 1
+		// runqueues[0].rd.span : 0번 비트를 1로 설정
+#ifdef CONFIG_NO_HZ_COMMON	// Y
 		rq->nohz_flags = 0;
+		// 멤버 값 설정
 #endif
-#ifdef CONFIG_NO_HZ_FULL
+#ifdef CONFIG_NO_HZ_FULL	// N
 		rq->last_sched_tick = 0;
 #endif
 #endif
+		// rq : runqueues[0]
 		init_rq_hrtick(rq);
+		// runqueues[0].hrtick_csd_pending
+		// runqueues[0].hrtick_csd
+		// runqueues[0].hrtick_timer 초기화
+
 		atomic_set(&rq->nr_iowait, 0);
+		// runqueues[0].nr_iowait를 0으로 설정
 	}
+	// 위와 같은 초기화 작업을 runqueues[0~3] 까지 전부 수행
 
+	// init_task : 전역 struct task_struct
 	set_load_weight(&init_task);
+	// init_task.se.load.weight: 1024
+	// init_task.se.load.inv_weight: 4194304
+	// 인자로 넘어오는 task_struct 변수의 load 멤버에 적절한 값을 설정
 
-#ifdef CONFIG_PREEMPT_NOTIFIERS
+#ifdef CONFIG_PREEMPT_NOTIFIERS		// N
 	INIT_HLIST_HEAD(&init_task.preempt_notifiers);
 #endif
 
-#ifdef CONFIG_RT_MUTEXES
+#ifdef CONFIG_RT_MUTEXES	// Y
 	plist_head_init(&init_task.pi_waiters);
+	// init_task.pi_waiters 리스트를 초기화
 #endif
 
 	/*
 	 * The boot idle thread does lazy MMU switching as well:
 	 */
+	// init_mm.mm_count : 1
 	atomic_inc(&init_mm.mm_count);
+	// init_mm.mm_count : 2
+	
 	enter_lazy_tlb(&init_mm, current);
+	// NULL 함수
 
 	/*
 	 * Make us the idle thread. Technically, schedule() should not be
@@ -6380,23 +6541,64 @@ void __init sched_init(void)
 	 * but because we are the idle thread, we just pick up running again
 	 * when this runqueue becomes "idle".
 	 */
+	// current : init_task, smp_processor_id : 0
 	init_idle(current, smp_processor_id());
+	// init_task.on_rq : 0
+	// init_task.se.on_rq : 0
+	// init_task.se.exec_start : 0
+	// init_task.se.sum_exec_runtime : 0
+	// init_task.se.prev_sum_exec_runtime : 0
+	// init_task.se.nr_migrations : 0
+	// init_task.se.vruntime : 0
+	// init_task.se.group_node의 리스트 초기화
+	// init_task.rt.run_list의 리스트 초기화
+	// init_task.state : TASK_RUNNING: 0
+	// init_task.se.exec_start : 0
+	// init_task.cpus_allowed.bits[0] : 1
+	// init_task.nr_cpus_allowed : 1
+	// init_task.stack->cpu : 0
+	// init_task.wake_cpu : 0
+	// runqueues[0].curr : &init_task
+	// runqueues[0].idle : &init_task
+	// init_task.on_cpu : 1
+	// init_task.stack->preempt_count : PREEMPT_ENABLED: 0
+	// init_task.sched_class : &idle_sched_class
+	// init_task.comm : "swapper/0"
 
+	// jiffies : -30000, LOAD_FREQ : 501
 	calc_load_update = jiffies + LOAD_FREQ;
+	// calc_load_update : -29499
+
 
 	/*
 	 * During early bootup we pretend to be a normal task:
 	 */
+	// current->sched_class : init_task.sched_class
 	current->sched_class = &fair_sched_class;
+	// init_task.sched_class : &fair_sched_class
 
 #ifdef CONFIG_SMP
+
+	// sched_domains_tmpmask : 전역변수
 	zalloc_cpumask_var(&sched_domains_tmpmask, GFP_NOWAIT);
+	// sched_domains_tmpmask : 0
+
 	/* May be allocated at isolcpus cmdline parse time */
+
+	// cpu_isolated_map(전역변수) : NULL
 	if (cpu_isolated_map == NULL)
 		zalloc_cpumask_var(&cpu_isolated_map, GFP_NOWAIT);
+		// cpu_isolated_map : 0으로 설정됨
+
 	idle_thread_set_boot_cpu();
+	// idle_thread[0] : &init_task
+	// percpu 변수 idle_thread에 init_task의 주소를 저장함
 #endif
 	init_sched_fair_class();
+	// softirq_vec[7].action: run_rebalance_domains
+	// nohz.next_balance: -30000 (0xFFFFFFFFFFFF8AD0)
+	// nohz.idle_cpus_mask.bits[0]: 0
+	// cpu_chain.head: 새로 생성된 sched_ilb_notifier_nb를 연결
 
 	scheduler_running = 1;
 }

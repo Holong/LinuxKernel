@@ -372,11 +372,14 @@ extern void ktime_get_ts(struct timespec *ts);
 /* Get the real (wall-) time in timespec format: */
 #define ktime_get_real_ts(ts)	getnstimeofday(ts)
 
+// ns : 1E9
 static inline ktime_t ns_to_ktime(u64 ns)
 {
 	static const ktime_t ktime_zero = { .tv64 = 0 };
+	// 0으로 초기화
 
 	return ktime_add_ns(ktime_zero, ns);
+	// return (ktime_t){ .tv64 = ktime_zero.tv64 + ns } 
 }
 
 static inline ktime_t ms_to_ktime(u64 ms)

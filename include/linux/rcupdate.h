@@ -769,10 +769,13 @@ static inline void rcu_preempt_sleep_check(void)
 static inline void rcu_read_lock(void)
 {
 	__rcu_read_lock();
+	// init_task.rcu_read_lock_nesting : 1
+	
 	__acquire(RCU);
 	rcu_lock_acquire(&rcu_lock_map);
 	rcu_lockdep_assert(rcu_is_watching(),
 			   "rcu_read_lock() used illegally while idle");
+	// 셋 다 NULL 함수
 }
 
 /*
@@ -796,7 +799,10 @@ static inline void rcu_read_unlock(void)
 			   "rcu_read_unlock() used illegally while idle");
 	rcu_lock_release(&rcu_lock_map);
 	__release(RCU);
+	// 셋 다 NULL 함수
+
 	__rcu_read_unlock();
+	// init_task.rcu_read_lock_nesting : 0 으로 설정
 }
 
 /**

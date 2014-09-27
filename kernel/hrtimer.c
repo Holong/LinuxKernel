@@ -101,9 +101,11 @@ static const int hrtimer_clock_to_base_table[MAX_CLOCKS] = {
 	[CLOCK_TAI]		= HRTIMER_BASE_TAI,
 };
 
+// clock_id : CLOCK_MONOTIC
 static inline int hrtimer_clockid_to_base(clockid_t clock_id)
 {
 	return hrtimer_clock_to_base_table[clock_id];
+	// return HRTIMER_BASE_MONOTONIC
 }
 
 
@@ -365,7 +367,7 @@ ktime_t ktime_add_safe(const ktime_t lhs, const ktime_t rhs)
 
 EXPORT_SYMBOL_GPL(ktime_add_safe);
 
-#ifdef CONFIG_DEBUG_OBJECTS_TIMERS
+#ifdef CONFIG_DEBUG_OBJECTS_TIMERS	// N
 
 static struct debug_obj_descr hrtimer_debug_descr;
 
@@ -481,12 +483,16 @@ static inline void debug_hrtimer_activate(struct hrtimer *timer) { }
 static inline void debug_hrtimer_deactivate(struct hrtimer *timer) { }
 #endif
 
+// timer : &def_rt_bandwidth.rt_period_timer, clock_id :  CLOCK_MONOTIC, mode : HRTIMER_MODE_REL
 static inline void
 debug_init(struct hrtimer *timer, clockid_t clockid,
 	   enum hrtimer_mode mode)
 {
 	debug_hrtimer_init(timer);
+	// NULL 함수
+	
 	trace_hrtimer_init(timer, clockid, mode);
+	// ?? 
 }
 
 static inline void debug_activate(struct hrtimer *timer)
@@ -1175,6 +1181,7 @@ ktime_t hrtimer_get_next_event(void)
 }
 #endif
 
+// timer : &def_rt_bandwidth.rt_period_timer, clock_id :  CLOCK_MONOTIC, mode : HRTIMER_MODE_REL
 static void __hrtimer_init(struct hrtimer *timer, clockid_t clock_id,
 			   enum hrtimer_mode mode)
 {
@@ -1182,17 +1189,30 @@ static void __hrtimer_init(struct hrtimer *timer, clockid_t clock_id,
 	int base;
 
 	memset(timer, 0, sizeof(struct hrtimer));
+	// def_rt_bandwidth.rt_period_timer 값을 전부 0으로 만듬
 
 	cpu_base = &__raw_get_cpu_var(hrtimer_bases);
+	// cpu_base = &(*__this_cpu_ptr(&hrtimer_bases))
+	// hrtimer_bases라는 percpu 변수가 존재
+	// 이 변수 중에서 현재 cpu에 해당하는 변수의 주소를 뽑아와 cpu_base에 저장함
 
+	// clock_id : CLOCK_MONOTIC, mode : HRIMTER_MODE_REL
 	if (clock_id == CLOCK_REALTIME && mode != HRTIMER_MODE_ABS)
 		clock_id = CLOCK_MONOTONIC;
+	// 조건에 안맞으므로 통과됨
 
+	// clock_id : CLOCK_MONOTIC
 	base = hrtimer_clockid_to_base(clock_id);
+	// base : HRTIMER_BASE_MONOTONIC
+	
+	// timer->base : def_rt_bandwidth.rt_period_timer.base
 	timer->base = &cpu_base->clock_base[base];
+	// def_rt_bandwidth.rt_period_timer.base에 hrtimer_bases percpu변수의 clock_base[0] 멤버의 주소를 저장함
+	
 	timerqueue_init(&timer->node);
+	// def_rt_bandwidth.rt_period_timer.node 초기화
 
-#ifdef CONFIG_TIMER_STATS
+#ifdef CONFIG_TIMER_STATS	// N
 	timer->start_site = NULL;
 	timer->start_pid = -1;
 	memset(timer->start_comm, 0, TASK_COMM_LEN);
@@ -1205,11 +1225,20 @@ static void __hrtimer_init(struct hrtimer *timer, clockid_t clock_id,
  * @clock_id:	the clock to be used
  * @mode:	timer mode abs/rel
  */
+// timer : &def_rt_bandwidth.rt_period_timer, clock_id :  CLOCK_MONOTIC, mode : HRTIMER_MODE_REL
 void hrtimer_init(struct hrtimer *timer, clockid_t clock_id,
 		  enum hrtimer_mode mode)
 {
+	// timer : &def_rt_bandwidth.rt_period_timer, clock_id :  CLOCK_MONOTIC, mode : HRTIMER_MODE_REL
 	debug_init(timer, clock_id, mode);
+	// 하는 일 없음
+	
+	// timer : &def_rt_bandwidth.rt_period_timer, clock_id :  CLOCK_MONOTIC, mode : HRTIMER_MODE_REL
 	__hrtimer_init(timer, clock_id, mode);
+	// def_rt_bandwidth.rt_period_timer를 전부 0으로 만든 뒤,
+	// def_rt_bandwidth.rt_period_timer.base를 percpu 변수(hrtimer_bases)의 clock_base[0] 주소로 변경함
+	// 몇 번째 주소로 들어가는지는 clock_id와 mode가 결정함
+	// 그 뒤, 레드 블랙 node를 초기화해 줌
 }
 EXPORT_SYMBOL_GPL(hrtimer_init);
 

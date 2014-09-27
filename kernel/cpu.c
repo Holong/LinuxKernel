@@ -160,6 +160,7 @@ void cpu_hotplug_enable(void)
 /* Need to know about CPUs going up/down? */
 // nb : &page_alloc_cpu_notify_nb
 // nb : &slab_notifier
+// nb : &sched_ilb_notifier_nb;
 int __ref register_cpu_notifier(struct notifier_block *nb)
 {
 	int ret;
@@ -171,6 +172,42 @@ int __ref register_cpu_notifier(struct notifier_block *nb)
 	//
 	// struct raw_notifier_head cpu_chain, head 멤버는 NULL로 초기화 되어 있음
 	// nb : &slab_notifier
+	//
+	// struct raw_notifier_head cpu_chain, head 멤버는 NULL로 초기화 되어 있음
+	// nb : &sched_lib_notifier_nb
+	ret = raw_notifier_chain_register(&cpu_chain, nb);
+	// cpu_chain에 nb로 넘어오는 notifier_block을 차례대로 연결해둠
+	// 현재는 cpu_chain->head가 slab_notifier를 가리키고, slab_notifier의 next가
+	// page_alloc_cpu_notify_nb를 가리키며, 그 곳의 next는 NULL이 됨
+	//
+	// 3번째 호출 때, 새로운 sched_lib_notifier_nb를 리스트에 추가함
+	// cpu_chain->head가 sched_lib_notifier_nb가 됨
+
+	cpu_maps_update_done();
+	// 뮤텍스 변수 cpu_add_remove_lock의 락을 해제
+	return ret;
+}
+
+static int __cpu_notify(unsigned long val, void *v, int nr_to_call,
+			int *nr_calls)
+{
+	int ret;
+
+	ret = __raw_notifier_call_chain(&cpu_chain, val, v, nr_to_call,
+					nr_calls);
+
+	return notifier_to_errno(ret);
+}
+
+static int cpu_notify(unsigned long val, void *v)
+{
+	return __cpu_notify(val, v, -1, NULL);
+}
+
+#ifdef CONFIG_HOTPLUG_CPU
+
+static void cpu_notify_nofail(unsigned long val, void *v)
+{
 	ret = raw_notifier_chain_register(&cpu_chain, nb);
 	// cpu_chain에 nb로 넘어오는 notifier_block을 차례대로 연결해둠
 	// 현재는 cpu_chain->head가 slab_notifier를 가리키고, slab_notifier의 next가

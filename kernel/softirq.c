@@ -419,9 +419,11 @@ void __raise_softirq_irqoff(unsigned int nr)
 	or_softirq_pending(1UL << nr);
 }
 
+// nr : SCHED_SOFTIRQ, action : run_rebalance_domains : 함수 포인터
 void open_softirq(int nr, void (*action)(struct softirq_action *))
 {
 	softirq_vec[nr].action = action;
+	// softirq_vec[SCHED_SOFTIRQ].action : run_rebalance_domains
 }
 
 /*

@@ -738,18 +738,27 @@ static inline struct task_group *task_group(struct task_struct *p)
 
 #endif /* CONFIG_CGROUP_SCHED */
 
+// p : &init_task, cpu : 0
 static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
 {
 	set_task_rq(p, cpu);
-#ifdef CONFIG_SMP
+	// NULL 함수
+	
+#ifdef CONFIG_SMP	// Y
 	/*
 	 * After ->cpu is set up to a new value, task_rq_lock(p, ...) can be
 	 * successfuly executed on another CPU. We must ensure that updates of
 	 * per-task data have been completed by this moment.
 	 */
 	smp_wmb();
+
+	// task_thread_info(p) : &init_thread_info
 	task_thread_info(p)->cpu = cpu;
+	// init_task.stack->cpu : 0
+	
+	// cpu : 0
 	p->wake_cpu = cpu;
+	// init_task.wake_cpu : 0
 #endif
 }
 
@@ -816,15 +825,19 @@ extern bool numabalancing_enabled;
 
 static inline u64 global_rt_period(void)
 {
+	// sysctl_sched_rt_period : 1000000, NSEC_PER_USEC : 1000
 	return (u64)sysctl_sched_rt_period * NSEC_PER_USEC;
+	// return 1000000000
 }
 
 static inline u64 global_rt_runtime(void)
 {
+	// sysctl_sched_rt_runtime : 950000
 	if (sysctl_sched_rt_runtime < 0)
 		return RUNTIME_INF;
 
 	return (u64)sysctl_sched_rt_runtime * NSEC_PER_USEC;
+	// return 950000000
 }
 
 

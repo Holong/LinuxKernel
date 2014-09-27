@@ -5,7 +5,7 @@
 #include <linux/threads.h>
 #include <linux/percpu-defs.h>
 
-#ifdef CONFIG_SMP
+#ifdef CONFIG_SMP	// Y
 
 /*
  * per_cpu_offset() is the offset that has to be added to a

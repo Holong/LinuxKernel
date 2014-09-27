@@ -34,16 +34,31 @@ static enum hrtimer_restart sched_rt_period_timer(struct hrtimer *timer)
 	return idle ? HRTIMER_NORESTART : HRTIMER_RESTART;
 }
 
+// rt_b : &def_rt_bandwidth, period : 1E9, runtime : 0.95E9
 void init_rt_bandwidth(struct rt_bandwidth *rt_b, u64 period, u64 runtime)
 {
+	// period : 1E9
 	rt_b->rt_period = ns_to_ktime(period);
+	// ns_to_ktime : 인자로 넘어간 period 값을 ktime_t 구조체 형태로 변경해 반환함
+	// def_rt_bandwidth.rt_period 에 그 값을 대입
+	
 	rt_b->rt_runtime = runtime;
+	// def_rt_bandwidth.rt_runtime : 0.95E9
 
 	raw_spin_lock_init(&rt_b->rt_runtime_lock);
+	// 스핀락 변수 초기화
 
+	// CLOCK_MONOTIC : 1, HRTIMER_MODE_REL : 1
 	hrtimer_init(&rt_b->rt_period_timer,
 			CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	// hrtimer 구조체 초기화 작업 수행
+	// def_rt_bandwidth.rt_period_timer를 전부 0으로 만든 뒤,
+	// def_rt_bandwidth.rt_period_timer.base를 percpu 변수(hrtimer_bases)의 clock_base[0] 주소로 변경함
+	// 몇 번째 주소로 들어가는지는 clock_id와 mode가 결정함
+	// 그 뒤, 레드 블랙 node를 초기화해 줌
+	
 	rt_b->rt_period_timer.function = sched_rt_period_timer;
+	// function 멤버에 함수 포인터 연결
 }
 
 static void start_rt_bandwidth(struct rt_bandwidth *rt_b)
@@ -59,31 +74,44 @@ static void start_rt_bandwidth(struct rt_bandwidth *rt_b)
 	raw_spin_unlock(&rt_b->rt_runtime_lock);
 }
 
+// rt_rq : &runqueues[0].rt, rq : &runqueues[0]
 void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq)
 {
 	struct rt_prio_array *array;
 	int i;
 
 	array = &rt_rq->active;
+	// array : runqueues[0].active의 주소가 대입됨
+	
+	// MAX_RT_PRIO : 100
 	for (i = 0; i < MAX_RT_PRIO; i++) {
 		INIT_LIST_HEAD(array->queue + i);
 		__clear_bit(i, array->bitmap);
 	}
+	// runqueues[0].active의 비트맵과 리스트를 전부 초기화해 줌
+	
 	/* delimiter for bitsearch: */
 	__set_bit(MAX_RT_PRIO, array->bitmap);
+	// runqueues[0].active.bitmap의 100번째 bit를 1로 설정함
 
-#if defined CONFIG_SMP
+#if defined CONFIG_SMP	// Y
 	rt_rq->highest_prio.curr = MAX_RT_PRIO;
 	rt_rq->highest_prio.next = MAX_RT_PRIO;
+	// runqueues[0].highest_prio 구조체의 curr과 next 멤버를 각각 100으로 설정
+	
 	rt_rq->rt_nr_migratory = 0;
 	rt_rq->overloaded = 0;
+	// runqueues[0]의 멤버를 설정해 줌.
+	
 	plist_head_init(&rt_rq->pushable_tasks);
+	// runqueues[0].pushable_tasks 리스트를 초기화
 #endif
 
 	rt_rq->rt_time = 0;
 	rt_rq->rt_throttled = 0;
 	rt_rq->rt_runtime = 0;
 	raw_spin_lock_init(&rt_rq->rt_runtime_lock);
+	// runqueues[0]의 기타 멤버를 초기화 해 줌
 }
 
 #ifdef CONFIG_RT_GROUP_SCHED

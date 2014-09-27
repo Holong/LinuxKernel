@@ -7079,16 +7079,26 @@ static void set_curr_task_fair(struct rq *rq)
 	}
 }
 
+// cfs_rq : &runqueues[0].cfs
 void init_cfs_rq(struct cfs_rq *cfs_rq)
 {
 	cfs_rq->tasks_timeline = RB_ROOT;
+	// rb 트리 루트 초기화
+	
 	cfs_rq->min_vruntime = (u64)(-(1LL << 20));
-#ifndef CONFIG_64BIT
+	// runqueues[0].min_vruntime : 0xFFFFFFFFFFF00000
+	
+#ifndef CONFIG_64BIT 	// N
 	cfs_rq->min_vruntime_copy = cfs_rq->min_vruntime;
+	// runqueues[0].min_vruntime_copy : 0xFFFFFFFFFFF00000
 #endif
-#ifdef CONFIG_SMP
+
+
+#ifdef CONFIG_SMP	// Y
 	atomic64_set(&cfs_rq->decay_counter, 1);
+	// runqueues[0].decay_counter : 1
 	atomic_long_set(&cfs_rq->removed_load, 0);
+	// runqueues[0].removed_load : 1
 #endif
 }
 
@@ -7366,13 +7376,27 @@ void print_cfs_stats(struct seq_file *m, int cpu)
 
 __init void init_sched_fair_class(void)
 {
-#ifdef CONFIG_SMP
-	open_softirq(SCHED_SOFTIRQ, run_rebalance_domains);
+#ifdef CONFIG_SMP	// Y
 
-#ifdef CONFIG_NO_HZ_COMMON
+	// SCHED_SOFTIRQ : 7, run_rebalance_domains : 함수 포인터
+	open_softirq(SCHED_SOFTIRQ, run_rebalance_domains);
+	// softirq_vec[SCHED_SOFTIRQ].action : run_rebalance_domains
+	
+#ifdef CONFIG_NO_HZ_COMMON	// Y
+	// jiffies : -30000
 	nohz.next_balance = jiffies;
+	// nohz.next_balance : -30000
+	
 	zalloc_cpumask_var(&nohz.idle_cpus_mask, GFP_NOWAIT);
+	// nohz.idle_cpus_mask.bits[0] : 0
+	
 	cpu_notifier(sched_ilb_notifier, 0);
+	// static struct notifier_block sched_ilb_notifier_nb =	
+	// 		{ .notifier_call = sched_ilb_notifier, .priority = 0 };
+	// register_cpu_notifier(&sched_ilb_notifier_nb);
+	//
+	// 새로운 notifier_block을 선언하고 이 구조체를
+	// cpu_chain에 연결해 줌
 #endif
 #endif /* SMP */
 

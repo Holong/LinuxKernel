@@ -70,17 +70,36 @@ unsigned long long notrace sched_clock(void)
 	u64 cyc;
 	unsigned long seq;
 
+	// cd.suspended : 0
 	if (cd.suspended)
 		return cd.epoch_ns;
 
 	do {
+		// cd.seq : 0
 		seq = raw_read_seqcount_begin(&cd.seq);
+		// seq : 0
+		
+		// cd.epoch_cyc : 0
 		epoch_cyc = cd.epoch_cyc;
+		// epoch_cyc : 0
+
+		// cd.epoch_ns : 0
 		epoch_ns = cd.epoch_ns;
+		// epoch_ns : 0
+		
+	// cd.seq : 0, seq : 0
 	} while (read_seqcount_retry(&cd.seq, seq));
+	// read_seq_count_retry(&cd.seq, 0) : 0
 
 	cyc = read_sched_clock();
+	// cyc : 0
+	
+	// cyc : 0, epoch_cyc : 0, sched_clock_mask : 0
 	cyc = (cyc - epoch_cyc) & sched_clock_mask;
+	// cyc : 0
+	
+	// epoch_ns : 0, cyc : 0, cd.mult : 10000000, cd.shift : 0
+	// cyc_to_ns(0, 10000000, 0) : 0
 	return epoch_ns + cyc_to_ns(cyc, cd.mult, cd.shift);
 }
 

@@ -532,6 +532,7 @@ static inline void cpumask_shift_left(struct cpumask *dstp,
  * @dstp: the result
  * @srcp: the input cpumask
  */
+// dstp : &init_task.cpus_allowed, srcp : &cpu_bit_bitmap[1][0]
 static inline void cpumask_copy(struct cpumask *dstp,
 				const struct cpumask *srcp)
 {
@@ -727,9 +728,11 @@ static inline bool alloc_cpumask_var_node(cpumask_var_t *mask, gfp_t flags,
 	return true;
 }
 
+// mask : &sched_domains_tmpmask, flags : GFP_NOWAIT
 static inline bool zalloc_cpumask_var(cpumask_var_t *mask, gfp_t flags)
 {
 	cpumask_clear(*mask);
+	// 비트 클리어
 	return true;
 }
 
