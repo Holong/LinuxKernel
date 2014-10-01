@@ -6601,6 +6601,7 @@ void __init sched_init(void)
 	// cpu_chain.head: 새로 생성된 sched_ilb_notifier_nb를 연결
 
 	scheduler_running = 1;
+	// 전역 변수 scheduler_running을 1로 설정
 }
 
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP

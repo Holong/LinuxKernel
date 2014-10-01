@@ -53,7 +53,7 @@ extern void create_boot_cache(struct kmem_cache *, const char *name,
 			size_t size, unsigned long flags);
 
 struct mem_cgroup;
-#ifdef CONFIG_SLUB
+#ifdef CONFIG_SLUB	// Y
 struct kmem_cache *
 __kmem_cache_alias(struct mem_cgroup *memcg, const char *name, size_t size,
 		   size_t align, unsigned long flags, void (*ctor)(void *));

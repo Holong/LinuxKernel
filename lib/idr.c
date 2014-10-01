@@ -851,6 +851,7 @@ EXPORT_SYMBOL(idr_replace);
 
 void __init idr_init_cache(void)
 {
+	// sizeof(struct idr_layer) : 1076
 	idr_layer_cache = kmem_cache_create("idr_layer_cache",
 				sizeof(struct idr_layer), 0, SLAB_PANIC, NULL);
 }

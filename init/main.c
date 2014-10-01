@@ -644,13 +644,22 @@ asmlinkage void __init start_kernel(void)
 	 * time - but meanwhile we still have a functioning scheduler.
 	 */
 	sched_init();
+	// runqueues[0~3]과 init_task 내부 값을 초기화해 줌
+	// idle_threads[0]을 init_task로 설정함
+	
 	/*
 	 * Disable preemption - early bootup scheduling is extremely
 	 * fragile until we cpu_idle() for the first time.
 	 */
 	preempt_disable();
+	// current_thread_info에서 가져온 현재 thread의 preempt_count를 1만큼 증가
+	
+	// irqs_disabled() : 1
 	if (WARN(!irqs_disabled(), "Interrupts were enabled *very* early, fixing it\n"))
 		local_irq_disable();
+	// 현재 인터럽트가 막혀있는지 확인하고 막혀있지 않으면 이를 막아줌
+	// 현재는 인터럽트가 막혀있는 상태임
+	
 	idr_init_cache();
 	rcu_init();
 	tick_nohz_init();

@@ -67,11 +67,21 @@ static struct {
 void get_online_cpus(void)
 {
 	might_sleep();
+	// NULL 함수
+	
+	// cpu_hotplug.active_writer : NULL
+	// current : &init_task
 	if (cpu_hotplug.active_writer == current)
 		return;
+
 	mutex_lock(&cpu_hotplug.lock);
+	// 락 획득
+	
 	cpu_hotplug.refcount++;
+	// cpu_hotplug.refcount : 1로 증가
+	
 	mutex_unlock(&cpu_hotplug.lock);
+	// 락 해제
 
 }
 EXPORT_SYMBOL_GPL(get_online_cpus);

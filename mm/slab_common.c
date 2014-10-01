@@ -28,7 +28,7 @@ LIST_HEAD(slab_caches);
 DEFINE_MUTEX(slab_mutex);
 struct kmem_cache *kmem_cache;
 
-#ifdef CONFIG_DEBUG_VM
+#ifdef CONFIG_DEBUG_VM	// N
 static int kmem_cache_sanity_check(struct mem_cgroup *memcg, const char *name,
 				   size_t size)
 {
@@ -174,6 +174,8 @@ unsigned long calculate_alignment(unsigned long flags,
  * as davem.
  */
 
+// memcg : NULL, name : "idr_layer_cache", size : sizeof(struct idr_layer),
+// align : 0, flags : SLAB_PANIC, ctor : NULL, parent_cache : NULL
 struct kmem_cache *
 kmem_cache_create_memcg(struct mem_cgroup *memcg, const char *name, size_t size,
 			size_t align, unsigned long flags, void (*ctor)(void *),
@@ -183,8 +185,12 @@ kmem_cache_create_memcg(struct mem_cgroup *memcg, const char *name, size_t size,
 	int err = 0;
 
 	get_online_cpus();
+	// cpu_hotplug.refcount : 1로 증가
+	
 	mutex_lock(&slab_mutex);
+	// mutex 락 획득
 
+	// kmem_cache_sanity_check() : 무조건 0 반환
 	if (!kmem_cache_sanity_check(memcg, name, size) == 0)
 		goto out_locked;
 
@@ -194,7 +200,10 @@ kmem_cache_create_memcg(struct mem_cgroup *memcg, const char *name, size_t size,
 	 * case, and we'll just provide them with a sanitized version of the
 	 * passed flags.
 	 */
+
+	// flags : SLAB_PANIC(0x00040000), CACHE_CREATE_MASK : 0xAF6D00
 	flags &= CACHE_CREATE_MASK;
+	// flags : SLAB_PANIC(0x00040000)
 
 	s = __kmem_cache_alias(memcg, name, size, align, flags, ctor);
 	if (s)
@@ -252,10 +261,12 @@ out_locked:
 	return s;
 }
 
+// name : "idr_layer_cache", size : sizeof(struct idr_layer), align : 0, flags : SLAB_PANIC, ctor : NULL
 struct kmem_cache *
 kmem_cache_create(const char *name, size_t size, size_t align,
 		  unsigned long flags, void (*ctor)(void *))
 {
+	// NULL,  name : "idr_layer_cache", size : sizeof(struct idr_layer), align : 0, flags : SLAB_PANIC, ctor : NULL, NULL
 	return kmem_cache_create_memcg(NULL, name, size, align, flags, ctor, NULL);
 }
 EXPORT_SYMBOL(kmem_cache_create);
