@@ -54,36 +54,47 @@ static void __init rcu_bootup_announce_oddness(void)
 {
 #ifdef CONFIG_RCU_TRACE
 	pr_info("\tRCU debugfs-based tracing is enabled.\n");
+	// 통과
 #endif
 #if (defined(CONFIG_64BIT) && CONFIG_RCU_FANOUT != 64) || (!defined(CONFIG_64BIT) && CONFIG_RCU_FANOUT != 32)
 	pr_info("\tCONFIG_RCU_FANOUT set to non-default value of %d\n",
 	       CONFIG_RCU_FANOUT);
+	// 통과
 #endif
 #ifdef CONFIG_RCU_FANOUT_EXACT
 	pr_info("\tHierarchical RCU autobalancing is disabled.\n");
+	// 통과
 #endif
 #ifdef CONFIG_RCU_FAST_NO_HZ
 	pr_info("\tRCU dyntick-idle grace-period acceleration is enabled.\n");
+	// 통과
 #endif
 #ifdef CONFIG_PROVE_RCU
 	pr_info("\tRCU lockdep checking is enabled.\n");
+	// 통과
 #endif
 #ifdef CONFIG_RCU_TORTURE_TEST_RUNNABLE
 	pr_info("\tRCU torture testing starts during boot.\n");
+	// 통과
 #endif
 #if defined(CONFIG_TREE_PREEMPT_RCU) && !defined(CONFIG_RCU_CPU_STALL_VERBOSE)
 	pr_info("\tDump stacks of tasks blocking RCU-preempt GP.\n");
+	// 통과
 #endif
 #if defined(CONFIG_RCU_CPU_STALL_INFO)
 	pr_info("\tAdditional per-CPU info printed with stalls.\n");
+	// 통과
 #endif
 #if NUM_RCU_LVL_4 != 0
 	pr_info("\tFour-level hierarchy is enabled.\n");
+	// 통과
 #endif
 	if (rcu_fanout_leaf != CONFIG_RCU_FANOUT_LEAF)
 		pr_info("\tBoot-time adjustment of leaf fanout to %d.\n", rcu_fanout_leaf);
+		// 통과
 	if (nr_cpu_ids != NR_CPUS)
 		pr_info("\tRCU restricting CPUs from NR_CPUS=%d to nr_cpu_ids=%d.\n", NR_CPUS, nr_cpu_ids);
+		// 통과
 #ifdef CONFIG_RCU_NOCB_CPU
 #ifndef CONFIG_RCU_NOCB_CPU_NONE
 	if (!have_rcu_nocb_mask) {
@@ -110,6 +121,7 @@ static void __init rcu_bootup_announce_oddness(void)
 		if (rcu_nocb_poll)
 			pr_info("\tPoll for callbacks from no-CBs CPUs.\n");
 	}
+	// 모두 통과
 #endif /* #ifdef CONFIG_RCU_NOCB_CPU */
 }
 
@@ -127,6 +139,7 @@ static void __init rcu_bootup_announce(void)
 {
 	pr_info("Preemptible hierarchical RCU implementation.\n");
 	rcu_bootup_announce_oddness();
+	// CONFIG 옵션에 의해 내부가 NULL 함수로 변경됨
 }
 
 /*

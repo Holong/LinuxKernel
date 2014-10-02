@@ -3326,7 +3326,12 @@ static void __init rcu_init_geometry(void)
 	ulong d;
 	int i;
 	int j;
+	
+	// nr_cpu_ids : 4
 	int n = nr_cpu_ids;
+	// n : 4
+
+	// MAX_RCU_LVLS : 4
 	int rcu_capacity[MAX_RCU_LVLS + 1];
 
 	/*
@@ -3336,16 +3341,26 @@ static void __init rcu_init_geometry(void)
 	 * value, which is a function of HZ, then adding one for each
 	 * RCU_JIFFIES_FQS_DIV CPUs that might be on the system.
 	 */
+
+	// RCU_JIFFIES_TILL_FORCE_QS : 1, nr_cpu_ids : 4, RCU_JIFFIES_FQS_DIV : 256
 	d = RCU_JIFFIES_TILL_FORCE_QS + nr_cpu_ids / RCU_JIFFIES_FQS_DIV;
+	// d : 1
+	
+	// jiffies_till_first_fqs : ULONG_MAX
 	if (jiffies_till_first_fqs == ULONG_MAX)
 		jiffies_till_first_fqs = d;
+		// jiffies_till_first_fqs : 1
+	// jiffies_till_next_fqs : ULONG_MAX
 	if (jiffies_till_next_fqs == ULONG_MAX)
 		jiffies_till_next_fqs = d;
+		// jiffies_till_next_fqs : 1
 
 	/* If the compile-time values are accurate, just leave. */
+	// rcu_fanout_leaf : 16, CONFIG_RCU_FANOUT_LEAF : 16
 	if (rcu_fanout_leaf == CONFIG_RCU_FANOUT_LEAF &&
 	    nr_cpu_ids == NR_CPUS)
 		return;
+		// 여기서 return 수행됨
 
 	/*
 	 * Compute number of nodes that can be handled an rcu_node tree
@@ -3396,7 +3411,12 @@ void __init rcu_init(void)
 	int cpu;
 
 	rcu_bootup_announce();
+	// 따로 하는 일 없음
+	
 	rcu_init_geometry();
+	// jiffies_till_first_fqs : 1
+	// jiffies_till_next_fqs : 1
+	
 	rcu_init_one(&rcu_bh_state, &rcu_bh_data);
 	rcu_init_one(&rcu_sched_state, &rcu_sched_data);
 	__rcu_init_preempt();

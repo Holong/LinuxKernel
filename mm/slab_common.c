@@ -205,34 +205,63 @@ kmem_cache_create_memcg(struct mem_cgroup *memcg, const char *name, size_t size,
 	flags &= CACHE_CREATE_MASK;
 	// flags : SLAB_PANIC(0x00040000)
 
+	// memcg : NULL, name : "idr_layer_cache", size : sizeof(struct idr_layer),
+	// align : 0, flags : SLAB_PANIC, ctor : NULL
 	s = __kmem_cache_alias(memcg, name, size, align, flags, ctor);
+	// s : NULL 반환
+	
+	// s : NULL
 	if (s)
 		goto out_locked;
+	// 통과 
 
 	s = kmem_cache_zalloc(kmem_cache, GFP_KERNEL);
+	// 이전에 만들어 둔 kmem_cache용 page에서 사용하지 않는 오브젝트의 주소를 반환
+	// s : kmem_cache#21
+	// 21번째 오브젝트가 비어 있었음
+	
+	// s : kmem_cache#21
 	if (s) {
 		s->object_size = s->size = size;
-		s->align = calculate_alignment(flags, align, size);
-		s->ctor = ctor;
+		// kmem_cache#21.object_size : 1076
+		// kmem_cache#21.size : 1076
 
+		s->align = calculate_alignment(flags, align, size);
+		// kmem_cache#21.align : 8
+		
+		s->ctor = ctor;
+		// kmem_cache#21.ctor : NULL
+
+		// memcg_register_cache : 항상 NULL 반환
 		if (memcg_register_cache(memcg, s, parent_cache)) {
 			kmem_cache_free(kmem_cache, s);
 			err = -ENOMEM;
 			goto out_locked;
 		}
+		// 통과
 
 		s->name = kstrdup(name, GFP_KERNEL);
+		// slub을 이용해 name을 저장할 공간을 확보한 뒤,
+		// 문자열을 옮겨두고 그 주소를 s->name에 저장함
+		
 		if (!s->name) {
 			kmem_cache_free(kmem_cache, s);
 			err = -ENOMEM;
 			goto out_locked;
 		}
 
+		// s : kmem_cache#21, flags : SLAB_PANIC
 		err = __kmem_cache_create(s, flags);
+		// kmem_cache 내부의 node 구조체 및 자료를 설정해줌
+		// size 값을 이용해 주로 계산함
+		// err : 0
+
 		if (!err) {
 			s->refcount = 1;
 			list_add(&s->list, &slab_caches);
 			memcg_cache_list_add(memcg, s);
+			// refcount를 1로 바꿔주고
+			// 이전과 마찬가지로 slab_caches에 등록해 줌
 		} else {
 			kfree(s->name);
 			kmem_cache_free(kmem_cache, s);
@@ -242,7 +271,10 @@ kmem_cache_create_memcg(struct mem_cgroup *memcg, const char *name, size_t size,
 
 out_locked:
 	mutex_unlock(&slab_mutex);
+	// 락 해제
+	
 	put_online_cpus();
+	// cpu_hotplug.refcount : 0 으로 변경
 
 	if (err) {
 
@@ -259,6 +291,7 @@ out_locked:
 	}
 
 	return s;
+	// 설정을 완료한 kmem_cache 구조체 반환
 }
 
 // name : "idr_layer_cache", size : sizeof(struct idr_layer), align : 0, flags : SLAB_PANIC, ctor : NULL

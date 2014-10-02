@@ -553,10 +553,10 @@ asmlinkage void __init start_kernel(void)
 	// irq 끄기
 	early_boot_irqs_disabled = true;
 
-/*
- * Interrupts are still disabled. Do necessary setups, then
- * enable them
- */
+	/*
+	 * Interrupts are still disabled. Do necessary setups, then
+	 * enable them
+	 */
 	boot_cpu_init();
 	// cpu_online_bits[0] 의 0번 비트를 1로 설정
 	// cpu_active_bits[0] 의 0번 비트를 1로 설정
@@ -661,6 +661,9 @@ asmlinkage void __init start_kernel(void)
 	// 현재는 인터럽트가 막혀있는 상태임
 	
 	idr_init_cache();
+	// kmem_cache 구조체를 새로 받아 struct idr_layer에 맞는 값으로 설정이 되고,
+	// 그 구조체의 주소를 idr_layer_cache에 저장함
+	
 	rcu_init();
 	tick_nohz_init();
 	context_tracking_init();

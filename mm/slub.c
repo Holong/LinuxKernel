@@ -1295,6 +1295,7 @@ out:
 
 __setup("slub_debug", setup_slub_debug);
 
+// size : 1080, flags : SLAB_PANIC, name : "idr_layer_cache", ctor : NULL
 static unsigned long kmem_cache_flags(unsigned long object_size,
 	unsigned long flags, const char *name,
 	void (*ctor)(void *))
@@ -1302,6 +1303,7 @@ static unsigned long kmem_cache_flags(unsigned long object_size,
 	/*
 	 * Enable debugging if selected on the kernel commandline.
 	 */
+	// slub_debug : 0
 	if (slub_debug && (!slub_debug_slabs || (name &&
 		!strncmp(slub_debug_slabs, name, strlen(slub_debug_slabs)))))
 		flags |= slub_debug;
@@ -4404,57 +4406,96 @@ static int slab_unmergeable(struct kmem_cache *s)
 	return 0;
 }
 
+// memcg : NULL, size : sizeof(struct idr_layer),
+// align : 0, flags : SLAB_PANIC, name : "idr_layer_cache", ctor : NULL
 static struct kmem_cache *find_mergeable(struct mem_cgroup *memcg, size_t size,
 		size_t align, unsigned long flags, const char *name,
 		void (*ctor)(void *))
 {
 	struct kmem_cache *s;
 
+	// slub_nomerge : 0, flags : SLAB_PANIC
 	if (slub_nomerge || (flags & SLUB_NEVER_MERGE))
 		return NULL;
+	// 통과됨
 
+	// ctor : 0
 	if (ctor)
 		return NULL;
 
+	// size : sizeof(struct idr_layer) : 1076, sizeof(void*) : 4
 	size = ALIGN(size, sizeof(void *));
+	// size : 1076
+	
+	// flags : SLAB_PANIC, align : 0, size : 1076
 	align = calculate_alignment(flags, align, size);
+	// flag와 align 값을 이용해 적당한 정렬 값을 계산
+	// align : 8
+	
+	// size : 1076, align : 8
 	size = ALIGN(size, align);
+	// size : 1080
+	// align 된 오브젝트 크기를 계산함
+	
+	// size : 1080, flags : SLAB_PANIC, name : "idr_layer_cache"
 	flags = kmem_cache_flags(size, flags, name, NULL);
+	// 항상 flags 값 그대로 반환
+	// flags : SLAB_PANIC
 
+	// slab_caches : 이전에 만들어둔 kmem_cache 구조체들이 연결되어 있는 리스트
 	list_for_each_entry(s, &slab_caches, list) {
+
+		
 		if (slab_unmergeable(s))
 			continue;
 
+		// kmem_cache의 오브젝트 크기 확인
 		if (size > s->size)
 			continue;
 
+		// kmem_cache의 플래그 확인
 		if ((flags & SLUB_MERGE_SAME) != (s->flags & SLUB_MERGE_SAME))
 				continue;
 		/*
 		 * Check if alignment is compatible.
 		 * Courtesy of Adrian Drzewiecki
 		 */
+		// kmem_cache의 크기가 aligne되어 있는지 확인
 		if ((s->size & ~(align - 1)) != s->size)
 			continue;
 
+		// kmem_cache의 오브젝트 크기에서 현재 얻으려는 크기를 뺀 값이 sizeof(void*)보다
+		// 큰 지 확인
 		if (s->size - size >= sizeof(void *))
 			continue;
 
 		if (!cache_match_memcg(s, memcg))
+			// cache_match_memcg : 무조건 true 반환
 			continue;
 
 		return s;
 	}
+	// 이미 등록되어 있던 kmem_cache들은 전부 크기 검사에서 걸려
+	// 전부 continue 로 통과됨
+	
 	return NULL;
+	// NULL 반환
 }
 
+// memcg : NULL, name : "idr_layer_cache", size : sizeof(struct idr_layer),
+// align : 0, flags : SLAB_PANIC, ctor : NULL
 struct kmem_cache *
 __kmem_cache_alias(struct mem_cgroup *memcg, const char *name, size_t size,
 		   size_t align, unsigned long flags, void (*ctor)(void *))
 {
 	struct kmem_cache *s;
 
+	// memcg : NULL, size : sizeof(struct idr_layer),
+	// align : 0, flags : SLAB_PANIC, name : "idr_layer_cache", ctor : NULL
 	s = find_mergeable(memcg, size, align, flags, name, ctor);
+	// s : NULL
+	
+	// s : NULL
 	if (s) {
 		s->refcount++;
 		/*
@@ -4475,6 +4516,7 @@ __kmem_cache_alias(struct mem_cgroup *memcg, const char *name, size_t size,
 
 // [D] s : &boot_kmem_cache_node, flags : SLAB_HWCACHE_ALIGN(0x2000)
 // [P] s : &boot_kmem_cache, flags : SLAB_HWCACHE_ALIGN(0x2000)
+// s : kmem_cache#21, flags : SLAB_PANIC
 int __kmem_cache_create(struct kmem_cache *s, unsigned long flags)
 {
 	int err;

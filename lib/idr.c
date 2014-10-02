@@ -854,6 +854,8 @@ void __init idr_init_cache(void)
 	// sizeof(struct idr_layer) : 1076
 	idr_layer_cache = kmem_cache_create("idr_layer_cache",
 				sizeof(struct idr_layer), 0, SLAB_PANIC, NULL);
+	// struct idr_layer에 맞는 kmem_cache가 설정되어서 반환됨
+	// 그 값이 idr_layer_cache에 저장됨
 }
 
 /**

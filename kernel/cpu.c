@@ -88,16 +88,25 @@ EXPORT_SYMBOL_GPL(get_online_cpus);
 
 void put_online_cpus(void)
 {
+	// cpu_hotplug.active_write : NULL, current : &init_task
 	if (cpu_hotplug.active_writer == current)
 		return;
-	mutex_lock(&cpu_hotplug.lock);
+	// 통과
 
+	mutex_lock(&cpu_hotplug.lock);
+	// 락 획득
+
+	// cpu_hotplug.refcount : 1
 	if (WARN_ON(!cpu_hotplug.refcount))
 		cpu_hotplug.refcount++; /* try to fix things up */
 
+	// cpu_hotplug.refcount : 1, cpu_hotplug.active_writer : NULL
 	if (!--cpu_hotplug.refcount && unlikely(cpu_hotplug.active_writer))
 		wake_up_process(cpu_hotplug.active_writer);
+	// cpu_hotplug.refcount : 0
+	
 	mutex_unlock(&cpu_hotplug.lock);
+	// 락 해제
 
 }
 EXPORT_SYMBOL_GPL(put_online_cpus);
