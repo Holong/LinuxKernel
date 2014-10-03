@@ -23,11 +23,13 @@ struct irq_work {
 	void (*func)(struct irq_work *);
 };
 
+// work : &rcu_bh_state.wakeup_work, func : rsp_wakeup
 static inline
 void init_irq_work(struct irq_work *work, void (*func)(struct irq_work *))
 {
 	work->flags = 0;
 	work->func = func;
+	// flags 값과 func 값을 초기화 해 줌
 }
 
 void irq_work_queue(struct irq_work *work);

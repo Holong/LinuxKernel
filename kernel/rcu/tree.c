@@ -1037,15 +1037,22 @@ void rcu_cpu_stall_reset(void)
 /*
  * Initialize the specified rcu_data structure's callback list to empty.
  */
+// rdp : &rcu_bh_data[0]
 static void init_callback_list(struct rcu_data *rdp)
 {
 	int i;
 
+	// init_nocb_callback_list : false 반환
 	if (init_nocb_callback_list(rdp))
 		return;
+
 	rdp->nxtlist = NULL;
+	// rcu_bh_data[0].nxtlist : NULL 대입
+	
+	// RCU_NEXT_SIZE : 4
 	for (i = 0; i < RCU_NEXT_SIZE; i++)
 		rdp->nxttail[i] = &rdp->nxtlist;
+		// rcu_bh_data[0].nxttail[0~3] : rcu_bh_data[0].nxtlist의 주소 대입
 }
 
 /*
@@ -3014,26 +3021,54 @@ EXPORT_SYMBOL_GPL(rcu_barrier_sched);
 /*
  * Do boot-time initialization of a CPU's per-CPU RCU data.
  */
+//  : 0, rsp : &rcu_bh_state
 static void __init
 rcu_boot_init_percpu_data(int cpu, struct rcu_state *rsp)
 {
 	unsigned long flags;
 	struct rcu_data *rdp = per_cpu_ptr(rsp->rda, cpu);
+	// rdp : &rcu_bh_data[0]
+	
 	struct rcu_node *rnp = rcu_get_root(rsp);
+	// rnp : &rcu_bh_state.node[0]
 
 	/* Set up local state, ensuring consistent view of global state. */
 	raw_spin_lock_irqsave(&rnp->lock, flags);
+	// 스핀락 획득
+	
+	// rdp->mynode->grplo : rcu_bh_state.node[0].grplo : 0
 	rdp->grpmask = 1UL << (cpu - rdp->mynode->grplo);
+	// rcu_bh_data[0].grpmask : 1
+	
+	// rdp : &rcu_bh_data[0]
 	init_callback_list(rdp);
+	// rcu_bh_data[0].nxtlist : NULL 대입
+	// rcu_bh_data[0].nxttail[0~3] : rcu_bh_data[0].nxtlist의 주소 대입
+	
 	rdp->qlen_lazy = 0;
+	// rcu_bh_data[0].qlen_lazy : 0
+	
 	ACCESS_ONCE(rdp->qlen) = 0;
+	// rcu_bh_data[0].qlen : 0
+	
 	rdp->dynticks = &per_cpu(rcu_dynticks, cpu);
+	// rcu_bh_data[0].dynticks : rcu_dynticks[0]의 주소 대입
+	// rcu_dynticks는 percpu 변수임
+	
 	WARN_ON_ONCE(rdp->dynticks->dynticks_nesting != DYNTICK_TASK_EXIT_IDLE);
 	WARN_ON_ONCE(atomic_read(&rdp->dynticks->dynticks) != 1);
+	// 경고 확인
+
 	rdp->cpu = cpu;
+	// rcu_dh_data[0].cpu : 0
 	rdp->rsp = rsp;
+	// rcu_dh_data[0].rsp : rcu_bh_state[0]
+	
 	rcu_boot_init_nocb_percpu_data(rdp);
+	// NULL 함수
+	
 	raw_spin_unlock_irqrestore(&rnp->lock, flags);
+	// 스핀락 해제
 }
 
 /*
@@ -3209,7 +3244,7 @@ void rcu_scheduler_starting(void)
  * Compute the per-level fanout, either using the exact fanout specified
  * or balancing the tree, depending on CONFIG_RCU_FANOUT_EXACT.
  */
-#ifdef CONFIG_RCU_FANOUT_EXACT
+#ifdef CONFIG_RCU_FANOUT_EXACT	// N
 static void __init rcu_init_levelspread(struct rcu_state *rsp)
 {
 	int i;
@@ -3219,16 +3254,27 @@ static void __init rcu_init_levelspread(struct rcu_state *rsp)
 	rsp->levelspread[0] = rcu_fanout_leaf;
 }
 #else /* #ifdef CONFIG_RCU_FANOUT_EXACT */
+
+// rsp : &rcu_bh_state
 static void __init rcu_init_levelspread(struct rcu_state *rsp)
 {
 	int ccur;
 	int cprv;
 	int i;
-
+	
+	// nr_cpu_ids : 4
 	cprv = nr_cpu_ids;
+	// cprv : 4
+	
+	// rcu_num_lvls : 1
 	for (i = rcu_num_lvls - 1; i >= 0; i--) {
 		ccur = rsp->levelcnt[i];
+		// ccur : rcu_bh_state.levelcnt[0]
+		// ccur : 1
+
 		rsp->levelspread[i] = (cprv + ccur - 1) / ccur;
+		// rcu_bh_state.levelspread[0] : 4
+
 		cprv = ccur;
 	}
 }
@@ -3237,6 +3283,7 @@ static void __init rcu_init_levelspread(struct rcu_state *rsp)
 /*
  * Helper function for rcu_init() that initializes one rcu_state structure.
  */
+// rsp :&rcu_bh_state, rda : &rcu_bh_date
 static void __init rcu_init_one(struct rcu_state *rsp,
 		struct rcu_data __percpu *rda)
 {
@@ -3253,44 +3300,93 @@ static void __init rcu_init_one(struct rcu_state *rsp,
 	int j;
 	struct rcu_node *rnp;
 
+	// MAX_RCU_LVLS : 4, ARRAY_SIZE(buf) : 4
 	BUILD_BUG_ON(MAX_RCU_LVLS > ARRAY_SIZE(buf));  /* Fix buf[] init! */
 
 	/* Silence gcc 4.8 warning about array index out of range. */
+	// rcu_num_lvls : 1, RCU_NUM_LVLS : 1
 	if (rcu_num_lvls > RCU_NUM_LVLS)
 		panic("rcu_init_one: rcu_num_lvls overflow");
 
 	/* Initialize the level-tracking arrays. */
 
+	// rcu_num_lvls : 1
 	for (i = 0; i < rcu_num_lvls; i++)
 		rsp->levelcnt[i] = num_rcu_lvl[i];
+		// rcu_bh_state.levelcnt[0] : 1
+	
+	// rcu_num_lvls : 1
 	for (i = 1; i < rcu_num_lvls; i++)
 		rsp->level[i] = rsp->level[i - 1] + rsp->levelcnt[i - 1];
+
+	// rsp : &rcu_bh_state
 	rcu_init_levelspread(rsp);
+	// rcu_bh_state.levelspread[0] : 4로 변경시켜 줌
 
 	/* Initialize the elements themselves, starting from the leaves. */
-
+	// rcu_num_lvls : 1
+	// i : 0부터 시작 됨
 	for (i = rcu_num_lvls - 1; i >= 0; i--) {
+		// rsp->levelspread[0] : 4, cpustride : 1
 		cpustride *= rsp->levelspread[i];
+		// cpustride : 4
+		
+		// i : 0
 		rnp = rsp->level[i];
+		// rnp : rcu_bh_state.level[0]
+		// 즉, rnp는 rcu_bh_state.node[0]의 주소 값이 됨
+		// rcu_bh_state는 RCU_STATE_INITIALIZER라는 매크로에 의해
+		// 특정 값으로 초기화되어 생성되는 percpu 변수이기 때문임
+
+		// rsp->levelcnt[0] : 1
 		for (j = 0; j < rsp->levelcnt[i]; j++, rnp++) {
 			raw_spin_lock_init(&rnp->lock);
+			// 스핀락 획득
+
 			lockdep_set_class_and_name(&rnp->lock,
 						   &rcu_node_class[i], buf[i]);
+			// NULL 함수
+
 			raw_spin_lock_init(&rnp->fqslock);
+			// 스핀락 획득
+
 			lockdep_set_class_and_name(&rnp->fqslock,
 						   &rcu_fqs_class[i], fqs[i]);
+			// NULL 함수
+			
+			// rsp->gpnum : 0xFFFFFED4
 			rnp->gpnum = rsp->gpnum;
+			// rcu_bh_state.node[0].gpnum : 0xFFFFFED4
+
+			// rsp->completed : 0xFFFFFED4
 			rnp->completed = rsp->completed;
+			// rcu_bh_state.node[0].completed : 0xFFFFFED4
+
 			rnp->qsmask = 0;
+			// rcu_bh_state.node[0].qsmask : 0
 			rnp->qsmaskinit = 0;
+			// rcu_bh_state.node[0].qsmaskinit : 0
+			
+			// j : 0, cpustride : 4
 			rnp->grplo = j * cpustride;
+			// rcu_bh_state.node[0].grplo : 0 
+			
+			// j : 0, cpustride : 4
 			rnp->grphi = (j + 1) * cpustride - 1;
+			// rcu_bh_state.node[0].grphi : 3 
+			
+			// rnp->grphi : 3, NR_CPUS : 4
 			if (rnp->grphi >= NR_CPUS)
 				rnp->grphi = NR_CPUS - 1;
+			
+			// i : 0
 			if (i == 0) {
 				rnp->grpnum = 0;
+				// rcu_bh_state.node[0].grpnum : 0
 				rnp->grpmask = 0;
+				// rcu_bh_state.node[0].grpmask : 0
 				rnp->parent = NULL;
+				// rcu_bh_state.node[0].parent : 0
 			} else {
 				rnp->grpnum = j % rsp->levelspread[i - 1];
 				rnp->grpmask = 1UL << rnp->grpnum;
@@ -3298,22 +3394,57 @@ static void __init rcu_init_one(struct rcu_state *rsp,
 					      j / rsp->levelspread[i - 1];
 			}
 			rnp->level = i;
+			// rcu_bh_state.node[0].level : 0
+
 			INIT_LIST_HEAD(&rnp->blkd_tasks);
+			// rcu_bh_state.blkd_tasks 리스트 초기화
+
 			rcu_init_one_nocb(rnp);
+			// NULL 함수
 		}
 	}
 
 	rsp->rda = rda;
+	// rcu_bh_state.rda : &rcu_bh_data 저장
+	
+	// &rsp->gp_wq : rcu_bh_state.gp_wq의 주소
 	init_waitqueue_head(&rsp->gp_wq);
+	// rcu_bh_state.gp_wq 초기화
+	
+	// rsp->wakeup_work : rcu_bh_state.wakeup_work, rsp_wakeup : 함수 포인터
 	init_irq_work(&rsp->wakeup_work, rsp_wakeup);
+	// rcu_bh_state.wakeup_work.flags : 0
+	// rcu_bh_state.wakeup_work.func : rsp_wakeup
+	// 으로 각각 초기화
+	
+	// rcu_num_lvls : 1
 	rnp = rsp->level[rcu_num_lvls - 1];
+	// rnp : rsp->level[0]
+	// 즉 rnp : &rcu_bh_state.node[0]
+	
+	// i : 0 ~ 3까지 반복문 수행됨 
 	for_each_possible_cpu(i) {
+
+		// i : 0, rnp->grphi : 3
 		while (i > rnp->grphi)
 			rnp++;
+
 		per_cpu_ptr(rsp->rda, i)->mynode = rnp;
+		// rcu_bh_state.rda가 가리키던 struct rcu_data용 percpu 공간에서
+		// i 번째 공간을 찾아낸 뒤, 그 구조체의 mynode에 rcu_bh_state.node[0]의
+		// 주소를 대입함
+		// 결국 rcu_bh_data[0].mynode에 rcu_bh_state.node[0]의 주소가 저장됨
+
+		// i : 0, rsp : &rcu_bh_state
 		rcu_boot_init_percpu_data(i, rsp);
+		// rsp->rda에 연결되어 있는 struct rcu_data 구조체를 초기화 해줌
+		// 현재 rcu_bh_state.rda에 연결되어 있는 것은 rcu_bh_data이기 때문에
+		// 각 cpu 번호별 rcu_bh_data 구조체들을 적절한 값으로 초기화 수행
 	}
+	// &rsp->flavors : &rcu_bh_state.flavors
+	// rcu_struct_flavors : 전역 리스트
 	list_add(&rsp->flavors, &rcu_struct_flavors);
+	// rcu_struct_flavors에 rcu_bh_state를 연결해 줌
 }
 
 /*
@@ -3417,6 +3548,8 @@ void __init rcu_init(void)
 	// jiffies_till_first_fqs : 1
 	// jiffies_till_next_fqs : 1
 	
+	// rcu_bh_state : struct rcu_state형 percpu변수
+	// rcu_bh_date : struct rcu_data형 percpu 변수
 	rcu_init_one(&rcu_bh_state, &rcu_bh_data);
 	rcu_init_one(&rcu_sched_state, &rcu_sched_data);
 	__rcu_init_preempt();
