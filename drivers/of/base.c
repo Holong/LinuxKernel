@@ -156,6 +156,7 @@ void of_node_put(struct device_node *node)
 EXPORT_SYMBOL(of_node_put);
 #endif /* CONFIG_OF_DYNAMIC */
 
+// np : of_allnodes, name : "compatible", lenp : &cplen
 static struct property *__of_find_property(const struct device_node *np,
 					   const char *name, int *lenp)
 {
@@ -175,6 +176,9 @@ static struct property *__of_find_property(const struct device_node *np,
 	return pp;
 }
 
+// np : matches에 일치하는 디바이스 노드의 주소
+// name : "interrupt-controller"
+// lenp : NULL
 struct property *of_find_property(const struct device_node *np,
 				  const char *name,
 				  int *lenp)
@@ -183,8 +187,13 @@ struct property *of_find_property(const struct device_node *np,
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&devtree_lock, flags);
+	// 스핀락 초기화
+	
 	pp = __of_find_property(np, name, lenp);
+	// interrupt-contoller 속성 구조체의 주소를 반환
+	
 	raw_spin_unlock_irqrestore(&devtree_lock, flags);
+	// 스핀락 해제
 
 	return pp;
 }
@@ -218,9 +227,11 @@ EXPORT_SYMBOL(of_find_all_nodes);
  * Find a property with a given name for a given node
  * and return the value.
  */
+// np : of_allnodes, name : "compatible", lenp : &cplen
 static const void *__of_get_property(const struct device_node *np,
 				     const char *name, int *lenp)
 {
+	// np : of_allnodes, name : "compatible", lenp : &cplen
 	struct property *pp = __of_find_property(np, name, lenp);
 
 	return pp ? pp->value : NULL;
@@ -345,12 +356,14 @@ EXPORT_SYMBOL(of_get_cpu_node);
 /** Checks if the given "compat" string matches one of the strings in
  * the device's "compatible" property
  */
+// device : of_allnodes, compat : "samsung.exynos4210-combiner"
 static int __of_device_is_compatible(const struct device_node *device,
 				     const char *compat)
 {
 	const char* cp;
 	int cplen, l;
 
+	// device : of_allnodes, "compatible", &cplen
 	cp = __of_get_property(device, "compatible", &cplen);
 	if (cp == NULL)
 		return 0;
@@ -455,6 +468,7 @@ EXPORT_SYMBOL(of_device_is_available);
  *	Returns a node pointer with refcount incremented, use
  *	of_node_put() on it when done.
  */
+// child : combiner 노드의 주소
 struct device_node *of_get_parent(const struct device_node *node)
 {
 	struct device_node *np;
@@ -465,6 +479,7 @@ struct device_node *of_get_parent(const struct device_node *node)
 
 	raw_spin_lock_irqsave(&devtree_lock, flags);
 	np = of_node_get(node->parent);
+	// combiner 노드의 부모인 root 노드의 주소를 뽑아옴
 	raw_spin_unlock_irqrestore(&devtree_lock, flags);
 	return np;
 }
@@ -731,6 +746,7 @@ out:
 }
 EXPORT_SYMBOL(of_find_node_with_property);
 
+// matches : &irqchip_of_match_exynos4210_combiner, node : of_allnodes
 static
 const struct of_device_id *__of_match_node(const struct of_device_id *matches,
 					   const struct device_node *node)
@@ -738,17 +754,32 @@ const struct of_device_id *__of_match_node(const struct of_device_id *matches,
 	if (!matches)
 		return NULL;
 
+	// matches->name[0] : 0
+	// matches->type[0] : 0
+	// matches->compatible[0] : 's' ("samsung.exynos4210-combiner")
 	while (matches->name[0] || matches->type[0] || matches->compatible[0]) {
 		int match = 1;
+
+		// matches->name[0] : 0
 		if (matches->name[0])
 			match &= node->name
 				&& !strcmp(matches->name, node->name);
+
+		// matches->type[0] : 0
 		if (matches->type[0])
 			match &= node->type
 				&& !strcmp(matches->type, node->type);
+
+		// matches->compatible[0] : 's' ("samsung.exynos4210-combiner")
 		if (matches->compatible[0])
+			// node : of_allnodes
+			// matches->compatible : "samsung.exynos4210-combiner"
 			match &= __of_device_is_compatible(node,
 							   matches->compatible);
+			// node의 compatible 속성이 "samsung.exynos4210-combiner"
+			// 인 node를 찾아냄
+			// 찾아 냈을 때 1을 반환함
+
 		if (match)
 			return matches;
 		matches++;
@@ -789,6 +820,7 @@ EXPORT_SYMBOL(of_match_node);
  *	Returns a node pointer with refcount incremented, use
  *	of_node_put() on it when done.
  */
+// from : NULL, matches : &irqchip_of_match_exynos4210_combiner, match : NULL
 struct device_node *of_find_matching_node_and_match(struct device_node *from,
 					const struct of_device_id *matches,
 					const struct of_device_id **match)
@@ -797,21 +829,39 @@ struct device_node *of_find_matching_node_and_match(struct device_node *from,
 	const struct of_device_id *m;
 	unsigned long flags;
 
+	// match : NULL
 	if (match)
 		*match = NULL;
 
 	raw_spin_lock_irqsave(&devtree_lock, flags);
+	// 스핀락 획득
+	
+	// NULL
 	np = from ? from->allnext : of_allnodes;
+	// np : of_allnodes
+	// 디바이스 트리의 루트 노드
+	
 	for (; np; np = np->allnext) {
+		// matches : &irqchip_of_match_exynos4210_combiner
+		// np : of_allnodes
 		m = __of_match_node(matches, np);
+		// m : &irqchip_of_match_exynos4210_combiner
+		// np : 찾아낸 exynos4210_combiner의 노드 주소
+
 		if (m && of_node_get(np)) {
 			if (match)
 				*match = m;
 			break;
 		}
 	}
+	// np : 찾아낸 exynos4210_combiner의 노드 주소
+	
 	of_node_put(from);
+	// NULL 함수
+	
 	raw_spin_unlock_irqrestore(&devtree_lock, flags);
+	// 스핀락 해제
+	
 	return np;
 }
 EXPORT_SYMBOL(of_find_matching_node_and_match);

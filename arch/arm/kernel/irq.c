@@ -115,6 +115,9 @@ EXPORT_SYMBOL_GPL(set_irq_flags);
 
 void __init init_IRQ(void)
 {
+	// CONFIG_OF : Y
+	// machine_desc : mach-exynos5-dt.c에 선언되어 있음
+	// machine_desc->init_irq : NULl
 	if (IS_ENABLED(CONFIG_OF) && !machine_desc->init_irq)
 		irqchip_init();
 	else
@@ -134,7 +137,11 @@ void __init set_handle_irq(void (*handle_irq)(struct pt_regs *))
 #ifdef CONFIG_SPARSE_IRQ
 int __init arch_probe_nr_irqs(void)
 {
+	// machine_desc : mach-exynos5-dt.c에 선언되어 있음
+	// machine_desc->nr_irqs는 NULL 상태로 되어 있음
 	nr_irqs = machine_desc->nr_irqs ? machine_desc->nr_irqs : NR_IRQS;
+	// nr_irqs : 16
+	
 	return nr_irqs;
 }
 #endif

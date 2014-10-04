@@ -26,5 +26,12 @@ extern struct of_device_id __irqchip_begin[];
 
 void __init irqchip_init(void)
 {
+	// __irqchip_begin : 섹션을 이용해 만들어진 배열임
+	// 배열에는 원소가 하나 밖에 없음
+	// IRQCHIP_DECLARE(exynos4210_combiner, "samsung,exynos4210-combiner", combiner_of_init)으로 만들어진 것
+	// static const struct of_device_id irqchip_of_match_exynos4210_combiner __used __section(__irqchip_of_table) = {
+	// 	.compatible = "samsung,exynos4210-combiner",
+	// 	.data = combiner_of_init
+	// }
 	of_irq_init(__irqchip_begin);
 }

@@ -351,9 +351,13 @@ static inline int cpumask_test_and_clear_cpu(int cpu, struct cpumask *cpumask)
  * cpumask_setall - set all cpus (< nr_cpu_ids) in a cpumask
  * @dstp: the cpumask pointer
  */
+// dstp : irq_default_affinity
 static inline void cpumask_setall(struct cpumask *dstp)
 {
+	// cpumask_bits(dstp) : irq_default_affinity->bits
+	// nr_cpumask_bits : 4
 	bitmap_fill(cpumask_bits(dstp), nr_cpumask_bits);
+	// irq_default_affinity->bits[0] : 0xF
 }
 
 /**
@@ -736,10 +740,13 @@ static inline bool zalloc_cpumask_var(cpumask_var_t *mask, gfp_t flags)
 	return true;
 }
 
+// mask : &kmem_cache#28-o0.irq_data.affinity
+// gfp : GFP_KERNEL, node : 0
 static inline bool zalloc_cpumask_var_node(cpumask_var_t *mask, gfp_t flags,
 					  int node)
 {
 	cpumask_clear(*mask);
+	// kmem_cache#28-o0.irq_data.affinity의 하위 4비트를 0으로 클리어
 	return true;
 }
 

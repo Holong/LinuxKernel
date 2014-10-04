@@ -907,6 +907,7 @@ fail_unlock_mutex:
  * Percpu pointer to the allocated area on success, NULL on failure.
  */
 // size : 16, align : 8
+// size : 4, align : 4
 void __percpu *__alloc_percpu(size_t size, size_t align)
 {
 	return pcpu_alloc(size, align, false);

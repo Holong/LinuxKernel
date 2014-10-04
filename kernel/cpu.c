@@ -179,7 +179,9 @@ void cpu_hotplug_enable(void)
 /* Need to know about CPUs going up/down? */
 // nb : &page_alloc_cpu_notify_nb
 // nb : &slab_notifier
-// nb : &sched_ilb_notifier_nb;
+// nb : &sched_ilb_notifier_nb
+// nb : &rcu_cpu_notify_nb
+// nb : &radix_tree_callback
 int __ref register_cpu_notifier(struct notifier_block *nb)
 {
 	int ret;

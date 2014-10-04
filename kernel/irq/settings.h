@@ -31,11 +31,18 @@ enum {
 #undef IRQF_MODIFY_MASK
 #define IRQF_MODIFY_MASK	GOT_YOU_MORON
 
+// desc : 할당받은 irq_desc, clr : 0xFFFFFFFF, set : _IRQ_DEFAULT_INIT_FLAGS
 static inline void
 irq_settings_clr_and_set(struct irq_desc *desc, u32 clr, u32 set)
 {
+	// _IRQF_MODIFY_MASK : 0x3FF0F
+	// desc->status_use_accessors : 0
 	desc->status_use_accessors &= ~(clr & _IRQF_MODIFY_MASK);
+	// desc->status_use_accessors : 0
+	
+	// set : 0xC00, _IRQF_MOIFY_MASK : 0x3FF0F
 	desc->status_use_accessors |= (set & _IRQF_MODIFY_MASK);
+	// desc->status_use_accessors : 0xC00로 설정됨
 }
 
 static inline bool irq_settings_is_per_cpu(struct irq_desc *desc)

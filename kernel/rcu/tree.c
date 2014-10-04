@@ -3548,7 +3548,7 @@ void __init rcu_init(void)
 	// jiffies_till_first_fqs : 1
 	// jiffies_till_next_fqs : 1
 	
-	// rcu_bh_state : struct rcu_state형 percpu변수
+	// rcu_bh_state : struct rcu_state형 전역변수
 	// rcu_bh_date : struct rcu_data형 percpu 변수
 	rcu_init_one(&rcu_bh_state, &rcu_bh_data);
 	rcu_init_one(&rcu_sched_state, &rcu_sched_data);

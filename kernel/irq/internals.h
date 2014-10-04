@@ -170,9 +170,12 @@ static inline void irqd_clear(struct irq_data *d, unsigned int mask)
 	d->state_use_accessors &= ~mask;
 }
 
+// d : 할당받은 desc->irq_data, mask : IRQD_IRQ_DISABLED
 static inline void irqd_set(struct irq_data *d, unsigned int mask)
 {
+	// desc->irq_data.status_use_accessors : 0
 	d->state_use_accessors |= mask;
+	// desc->irq_data.status_use_accessors : IRQD_IRQ_DISABLED
 }
 
 static inline bool irqd_has_set(struct irq_data *d, unsigned int mask)

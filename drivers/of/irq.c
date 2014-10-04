@@ -52,18 +52,25 @@ EXPORT_SYMBOL_GPL(irq_of_parse_and_map);
  * Returns a pointer to the interrupt parent node, or NULL if the interrupt
  * parent could not be determined.
  */
+// child : combiner 노드의 주소
 struct device_node *of_irq_find_parent(struct device_node *child)
 {
 	struct device_node *p;
 	const __be32 *parp;
 
+	// of_node_get(child) : child
 	if (!of_node_get(child))
 		return NULL;
+	// 통과
 
 	do {
 		parp = of_get_property(child, "interrupt-parent", NULL);
+		// parp : NULL
+		// combiner 노드에 interrupt-parent 속성이 존재하지 않음
 		if (parp == NULL)
+			// child : combiner 노드의 주소
 			p = of_get_parent(child);
+			// combiner 노드의 부모인 root 노드의 주소를 뽑아옴
 		else {
 			if (of_irq_workarounds & OF_IMAP_NO_PHANDLE)
 				p = of_node_get(of_irq_dflt_pic);
@@ -71,7 +78,10 @@ struct device_node *of_irq_find_parent(struct device_node *child)
 				p = of_find_node_by_phandle(be32_to_cpup(parp));
 		}
 		of_node_put(child);
+		// NULL 함수
+
 		child = p;
+		// child : root 노드가 됨
 	} while (p && of_get_property(p, "#interrupt-cells", NULL) == NULL);
 
 	return p;
@@ -425,6 +435,7 @@ struct intc_desc {
  * This function scans the device tree for matching interrupt controller nodes,
  * and calls their initialization functions in order with parents first.
  */
+// matches : &irqchip_of_match_exynos4210_combiner 
 void __init of_irq_init(const struct of_device_id *matches)
 {
 	struct device_node *np, *parent = NULL;
@@ -433,19 +444,31 @@ void __init of_irq_init(const struct of_device_id *matches)
 
 	INIT_LIST_HEAD(&intc_desc_list);
 	INIT_LIST_HEAD(&intc_parent_list);
+	// 리스트 head 초기화
 
+	// matches : &irqchip_of_match_exynos4210_combiner
 	for_each_matching_node(np, matches) {
+	// for (np = of_find_matching_node(NULL, matches); np; np = of_find_matching_node(np, matches))
+	
+		// np : matches에 일치하는 디바이스 노드의 주소
 		if (!of_find_property(np, "interrupt-controller", NULL))
+		// of_find_property() : interrupt-contoller 속성 구조체의 주소를 반환
 			continue;
+
 		/*
 		 * Here, we allocate and populate an intc_desc with the node
 		 * pointer, interrupt-parent device_node etc.
 		 */
+		// sizeof(*desc) : 16, GFP_KERNEL
 		desc = kzalloc(sizeof(*desc), GFP_KERNEL);
+		// 슬랩에서 16바이트에 맞는 오브젝트를 빼와서
+		// 그 주소를 desc에 저장함
 		if (WARN_ON(!desc))
 			goto err;
 
 		desc->dev = np;
+		// desc->dev에 찾아낸 노드의 주소 저장
+
 		desc->interrupt_parent = of_irq_find_parent(np);
 		if (desc->interrupt_parent == np)
 			desc->interrupt_parent = NULL;

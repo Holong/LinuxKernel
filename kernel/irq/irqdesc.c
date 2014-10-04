@@ -22,11 +22,16 @@
  */
 static struct lock_class_key irq_desc_lock_class;
 
-#if defined(CONFIG_SMP)
+#if defined(CONFIG_SMP)	// Y
 static void __init init_irq_default_affinity(void)
 {
+	// irq_default_affinity : cpumask_var_t형 전역변수
 	alloc_cpumask_var(&irq_default_affinity, GFP_NOWAIT);
+	// 하는 일 없음
+	
 	cpumask_setall(irq_default_affinity);
+	// irq_default_affinity->bits[0] : 0xF
+	// CPU 개수만큼 비트가 설정됨
 }
 #else
 static void __init init_irq_default_affinity(void)
@@ -35,12 +40,15 @@ static void __init init_irq_default_affinity(void)
 #endif
 
 #ifdef CONFIG_SMP
+// desc : kmem_cache#28-o0, gfp : GFP_KERNEL, node : 0
 static int alloc_masks(struct irq_desc *desc, gfp_t gfp, int node)
 {
+	// desc->irq_data.affinity : kmem_cache#28-o0.irq_data.affinity
+	// gfp : GFP_KERNEL, node : 0
 	if (!zalloc_cpumask_var_node(&desc->irq_data.affinity, gfp, node))
 		return -ENOMEM;
 
-#ifdef CONFIG_GENERIC_PENDING_IRQ
+#ifdef CONFIG_GENERIC_PENDING_IRQ	// N
 	if (!zalloc_cpumask_var_node(&desc->pending_mask, gfp, node)) {
 		free_cpumask_var(desc->irq_data.affinity);
 		return -ENOMEM;
@@ -49,11 +57,18 @@ static int alloc_masks(struct irq_desc *desc, gfp_t gfp, int node)
 	return 0;
 }
 
+// desc : 할당받은 irq_desc, node : 0
 static void desc_smp_init(struct irq_desc *desc, int node)
 {
+	// node : 0
 	desc->irq_data.node = node;
+	// 멤버 값 초기화
+	
+	// irq_default_affinity.bits[0] : 4
 	cpumask_copy(desc->irq_data.affinity, irq_default_affinity);
-#ifdef CONFIG_GENERIC_PENDING_IRQ
+	// desc->irq_data.affinity : irq_default_affinity 값을 대입
+	
+#ifdef CONFIG_GENERIC_PENDING_IRQ	// N
 	cpumask_clear(desc->pending_mask);
 #endif
 }
@@ -70,41 +85,74 @@ static inline void desc_smp_init(struct irq_desc *desc, int node) { }
 static inline int desc_node(struct irq_desc *desc) { return 0; }
 #endif
 
+// irq : 0, desc : 할당받은 irq_desc 구조체의 주소, node : 0, owner : NULL
 static void desc_set_defaults(unsigned int irq, struct irq_desc *desc, int node,
 		struct module *owner)
 {
 	int cpu;
 
+	// irq : 0 
 	desc->irq_data.irq = irq;
+	// 인터럽트 번호
+	
+	// no_irq_chip : 미리 준비되어 있는 초기화 값
 	desc->irq_data.chip = &no_irq_chip;
 	desc->irq_data.chip_data = NULL;
 	desc->irq_data.handler_data = NULL;
 	desc->irq_data.msi_desc = NULL;
+	// desc->irq_data 값을 초기화 해 줌
+	
+	// desc : 할당받은 irq_desc, ~0, _IRQ_DEFAULT_INIT_FLAGS : 0xC00
 	irq_settings_clr_and_set(desc, ~0, _IRQ_DEFAULT_INIT_FLAGS);
+	// desc->status_use_accessors : 0xC00로 설정됨
+	
+	// desc->irq_data, IRQD_IRQ_DISABLED
 	irqd_set(&desc->irq_data, IRQD_IRQ_DISABLED);
+	// desc->irq_data.status_use_accessors : IRQD_IRQ_DISABLED
+	
 	desc->handle_irq = handle_bad_irq;
+	// desc->handle_irq : handle_bad_irq 함수 포인터 저장
+	
 	desc->depth = 1;
 	desc->irq_count = 0;
 	desc->irqs_unhandled = 0;
 	desc->name = NULL;
+	
+	// owner : NULL
 	desc->owner = owner;
+	// desc 멤버들 초기화
+	
 	for_each_possible_cpu(cpu)
 		*per_cpu_ptr(desc->kstat_irqs, cpu) = 0;
+	// 이전에 할당받아 kstat_irqs에 연결해둔 int percpu 변수를 전부 0으로 초기화
+	
+	// desc : 할당받은 irq_desc, node : 0
 	desc_smp_init(desc, node);
+	// desc->irq_data.node 멤버 값 초기화
+	// desc->irq_data.affinity : 0xF로 초기화
 }
 
 int nr_irqs = NR_IRQS;
 EXPORT_SYMBOL_GPL(nr_irqs);
 
 static DEFINE_MUTEX(sparse_irq_lock);
+// IRQ_BITMAP_BITS : 8212
 static DECLARE_BITMAP(allocated_irqs, IRQ_BITMAP_BITS);
+// long 257개짜리 배열 생성
 
 #ifdef CONFIG_SPARSE_IRQ
 
 static RADIX_TREE(irq_desc_tree, GFP_KERNEL);
+// struct radix_tree_root irq_desc_tree = {
+// 	.height = 0,
+//	.gfp_mask = GFP_KERNEL,
+//	.rnode = NULL
+// }
 
+// irq : 0, desc : 할당받은 irq_desc 주소
 static void irq_insert_desc(unsigned int irq, struct irq_desc *desc)
 {
+	// &irq_desc_tree, irq : 0, desc : 할당받은 irq_desc 주소
 	radix_tree_insert(&irq_desc_tree, irq, desc);
 }
 
@@ -131,26 +179,45 @@ static void free_masks(struct irq_desc *desc)
 static inline void free_masks(struct irq_desc *desc) { }
 #endif
 
+// irq : 0, node : 0, owner : NULL
 static struct irq_desc *alloc_desc(int irq, int node, struct module *owner)
 {
 	struct irq_desc *desc;
 	gfp_t gfp = GFP_KERNEL;
 
+	// sizeof(*desc) : 156, gfp : GFP_KERNEL, node : 0
 	desc = kzalloc_node(sizeof(*desc), gfp, node);
+	// desc : kmalloc_caches[2].node[0]에서 관리하는 partial에서 가져온 object
+	// struct irq_desc의 크기를 이용해서 kmalloc_caches 중에 적절한 곳을 찾은 뒤
+	// 그 곳에 연결되어 있는 free object 중에 하나를 할당받아옴
+	
 	if (!desc)
 		return NULL;
+
 	/* allocate based on nr_cpu_ids */
 	desc->kstat_irqs = alloc_percpu(unsigned int);
+	// percpu 공간에서 int를 새로 할당한 뒤, 그 주소를 반환
+	// 그 값을 desc->kstat_irqs에 저장함
+	
 	if (!desc->kstat_irqs)
 		goto err_desc;
 
+	// desc, gfp : GFP_KERNEL, node : 0
 	if (alloc_masks(desc, gfp, node))
+	// alloc_masks() :
+	// kmem_cache#28-o0.irq_data.affinity의 하위 4비트를 0으로 클리어
+	// 0을 반환함
 		goto err_kstat;
 
 	raw_spin_lock_init(&desc->lock);
+	// 스핀락 초기화
+	
 	lockdep_set_class(&desc->lock, &irq_desc_lock_class);
+	// NULL 함수
 
+	// irq : 0, desc : 할당받은 irq_desc 구조체의 주소, node : 0, owner : NULL
 	desc_set_defaults(irq, desc, node, owner);
+	// irq_desc 구조체 내부 초기화 작업 수행
 
 	return desc;
 
@@ -212,30 +279,59 @@ static int irq_expand_nr_irqs(unsigned int nr)
 
 int __init early_irq_init(void)
 {
+	// first_online_node : 0
 	int i, initcnt, node = first_online_node;
+	// node : 0
+	
 	struct irq_desc *desc;
 
 	init_irq_default_affinity();
+	// irq_default_affinity->bits[0] : 0xF
+	// 로 설정됨
 
 	/* Let arch update nr_irqs and return the nr of preallocated irqs */
 	initcnt = arch_probe_nr_irqs();
+	// initcnt : 16
+	// machine_desc에 설정되어 있는 값이 있는지 확인한 뒤, 적절한 값을 반환함
+	// 현재 타겟용 machine_desc에는 설정된 값이 없었기 때문에 NR_IRQS의 값을 가져옴
+	
 	printk(KERN_INFO "NR_IRQS:%d nr_irqs:%d %d\n", NR_IRQS, nr_irqs, initcnt);
+	// "NR_IRQS:16 nr_irqs:16 16"
 
+	// nr_irqs : 16, IRQ_BITMAP_BITS : 8212
 	if (WARN_ON(nr_irqs > IRQ_BITMAP_BITS))
 		nr_irqs = IRQ_BITMAP_BITS;
+	// 통과
 
+	// initcnt : 16, IRQ_BITMAP_BITS : 8212
 	if (WARN_ON(initcnt > IRQ_BITMAP_BITS))
 		initcnt = IRQ_BITMAP_BITS;
+	// 통과
 
+	// initcnt : 16, nr_irqs : 16
 	if (initcnt > nr_irqs)
 		nr_irqs = initcnt;
+	// 통과
 
+	// initcnt : 16
 	for (i = 0; i < initcnt; i++) {
+		// i : 0, node : 0
 		desc = alloc_desc(i, node, NULL);
+		// 새로운 irq_desc를 슬랩에서 할당 받은 뒤,
+		// 내부 초기화 작업 수행하고 그 주소를 반환함
+		
 		set_bit(i, allocated_irqs);
+		// allocated_irqs의 0번째 비트를 1로 설정
+
+		// i : 0, desc : 할당받은 irq_desc
 		irq_insert_desc(i, desc);
+		// irq_desc_tree에 desc를 삽입함
 	}
+	// 위 동작을 irq 0 ~ irq 15에 대해 수행
+	
 	return arch_early_irq_init();
+	// 항상 0 반환
+	// 수행 하는 동작 없음
 }
 
 #else /* !CONFIG_SPARSE_IRQ */

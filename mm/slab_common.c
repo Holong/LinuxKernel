@@ -295,6 +295,8 @@ out_locked:
 }
 
 // name : "idr_layer_cache", size : sizeof(struct idr_layer), align : 0, flags : SLAB_PANIC, ctor : NULL
+// name : "radix_tree_node", size : sizeof(struct radix_tree_node),
+// align : 0, flags : SLAB_PANIC | SLAB_RECLAIM_ACCOUNT, ctor : radix_tree_node_ctor
 struct kmem_cache *
 kmem_cache_create(const char *name, size_t size, size_t align,
 		  unsigned long flags, void (*ctor)(void *))

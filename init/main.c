@@ -665,11 +665,26 @@ asmlinkage void __init start_kernel(void)
 	// 그 구조체의 주소를 idr_layer_cache에 저장함
 	
 	rcu_init();
+	// rcu와 관련된 자료 초기화
+	// rcu_bh_state, rcu_sched_state, rcu_preempt_state
+	// 를 초기화 하였음
+
 	tick_nohz_init();
+	// NULL 함수
+	
 	context_tracking_init();
+	// NULL 함수
+	
 	radix_tree_init();
+	// struct radix_tree_node용 kmem_cache를 만들어 줌
+	// height_to_maxindex를 설정하고,
+	// 새로운 notifier_block을 생성한 뒤, cpu_chain에 연결
+	
 	/* init some links before init_ISA_irqs() */
 	early_irq_init();
+	// irq_desc 16개를 할당받고 초기화 수행
+	// 이를 irq_desc_tree에 삽입
+	
 	init_IRQ();
 	tick_init();
 	init_timers();

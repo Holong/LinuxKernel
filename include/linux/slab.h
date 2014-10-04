@@ -257,6 +257,7 @@ extern struct kmem_cache *kmalloc_dma_caches[KMALLOC_SHIFT_HIGH + 1];
  * n = 2^(n-1) .. 2^n -1
  */
 // size : 512
+// size : 156
 static __always_inline int kmalloc_index(size_t size)
 {
 	if (!size)
@@ -313,9 +314,12 @@ static __always_inline void *__kmalloc_node(size_t size, gfp_t flags, int node)
 }
 
 // [P] s : &boot_kmem_cache_node, flags : GFP_KERNEL, node : 0
+// s : kmalloc_caches[2] : kmem_cache#28, flags :GFP_KERNEL | __GFP_ZERO, node : 0
 static __always_inline void *kmem_cache_alloc_node(struct kmem_cache *s, gfp_t flags, int node)
 {
+	// s : kmalloc_caches[2] : kmem_cache#28, flags :GFP_KERNEL | __GFP_ZERO
 	return kmem_cache_alloc(s, flags);
+	// ret : kmalloc_caches[2].node[0]에서 관리하는 partial에서 가져온 object
 }
 #endif
 
@@ -346,12 +350,17 @@ static __always_inline void *kmem_cache_alloc_trace(struct kmem_cache *s,
 	// kmem_cache#6-o1이 반환됨
 }
 
+// s : kmalloc_caches[2] : kmem_cache#28,
+// gfpflags :GFP_KERNEL | __GFP_ZERO, node : 0, size : 156
 static __always_inline void *
 kmem_cache_alloc_node_trace(struct kmem_cache *s,
 			      gfp_t gfpflags,
 			      int node, size_t size)
 {
+	// s : kmalloc_caches[2] : kmem_cache#28,
+	// gfpflags :GFP_KERNEL | __GFP_ZERO, node : 0
 	return kmem_cache_alloc_node(s, gfpflags, node);
+	// ret : kmalloc_caches[2].node[0]에서 관리하는 partial에서 가져온 object
 }
 #endif /* CONFIG_TRACING */
 
@@ -490,18 +499,28 @@ static __always_inline int kmalloc_size(int n)
 	return 0;
 }
 
+// size : 156, flags : GFP_KERNEL | __GFP_ZERO, node : 0
 static __always_inline void *kmalloc_node(size_t size, gfp_t flags, int node)
 {
-#ifndef CONFIG_SLOB
+#ifndef CONFIG_SLOB	// N
+
+	// KMALLOC_MAX_CACHE_SIZE : 8K
 	if (__builtin_constant_p(size) &&
 		size <= KMALLOC_MAX_CACHE_SIZE && !(flags & GFP_DMA)) {
+		
+		// size : 156
 		int i = kmalloc_index(size);
+		// i : 2 
 
 		if (!i)
 			return ZERO_SIZE_PTR;
 
+		// kmalloc_caches[2] : kmem_cache#28,
+		// flags :GFP_KERNEL | __GFP_ZERO, node : 0, size : 156
 		return kmem_cache_alloc_node_trace(kmalloc_caches[i],
 						flags, node, size);
+		// ret : kmalloc_caches[2].node[0]에서 관리하는
+		// partial에서 가져온 object
 	}
 #endif
 	return __kmalloc_node(size, flags, node);
@@ -645,6 +664,7 @@ static inline void *kmem_cache_zalloc(struct kmem_cache *k, gfp_t flags)
  * @flags: the type of memory to allocate (see kmalloc).
  */
 // size : 512, flags : GFP_KERNEL
+// size : 16, flags : GFP_KERNEL
 static inline void *kzalloc(size_t size, gfp_t flags)
 {
 	return kmalloc(size, flags | __GFP_ZERO);
@@ -658,9 +678,12 @@ static inline void *kzalloc(size_t size, gfp_t flags)
  * @flags: the type of memory to allocate (see kmalloc).
  * @node: memory node from which to allocate
  */
+// size : sizeof(*desc) 156, flags : GFP_KERNEL, node : 0
 static inline void *kzalloc_node(size_t size, gfp_t flags, int node)
 {
+	// size : 156, flags : GFP_KERNEL | __GFP_ZERO, node : 0
 	return kmalloc_node(size, flags | __GFP_ZERO, node);
+	// ret : kmalloc_caches[2].node[0]에서 관리하는 partial에서 가져온 object
 }
 
 /*

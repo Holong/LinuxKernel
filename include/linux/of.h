@@ -186,12 +186,17 @@ extern struct device_node *of_find_matching_node_and_match(
 	struct device_node *from,
 	const struct of_device_id *matches,
 	const struct of_device_id **match);
+
+// from : NULL, matches : &irqchip_of_match_exynos4210_combiner
 static inline struct device_node *of_find_matching_node(
 	struct device_node *from,
 	const struct of_device_id *matches)
 {
+	// from : NULL, matches : &irqchip_of_match_exynos4210_combiner
 	return of_find_matching_node_and_match(from, matches, NULL);
+	// matches에 알맞는 디바이스 노드를 반환
 }
+
 #define for_each_matching_node(dn, matches) \
 	for (dn = of_find_matching_node(NULL, matches); dn; \
 	     dn = of_find_matching_node(dn, matches))
