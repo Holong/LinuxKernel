@@ -74,7 +74,7 @@ struct of_phandle_args {
 	uint32_t args[MAX_PHANDLE_ARGS];
 };
 
-#ifdef CONFIG_OF_DYNAMIC
+#ifdef CONFIG_OF_DYNAMIC	// N
 extern struct device_node *of_node_get(struct device_node *node);
 extern void of_node_put(struct device_node *node);
 #else /* CONFIG_OF_DYNAMIC */

@@ -67,15 +67,22 @@ struct device_node *of_irq_find_parent(struct device_node *child)
 		parp = of_get_property(child, "interrupt-parent", NULL);
 		// parp : NULL
 		// combiner 노드에 interrupt-parent 속성이 존재하지 않음
+		// 
+		// 두 번째 순회 시, root 노드에 interrupt-parent 속성이 존재함
+		// gic 노드의 주소가 반환됨
 		if (parp == NULL)
 			// child : combiner 노드의 주소
 			p = of_get_parent(child);
 			// combiner 노드의 부모인 root 노드의 주소를 뽑아옴
 		else {
+			// of_irq_workarounds : 0
+			// OF_IMAP_NO_PHANDLE : 0x00000002
 			if (of_irq_workarounds & OF_IMAP_NO_PHANDLE)
 				p = of_node_get(of_irq_dflt_pic);
 			else
+				// 이 쪽으로 진입함
 				p = of_find_node_by_phandle(be32_to_cpup(parp));
+				// p : gic 노드의 주소
 		}
 		of_node_put(child);
 		// NULL 함수
@@ -85,6 +92,7 @@ struct device_node *of_irq_find_parent(struct device_node *child)
 	} while (p && of_get_property(p, "#interrupt-cells", NULL) == NULL);
 
 	return p;
+	// p : gic 노드의 주소
 }
 
 /**
@@ -470,10 +478,23 @@ void __init of_irq_init(const struct of_device_id *matches)
 		// desc->dev에 찾아낸 노드의 주소 저장
 
 		desc->interrupt_parent = of_irq_find_parent(np);
+		// gic 주소가 저장됨
+		// 현재 노드의 interrupt-parent 노드의 주소를 뽑아옴
+		// 일단 자기 자신에게 interrupt-parent 속성이 있는지 확인하고
+		// 없으면 부모로 하나씩 올라가면서 부모에게 interrupt-parent가 있는지 확인
+		// 있는 경우 그 주소를 가져옴
+
+		// desc->interrupt_parent : NULL
+		// np : combiner 노드 주소
 		if (desc->interrupt_parent == np)
 			desc->interrupt_parent = NULL;
 		list_add_tail(&desc->list, &intc_desc_list);
+		// desc를 intc_desc_list에 연결함
 	}
+	// 노드들 중,  interrupt-controller를 가지고 있는 모든 노드에 대해
+	// 동일 작업 수행
+	// gic의 경우 interrupt_parent가 NULL이 되어 root 컨트롤러가 됨
+
 
 	/*
 	 * The root irq controller is the one without an interrupt-parent.
@@ -493,9 +514,12 @@ void __init of_irq_init(const struct of_device_id *matches)
 
 			if (desc->interrupt_parent != parent)
 				continue;
+			// desc가 gic에 대한 것일 때 아래로 진행됨
 
 			list_del(&desc->list);
 			match = of_match_node(matches, desc->dev);
+			// match : irqchip_of_match_cortex_a15_gic 
+
 			if (WARN(!match->data,
 			    "of_irq_init: no init function for %s\n",
 			    match->compatible)) {

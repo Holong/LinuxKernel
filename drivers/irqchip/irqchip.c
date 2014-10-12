@@ -26,12 +26,31 @@ extern struct of_device_id __irqchip_begin[];
 
 void __init irqchip_init(void)
 {
-	// __irqchip_begin : 섹션을 이용해 만들어진 배열임
-	// 배열에는 원소가 하나 밖에 없음
+	// __irqchip_begin : 섹션을 이용해 만들어진 배열이며 IRQCHIP_DECLARE로 만들어짐
 	// IRQCHIP_DECLARE(exynos4210_combiner, "samsung,exynos4210-combiner", combiner_of_init)으로 만들어진 것
 	// static const struct of_device_id irqchip_of_match_exynos4210_combiner __used __section(__irqchip_of_table) = {
 	// 	.compatible = "samsung,exynos4210-combiner",
 	// 	.data = combiner_of_init
+	// }
+	// IRQCHIP_DECLARE(cortex_a15_gic, "arm,cortex-a15-gic", gic_of_init);
+	// static const struct of_device_id irqchip_of_match_cortex_a15_gic __used __section(__irqchip_of_table) = {
+	// 	.compatible = "arm,cortex-a15-gic",
+	// 	.data = gic_of_init
+	// }
+	// IRQCHIP_DECLARE(cortex_a9_gic, "arm,cortex-a9-gic", gic_of_init);
+	// static const struct of_device_id irqchip_of_match_cortex_a9_gic __used __section(__irqchip_of_table) = {
+	// 	.compatible = "arm,cortex-a9-gic",
+	// 	.data = gic_of_init
+	// }
+	// IRQCHIP_DECLARE(msm_8660_qgic, "qcom,msm-8660-qgic", gic_of_init);
+	// static const struct of_device_id irqchip_of_match_msm_8660_qgic __used __section(__irqchip_of_table) = {
+	// 	.compatible = "qcom,msm-8660-qgic",
+	// 	.data = gic_of_init
+	// }
+	// IRQCHIP_DECLARE(msm_qgic2, "qcom,msm-qgic2", gic_of_init);
+	// static const struct of_device_id irqchip_of_match_msm_qgic2 __used __section(__irqchip_of_table) = {
+	// 	.compatible = "qcom,msm-qgic2",
+	// 	.data = gic_of_init
 	// }
 	of_irq_init(__irqchip_begin);
 }

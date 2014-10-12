@@ -906,11 +906,20 @@ struct device_node *of_find_node_by_phandle(phandle handle)
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&devtree_lock, flags);
+	// 스핀락 획득
+	
 	for (np = of_allnodes; np; np = np->allnext)
 		if (np->phandle == handle)
 			break;
+	// np : gic 노드
+	// gic의 np->phandle에는 자기 자신의 주소가 들어가 있음
+	
 	of_node_get(np);
+	// NULL 함수
+	
 	raw_spin_unlock_irqrestore(&devtree_lock, flags);
+	// 스핀락 해제
+	
 	return np;
 }
 EXPORT_SYMBOL(of_find_node_by_phandle);
