@@ -974,6 +974,7 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 #ifdef CONFIG_OF
 static int gic_cnt __initdata;
 
+// node : gic 노드의 주소, parent : NULL
 int __init gic_of_init(struct device_node *node, struct device_node *parent)
 {
 	void __iomem *cpu_base;
@@ -983,7 +984,9 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 
 	if (WARN_ON(!node))
 		return -ENODEV;
+	// 통과
 
+	// node : gic 노드의 주소, 0
 	dist_base = of_iomap(node, 0);
 	WARN(!dist_base, "unable to map gic dist registers\n");
 

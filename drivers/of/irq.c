@@ -491,10 +491,13 @@ void __init of_irq_init(const struct of_device_id *matches)
 		list_add_tail(&desc->list, &intc_desc_list);
 		// desc를 intc_desc_list에 연결함
 	}
-	// 노드들 중,  interrupt-controller를 가지고 있는 모든 노드에 대해
+	// matches와 일치하는 노드들 중, dtb의 compatible과 일치하는 노드에 대해
 	// 동일 작업 수행
+	// 결국 intc_desc_list에 2개의 노드가 연결됨
+	// 	.compatible = "samsung,exynos4210-combiner",
+	// 	.compatible = "arm,cortex-a15-gic",
+	// 	인 노드 2개가 연결됨
 	// gic의 경우 interrupt_parent가 NULL이 되어 root 컨트롤러가 됨
-
 
 	/*
 	 * The root irq controller is the one without an interrupt-parent.
@@ -517,7 +520,14 @@ void __init of_irq_init(const struct of_device_id *matches)
 			// desc가 gic에 대한 것일 때 아래로 진행됨
 
 			list_del(&desc->list);
+			// intc_desc_list에서 gic 노드 제거
+			
+			// matches : __irqchip_begin 배열
+			// desc->dev : gic 노드의 주소
 			match = of_match_node(matches, desc->dev);
+			// of_match_node()
+			// matches 배열에서 desc->dev와 compatible이 일치하는 원소를 뽑아옴
+			//
 			// match : irqchip_of_match_cortex_a15_gic 
 
 			if (WARN(!match->data,
@@ -526,11 +536,18 @@ void __init of_irq_init(const struct of_device_id *matches)
 				kfree(desc);
 				continue;
 			}
+			// 통과
 
 			pr_debug("of_irq_init: init %s @ %p, parent %p\n",
 				 match->compatible,
 				 desc->dev, desc->interrupt_parent);
+			// 통과
+
+			// match->data : gic_of_init (함수 포인터)
 			irq_init_cb = (of_irq_init_cb_t)match->data;
+			// irq_init_cb : gic_of_init
+
+			// desc->dev : gic 노드의 주소, desc->interrupt_parent : NULL
 			ret = irq_init_cb(desc->dev, desc->interrupt_parent);
 			if (ret) {
 				kfree(desc);

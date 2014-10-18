@@ -50,6 +50,8 @@ LIST_HEAD(static_vmlist);
 // PMU  : 0xf8180000 +  64kB  PA:0x10040000
 // SRAM : 0xf8400000 +   4kB  PA:0x02020000
 // ROMC : 0xf84c0000 +   4kB  PA:0x12250000
+
+// paddr : 0x10481000, size : 0x1000, mtype : MT_DEVICE
 static struct static_vm *find_static_vm_paddr(phys_addr_t paddr,
 			size_t size, unsigned int mtype)
 {
@@ -57,18 +59,31 @@ static struct static_vm *find_static_vm_paddr(phys_addr_t paddr,
 	struct vm_struct *vm;
 
 	list_for_each_entry(svm, &static_vmlist, list) {
+		// static_vmlist에 연결되어 있는 static_vm을 하나씩 뽑아옴
+
+		// svm : SYSC의 svm
 		vm = &svm->vm;
+		// static_vm의 vm 추출
+		// vm->address : 0xF6100000, vm->size : 0x10000, vm->phys_addr : 0x10050000
+		// vm->flags : VM_IOREMAP | VM_ARM_STATIC_MAPPING
+
 		if (!(vm->flags & VM_ARM_STATIC_MAPPING))
 			continue;
 		if ((vm->flags & VM_ARM_MTYPE_MASK) != VM_ARM_MTYPE(mtype))
 			continue;
+		// 둘 다 통과
 
+		// vm->phys_addr : 0x10050000, paddr : 0x10481000, size : 0x1000
+		// vm->size : 0x10000
 		if (vm->phys_addr > paddr ||
 			paddr + size - 1 > vm->phys_addr + vm->size - 1)
 			continue;
+		// vm이 관리하는 영역에 현재 paddr + size 영역이 포함될 때
+		// continue로 빠지지 않음
 
 		return svm;
 	}
+	// static_vmlist에 등록된 영역 중에 해당하는 영역이 없음
 
 	return NULL;
 }
@@ -299,6 +314,7 @@ remap_area_supersections(unsigned long virt, unsigned long pfn,
 }
 #endif
 
+// pfn : 0x10481, offset : 0, size : 0x1000, mtype : MT_DEVICE, caller : 복귀 주소
 void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
 	unsigned long offset, size_t size, unsigned int mtype, void *caller)
 {
@@ -306,32 +322,46 @@ void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
 	int err;
 	unsigned long addr;
 	struct vm_struct *area;
-	phys_addr_t paddr = __pfn_to_phys(pfn);
 
-#ifndef CONFIG_ARM_LPAE
+	// pfn : 0x10481
+	phys_addr_t paddr = __pfn_to_phys(pfn);
+	// paddr : 0x10481000
+
+#ifndef CONFIG_ARM_LPAE	// N
 	/*
 	 * High mappings must be supersection aligned
 	 */
+	// pfn : 0x10481
+	// SUPERSECTION_MASK : 0xFF000000
+	// ~SUPERSECTION_MASK : 0x00FFFFFF
 	if (pfn >= 0x100000 && (paddr & ~SUPERSECTION_MASK))
 		return NULL;
 #endif
 
+	// mtype : MT_DEVICE
 	type = get_mem_type(mtype);
+	// type : &mem_types[MT_DEVICE]
 	if (!type)
 		return NULL;
 
 	/*
 	 * Page align the mapping size, taking account of any offset.
 	 */
+	// offset : 0, size : 0x1000
 	size = PAGE_ALIGN(offset + size);
+	// size : 0x1000
 
 	/*
 	 * Try to reuse one of the static mapping whenever possible.
 	 */
+	// size : 0x1000, sizeof(phys_addr_t) : 4, pfn : 0x10481
 	if (size && !(sizeof(phys_addr_t) == 4 && pfn >= 0x100000)) {
 		struct static_vm *svm;
 
+		// paddr : 0x10481000, size : 0x1000, mtype : MT_DEVICE
 		svm = find_static_vm_paddr(paddr, size, mtype);
+		// svm : NULL
+
 		if (svm) {
 			addr = (unsigned long)svm->vm.addr;
 			addr += paddr - svm->vm.phys_addr;
@@ -375,20 +405,29 @@ void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
 	return (void __iomem *) (offset + addr);
 }
 
+// phys_addr : 0x10481000, size : 0x1000, mtype : MT_DEVICE, caller : 복귀 주소
 void __iomem *__arm_ioremap_caller(phys_addr_t phys_addr, size_t size,
 	unsigned int mtype, void *caller)
 {
 	phys_addr_t last_addr;
+	// PAGE_MASK : 0xFFFFF000
  	unsigned long offset = phys_addr & ~PAGE_MASK;
+	// offset : 0
+	
  	unsigned long pfn = __phys_to_pfn(phys_addr);
+	// pfn : 0x10481
 
  	/*
  	 * Don't allow wraparound or zero size
 	 */
 	last_addr = phys_addr + size - 1;
+	// last_addr : 0x10481FFF
+	
 	if (!size || last_addr < phys_addr)
 		return NULL;
+	// 통과
 
+	// pfn : 0x10481, offset : 0, size : 0x1000, mtype : MT_DEVICE, caller : 복귀 주소
 	return __arm_ioremap_pfn_caller(pfn, offset, size, mtype,
 			caller);
 }
@@ -415,11 +454,14 @@ void __iomem * (*arch_ioremap_caller)(phys_addr_t, size_t,
 				      unsigned int, void *) =
 	__arm_ioremap_caller;
 
+// phys_addr : 0x10481000, size : 0x1000, mtype : MT_DEVICE
 void __iomem *
 __arm_ioremap(phys_addr_t phys_addr, size_t size, unsigned int mtype)
 {
+	// phys_addr : 0x10481000, size : 0x1000, mtype : MT_DEVICE, 복귀 주소
 	return arch_ioremap_caller(phys_addr, size, mtype,
 		__builtin_return_address(0));
+	// __arm_ioremap_caller이 불림
 }
 EXPORT_SYMBOL(__arm_ioremap);
 

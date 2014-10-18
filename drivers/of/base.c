@@ -42,16 +42,22 @@ DEFINE_MUTEX(of_aliases_mutex);
  */
 DEFINE_RAW_SPINLOCK(devtree_lock);
 
+// np : gic 노드의 주소
 int of_n_addr_cells(struct device_node *np)
 {
 	const __be32 *ip;
 
 	do {
+		// np->parent : root 노드의 주소
 		if (np->parent)
 			np = np->parent;
+			// np : root 노드의 주소
 		ip = of_get_property(np, "#address-cells", NULL);
+		// ip : 1
+
 		if (ip)
 			return be32_to_cpup(ip);
+			// return 1
 	} while (np->parent);
 	/* No #address-cells property for the root node */
 	return OF_ROOT_NODE_ADDR_CELLS_DEFAULT;
@@ -1161,16 +1167,21 @@ EXPORT_SYMBOL_GPL(of_property_read_string);
  *
  * The out_string pointer is modified only if a valid string can be decoded.
  */
+// np : gic 노드의 주소, propname : "reg-names", index : 0, output : &name
 int of_property_read_string_index(struct device_node *np, const char *propname,
 				  int index, const char **output)
 {
+	// np : gic 노드의 주소, propname : "reg-names", NULL
 	struct property *prop = of_find_property(np, propname, NULL);
+	// prop : NULL
 	int i = 0;
 	size_t l = 0, total = 0;
 	const char *p;
 
+	// prop : NULL
 	if (!prop)
 		return -EINVAL;
+		// 그냥 리턴됨
 	if (!prop->value)
 		return -ENODATA;
 	if (strnlen(prop->value, prop->length) >= prop->length)
