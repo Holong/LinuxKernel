@@ -229,36 +229,6 @@ static int cpu_notify(unsigned long val, void *v)
 
 static void cpu_notify_nofail(unsigned long val, void *v)
 {
-	ret = raw_notifier_chain_register(&cpu_chain, nb);
-	// cpu_chain에 nb로 넘어오는 notifier_block을 차례대로 연결해둠
-	// 현재는 cpu_chain->head가 slab_notifier를 가리키고, slab_notifier의 next가
-	// page_alloc_cpu_notify_nb를 가리키며, 그 곳의 next는 NULL이 됨
-
-	cpu_maps_update_done();
-	// 뮤텍스 변수 cpu_add_remove_lock의 락을 해제
-	return ret;
-}
-
-static int __cpu_notify(unsigned long val, void *v, int nr_to_call,
-			int *nr_calls)
-{
-	int ret;
-
-	ret = __raw_notifier_call_chain(&cpu_chain, val, v, nr_to_call,
-					nr_calls);
-
-	return notifier_to_errno(ret);
-}
-
-static int cpu_notify(unsigned long val, void *v)
-{
-	return __cpu_notify(val, v, -1, NULL);
-}
-
-#ifdef CONFIG_HOTPLUG_CPU
-
-static void cpu_notify_nofail(unsigned long val, void *v)
-{
 	BUG_ON(cpu_notify(val, v));
 }
 EXPORT_SYMBOL(register_cpu_notifier);
