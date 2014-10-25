@@ -372,16 +372,30 @@ void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
 	/*
 	 * Don't allow RAM to be mapped - this causes problems with ARMv6+
 	 */
+	// pfn : 0x10481
 	if (WARN_ON(pfn_valid(pfn)))
+	// pfn_valid : 0 
+	// 현재 pfn이 memory 영역에 들어가는 지 확인함
 		return NULL;
 
+	// size : 0x1000, VM_IOREMAP : 0x00000001, caller : 복귀 주소
 	area = get_vm_area_caller(size, VM_IOREMAP, caller);
+	// size 정보를 이용해 새로운 vmap_area를 생성하고
+	// vmap_area_root 의 레드 블랙 트리에 새로 삽입함
+	// 그 뒤, vm_struct를 생성하고 그 값을 설정해 준 뒤, 그 주소를 반환
+	
  	if (!area)
  		return NULL;
- 	addr = (unsigned long)area->addr;
-	area->phys_addr = paddr;
 
-#if !defined(CONFIG_SMP) && !defined(CONFIG_ARM_LPAE)
+	// area->addr : 0xF0000000
+ 	addr = (unsigned long)area->addr;
+	// addr : 0xF0000000
+	
+	// paddr : 0x10481000
+	area->phys_addr = paddr;
+	// area->phys_addr : 0x10481000
+
+#if !defined(CONFIG_SMP) && !defined(CONFIG_ARM_LPAE)	// 통과
 	if (DOMAIN_IO == 0 &&
 	    (((cpu_architecture() >= CPU_ARCH_ARMv6) && (get_cr() & CR_XP)) ||
 	       cpu_is_xsc3()) && pfn >= 0x100000 &&
@@ -393,6 +407,10 @@ void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
 		err = remap_area_sections(addr, pfn, size, type);
 	} else
 #endif
+		// 여기부터 수행
+		// addr : 0xF0000000, addr+size : 0xF0001000,
+		// paddr : 0x10481000, 
+		// __pgprot(type->prot_pte) : mem_types[MT_DEVICE].prot_pte
 		err = ioremap_page_range(addr, addr + size, paddr,
 					 __pgprot(type->prot_pte));
 

@@ -1122,21 +1122,31 @@ void __init memblock_enforce_memory_limit(phys_addr_t limit)
 	__memblock_remove(&memblock.reserved, max_addr, (phys_addr_t)ULLONG_MAX);
 }
 
+// type : &memblock.memory, addr : 0x10481000
 static int __init_memblock memblock_search(struct memblock_type *type, phys_addr_t addr)
 {
+	// left : 0
 	unsigned int left = 0, right = type->cnt;
+	// right : 1
 
 	do {
+		// left : 0, right : 1
 		unsigned int mid = (right + left) / 2;
+		// mid : 0
 
+		// addr : 0x10481000
+		// type->regions[0].base : 0x20000000
 		if (addr < type->regions[mid].base)
 			right = mid;
+			// right : 0
 		else if (addr >= (type->regions[mid].base +
 				  type->regions[mid].size))
 			left = mid + 1;
 		else
 			return mid;
 	} while (left < right);
+	
+	// 이 쪽으로 나옴
 	return -1;
 }
 
@@ -1145,9 +1155,12 @@ int __init memblock_is_reserved(phys_addr_t addr)
 	return memblock_search(&memblock.reserved, addr) != -1;
 }
 
+// addr : 0x10481000
 int __init_memblock memblock_is_memory(phys_addr_t addr)
 {
 	return memblock_search(&memblock.memory, addr) != -1;
+	// memblock_search : -1
+	// return 0
 }
 
 #ifdef CONFIG_HAVE_MEMBLOCK_NODE_MAP

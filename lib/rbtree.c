@@ -69,7 +69,7 @@ __rb_rotate_set_parents(struct rb_node *old, struct rb_node *new,
 	__rb_change_child(old, new, parent, root);
 }
 
-// node : &va->rb_node, root : &vmap_area_root
+// node : &va->rb_node(SYSC), root : &vmap_area_root
 // augment_rotate : NULL 함수
 static __always_inline void
 __rb_insert(struct rb_node *node, struct rb_root *root,
@@ -85,6 +85,8 @@ __rb_insert(struct rb_node *node, struct rb_root *root,
 		 * Otherwise, take some corrective action as we don't
 		 * want a red root or two consecutive red nodes.
 		 */
+		// 삽입된 노드가 루트 노드인 경우
+		// 블랙 노드로 바꾸면 됨
 		if (!parent) {
 			rb_set_parent_color(node, NULL, RB_BLACK);
 			break;
@@ -109,6 +111,8 @@ __rb_insert(struct rb_node *node, struct rb_root *root,
 				 * 4) does not allow this, we need to recurse
 				 * at g.
 				 */
+				// 삼촌 노드가 레드일 경우
+				// 부모와 삼촌 노드를 블랙으로 바꾸면 됨
 				rb_set_parent_color(tmp, gparent, RB_BLACK);
 				rb_set_parent_color(parent, gparent, RB_BLACK);
 				node = gparent;
@@ -131,6 +135,9 @@ __rb_insert(struct rb_node *node, struct rb_root *root,
 				 * This still leaves us in violation of 4), the
 				 * continuation into Case 3 will fix that.
 				 */
+				// 삼촌 노드가 블랙이고, 삽입 노드가 부모의 오른쪽인 경우
+				// 왼쪽으로 회전
+				// p-n 사이의 색 문제는 아래에서 해결됨
 				parent->rb_right = tmp = node->rb_left;
 				node->rb_left = parent;
 				if (tmp)
@@ -151,6 +158,7 @@ __rb_insert(struct rb_node *node, struct rb_root *root,
 			 *     /                 \
 			 *    n                   U
 			 */
+			// 
 			gparent->rb_left = tmp;  /* == parent->rb_right */
 			parent->rb_right = gparent;
 			if (tmp)
