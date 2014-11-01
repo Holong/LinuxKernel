@@ -59,9 +59,12 @@ extern void pgd_free(struct mm_struct *mm, pgd_t *pgd);
 
 #define PGALLOC_GFP	(GFP_KERNEL | __GFP_NOTRACK | __GFP_REPEAT | __GFP_ZERO)
 
+// pte : pte 공간의 시작 주소
 static inline void clean_pte_table(pte_t *pte)
 {
+	// PTE_HWTABLE_PTRS : 512, PTE_HWTABLE_SIZE : 2048
 	clean_dcache_area(pte + PTE_HWTABLE_PTRS, PTE_HWTABLE_SIZE);
+	// pte HW 공간의 D 캐시를 전부 삭제해 줌
 }
 
 /*
@@ -80,16 +83,25 @@ static inline void clean_pte_table(pte_t *pte)
  *  |  h/w pt 1  |
  *  +------------+
  */
+// mm : &init_mm, address : 0xF0000000
 static inline pte_t *
 pte_alloc_one_kernel(struct mm_struct *mm, unsigned long addr)
 {
 	pte_t *pte;
 
+	// PGALLOC_GFP : GFP_KERNEL | __GFP_NOTRACK | __GFP_REPEAT | __GFP_ZERO
 	pte = (pte_t *)__get_free_page(PGALLOC_GFP);
+	// __get_free_pages(PGALLOC_GFP, 0) 가 호출됨
+	// page가 관리하는 메모리 공간의 시작 가상 주소가 반환되고
+	// pte에 저장된다
+	
 	if (pte)
 		clean_pte_table(pte);
+		// 캐시 위에 pte 공간이 올라와 있으면 전부 clean 수행
+		// dirty가 있는 경우 메모리에 올려주는 것임
 
 	return pte;
+	// 공간의 시작 주소 반환
 }
 
 static inline pgtable_t
@@ -129,6 +141,9 @@ static inline void pte_free(struct mm_struct *mm, pgtable_t pte)
 }
 
 // pmdp: 0xC0007FF9, pte : reserved 영역에서 확보한 32KB 영역의 물리주소, prot : type->prot_l1
+// 
+// pmdp : 0xC0004780, __pa(ptep) : 확보한 page의 물리 주소
+// PAGE_KERNEL_TABLE PMD_TYPE_TABLE | PMD_BIT4 | PMD_DOMAIN(DOMAIN_KERNEL)
 static inline void __pmd_populate(pmd_t *pmdp, phys_addr_t pte,
 				  pmdval_t prot)
 {
@@ -147,13 +162,18 @@ static inline void __pmd_populate(pmd_t *pmdp, phys_addr_t pte,
  *
  * Ensure that we always set both PMD entries.
  */
+// mm : &init_mm, pmdp : 0xC0004780, ptep : 새로 확보한 page 시작 주소
 static inline void
 pmd_populate_kernel(struct mm_struct *mm, pmd_t *pmdp, pte_t *ptep)
 {
 	/*
 	 * The pmd must be loaded with the physical address of the PTE table
 	 */
+	// pmdp : 0xC0004780, __pa(ptep) : 확보한 page의 물리 주소
+	// PAGE_KERNEL_TABLE PMD_TYPE_TABLE | PMD_BIT4 | PMD_DOMAIN(DOMAIN_KERNEL)
 	__pmd_populate(pmdp, __pa(ptep), _PAGE_KERNEL_TABLE);
+	// 0xC0004780, 0xC0004784에 확보한 pte의 주소를 연결
+	// page table(ARM) 형식임
 }
 
 static inline void

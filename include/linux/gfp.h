@@ -319,6 +319,8 @@ __alloc_pages(gfp_t gfp_mask, unsigned int order,
 	return __alloc_pages_nodemask(gfp_mask, order, zonelist, NULL);
 }
 
+// nid : 0, gfp_mask : GFP_KERNEL | __GFP_NOTRACK | __GFP_REPEAT | __GFP_ZERO
+// order : 0
 static inline struct page *alloc_pages_node(int nid, gfp_t gfp_mask,
 						unsigned int order)
 {
@@ -326,7 +328,10 @@ static inline struct page *alloc_pages_node(int nid, gfp_t gfp_mask,
 	if (nid < 0)
 		nid = numa_node_id();
 
+	// gfp_mask : GFP_KERNEL | __GFP_NOTRACK | __GFP_REPEAT | __GFP_ZERO
+	// order : 0, node_zonelist(nid, gfp_mask) : contig_page_data->node_zonelists
 	return __alloc_pages(gfp_mask, order, node_zonelist(nid, gfp_mask));
+	// 현재 부팅 cpu에 맞는 빈 page가 반환됨
 }
 
 // nid : 0, gfp_mask : __GFP_NOWARN | __GFP_NORETRY | __GFP_NOTRACK & !__GFP_NOFAIL, order : 0

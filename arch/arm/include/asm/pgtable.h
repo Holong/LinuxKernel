@@ -233,17 +233,24 @@ static inline void __sync_icache_dcache(pte_t pteval)
 extern void __sync_icache_dcache(pte_t pteval);
 #endif
 
+// mm : &init_mm, addr : 0xF0000000, ptep : small page가 위치할 주소,
+// pteval : 0x10481653
 static inline void set_pte_at(struct mm_struct *mm, unsigned long addr,
 			      pte_t *ptep, pte_t pteval)
 {
 	unsigned long ext = 0;
 
+	// addr : 0xF0000000, TASK_SIZE : 0xBF000000
+	// pte_present_user(pteval) : 0
 	if (addr < TASK_SIZE && pte_present_user(pteval)) {
 		__sync_icache_dcache(pteval);
 		ext |= PTE_EXT_NG;
 	}
 
+	// ptep : small page가 위치할 주소, pteval : 0x10481653
+	// ext : 0
 	set_pte_ext(ptep, pteval, ext);
+	// second-level table에 적절한 값을 설정해 줌
 }
 
 #define PTE_BIT_FUNC(fn,op) \

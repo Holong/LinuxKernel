@@ -865,5 +865,8 @@ void __iomem *of_iomap(struct device_node *np, int index)
 	return ioremap(res.start, resource_size(&res));
 	// ioremap(0x10481000, 0x1000) 이
 	// __arm_ioremap(0x10481000, 0x1000, MT_DEVICE) 로 바뀜
+	//
+	// 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
+	// return 0xF0000000
 }
 EXPORT_SYMBOL(of_iomap);

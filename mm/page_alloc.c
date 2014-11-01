@@ -3254,6 +3254,7 @@ EXPORT_SYMBOL(__alloc_pages_nodemask);
 /*
  * Common helper functions.
  */
+// gfp_mask : GFP_KERNEL | __GFP_NOTRACK | __GFP_REPEAT | __GFP_ZERO, order : 0
 unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
 {
 	struct page *page;
@@ -3262,12 +3263,22 @@ unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
 	 * __get_free_pages() returns a 32-bit address, which cannot represent
 	 * a highmem page
 	 */
+	// gfp_mask : GFP_KERNEL | __GFP_NOTRACK | __GFP_REPEAT | __GFP_ZERO
 	VM_BUG_ON((gfp_mask & __GFP_HIGHMEM) != 0);
 
+	// gfp_mask : GFP_KERNEL | __GFP_NOTRACK | __GFP_REPEAT | __GFP_ZERO
+	// order : 0
 	page = alloc_pages(gfp_mask, order);
+	// alloc_pages_node(numa_node_id(), gfp_mask, order)가 호출됨
+	// numa_node_id() : 0
+	
+	// 현재 부팅 cpu에 맞는 빈 page가 반환됨
+
 	if (!page)
 		return 0;
+
 	return (unsigned long) page_address(page);
+	// page가 관리하는 메모리 공간의 시작 가상 주소가 반환됨
 }
 EXPORT_SYMBOL(__get_free_pages);
 

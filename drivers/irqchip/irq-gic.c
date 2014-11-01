@@ -988,6 +988,11 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 
 	// node : gic 노드의 주소, 0
 	dist_base = of_iomap(node, 0);
+	// 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
+	// 물리 주소 0x10481000 ~ 0x10481FFF을
+	// 가상 주소 0xF0000000 ~ 0xF0000FFF로 연결
+	// dist_base : 0xF0000000
+	
 	WARN(!dist_base, "unable to map gic dist registers\n");
 
 	cpu_base = of_iomap(node, 1);

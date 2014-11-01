@@ -346,6 +346,7 @@ static struct page_address_slot *page_slot(const struct page *page)
  *
  * Returns the page's virtual address.
  */
+// 빈 page를 관리하는 struct page의 주소
 void *page_address(const struct page *page)
 {
 	unsigned long flags;
@@ -354,6 +355,7 @@ void *page_address(const struct page *page)
 
 	if (!PageHighMem(page))
 		return lowmem_page_address(page);
+	// 실제 page 공간의 가상 주소가 반환됨
 
 	pas = page_slot(page);
 	ret = NULL;

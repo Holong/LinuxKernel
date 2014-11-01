@@ -587,23 +587,43 @@ int __pte_alloc(struct mm_struct *mm, struct vm_area_struct *vma,
 	return 0;
 }
 
+// pmd : 0xC0004780, address : 0xF0000000
 int __pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 {
+	// init_mm, address : 0xF0000000
 	pte_t *new = pte_alloc_one_kernel(&init_mm, address);
+	// pte용 공간을 새로 할당받고 그 시작 주소를 반환함
+	
 	if (!new)
 		return -ENOMEM;
+	// 통과
 
 	smp_wmb(); /* See comment in __pte_alloc */
+	// dmb(ishst)
 
 	spin_lock(&init_mm.page_table_lock);
+	// 스핀락 획득
+	
+	// pmd : 0xC0004780
 	if (likely(pmd_none(*pmd))) {	/* Has another populated it ? */
+		// 이 쪽으로 들어옴
+		// 현재 page table을 만들지 않았기 때문임
+		// second-level table을 위한 공간만 확보해 뒀음
+
+		// init_mm, pmd : 0xC0004780, new : 새로 확보한 page 시작 주소
 		pmd_populate_kernel(&init_mm, pmd, new);
+		// 1차 테이블용 자료 구조를 만들어 줌
+
 		new = NULL;
 	} else
 		VM_BUG_ON(pmd_trans_splitting(*pmd));
 	spin_unlock(&init_mm.page_table_lock);
+	// 스핀락 해제
+	
+	// new : NULL
 	if (new)
 		pte_free_kernel(&init_mm, new);
+	
 	return 0;
 }
 

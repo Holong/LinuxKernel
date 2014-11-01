@@ -413,14 +413,20 @@ void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
 		// __pgprot(type->prot_pte) : mem_types[MT_DEVICE].prot_pte
 		err = ioremap_page_range(addr, addr + size, paddr,
 					 __pgprot(type->prot_pte));
-
+		// 가상주소 0xF0000000 ~ 0xF0001000을 물리주소 0x10481000 ~ 0x10481FFF으로
+		// 매핑시키기 위한 페이지 테이블 생성
+		// err : 0
+		
 	if (err) {
  		vunmap((void *)addr);
  		return NULL;
  	}
 
 	flush_cache_vmap(addr, addr + size);
+	// 캐시 클린
+	
 	return (void __iomem *) (offset + addr);
+	// return 0xF0000000
 }
 
 // phys_addr : 0x10481000, size : 0x1000, mtype : MT_DEVICE, caller : 복귀 주소
@@ -448,6 +454,8 @@ void __iomem *__arm_ioremap_caller(phys_addr_t phys_addr, size_t size,
 	// pfn : 0x10481, offset : 0, size : 0x1000, mtype : MT_DEVICE, caller : 복귀 주소
 	return __arm_ioremap_pfn_caller(pfn, offset, size, mtype,
 			caller);
+	// 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
+	// return 0xF0000000
 }
 
 /*
@@ -480,6 +488,9 @@ __arm_ioremap(phys_addr_t phys_addr, size_t size, unsigned int mtype)
 	return arch_ioremap_caller(phys_addr, size, mtype,
 		__builtin_return_address(0));
 	// __arm_ioremap_caller이 불림
+	//
+	// 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
+	// return 0xF0000000
 }
 EXPORT_SYMBOL(__arm_ioremap);
 
