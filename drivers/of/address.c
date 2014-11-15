@@ -637,7 +637,8 @@ bool of_can_translate_address(struct device_node *dev)
 }
 EXPORT_SYMBOL(of_can_translate_address);
 
-// dev : gic 노드의 주소, index : 0, size : 지역 변수 주소, flags : 지역 변수 주소
+// [0] dev : gic 노드의 주소, index : 0, size : 지역 변수 주소, flags : 지역 변수 주소
+// [1] dev : gic 노드의 주소, index : 1, size : 지역 변수 주소, flags : 지역 변수 주소
 const __be32 *of_get_address(struct device_node *dev, int index, u64 *size,
 		    unsigned int *flags)
 {
@@ -780,7 +781,8 @@ static int __of_address_to_resource(struct device_node *dev,
  * pci_address_to_pio(), that is because it's either called to early or it
  * can't be matched to any host bridge IO space
  */
-// dev : gic 노드의 주소, index : 0, r : res 주소
+// [0] dev : gic 노드의 주소, index : 0, r : res 주소
+// [1] dev : gic 노드의 주소, index : 1, r : res 주소
 int of_address_to_resource(struct device_node *dev, int index,
 			   struct resource *r)
 {
@@ -789,7 +791,8 @@ int of_address_to_resource(struct device_node *dev, int index,
 	unsigned int	flags;
 	const char	*name = NULL;
 
-	// dev : gic 노드의 주소, index : 0
+	// [0] dev : gic 노드의 주소, index : 0
+	// [1] dev : gic 노드의 주소, index : 1
 	addrp = of_get_address(dev, index, &size, &flags);
 	// addrp : gic 노드의 reg 속성 값 시작 주소
 	// size : 0x1000
@@ -845,12 +848,14 @@ struct device_node *of_find_matching_node_by_address(struct device_node *from,
  *
  * Returns a pointer to the mapped memory
  */
-// np : gic 노드의 주소, index : 0
+// [0] np : gic 노드의 주소, index : 0
+// [1] np : gic 노드의 주소, index : 1
 void __iomem *of_iomap(struct device_node *np, int index)
 {
 	struct resource res;
 
-	// np : gic 노드의 주소, index : 0, res : res 주소
+	// [0] np : gic 노드의 주소, index : 0, res : res 주소
+	// [1] np : gic 노드의 주소, index : 1, res : res 주소
 	if (of_address_to_resource(np, index, &res))
 		// of_address_to_resource : np의 reg 값을 해석해 resource 구조체로 변경
 		// return 0

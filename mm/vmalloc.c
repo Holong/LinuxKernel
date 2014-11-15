@@ -335,18 +335,31 @@ static void __insert_vmap_area(struct vmap_area *va)
 	// &va->rb_node : SYSC의 rb_node 멤버 주소, parent : NULL, p : &vmap_area_root.rb_node
 	rb_link_node(&va->rb_node, parent, p);
 	// va->rb_node의 parent color를 parent 변수 값으로 설정해주고, p가 가리키는 곳의 값을 &(va->rb_node)로 변경
+	// 삽입하려는 va->rb_node의 내부 값을 초기화 해줌
+	// 즉 p가 가리키는 곳에 va가 매달리게 됨
 	
 	// &va->rb_node : SYSC의 rb_node 멤버 주소, &vmap_area_root
 	rb_insert_color(&va->rb_node, &vmap_area_root);
+	// va를 vmap_area_root의 rb 트리에 삽입
+	// 회전 + 색 변환 처리 완료됨
 
 	/* address-sort this list */
 	tmp = rb_prev(&va->rb_node);
+	// 자기 자신보다 바로 앞에 있는 노드의 주소를 찾아냄
+	// 없을 경우 NULL 반환
+	
 	if (tmp) {
+		// 자기 이전 노드가 있는 경우 
+		// 이전 노드 다음에 삽입
 		struct vmap_area *prev;
 		prev = rb_entry(tmp, struct vmap_area, rb_node);
 		list_add_rcu(&va->list, &prev->list);
 	} else
+		// 이전 노드가 없을 경우 리스트 제일 앞에 삽입
+		// va->list : (GIC용 vmap_area)->list, vmap_area_list
 		list_add_rcu(&va->list, &vmap_area_list);
+	// vmap_area_list에 va를 리스트 형태로 삽입
+	// 내림차순으로 정리됨
 }
 
 static void purge_vmap_area_lazy(void);
@@ -423,11 +436,19 @@ nocache:
 	
 	/* find starting point for our search */
 	// free_vmap_cache : NULL
+	// free_vmap_cache : GIC->rb_node
 	if (free_vmap_cache) {
 		first = rb_entry(free_vmap_cache, struct vmap_area, rb_node);
+		// first : GIC용 vmap_area
+
 		addr = ALIGN(first->va_end, align);
+		// addr : 0xF0002000
+
+		// addr : 0xF0002000, vstart : 0xF0000000
 		if (addr < vstart)
 			goto nocache;
+
+		// addr + size : 0xF0004000, vstart : 0xF0000000
 		if (addr + size < addr)
 			goto overflow;
 
@@ -476,44 +497,77 @@ nocache:
 	}
 
 	// rb 트리에서 0xF0000000을 찾지 못한 경우
-	// 현재 first : SYSC vmap_area
 	/* from the starting point, walk areas until a suitable hole is found */
 
+	// 첫 번째 first : SYSC vmap_area
 	// addr : 0xF0000000, size : 0x2000, first->va_start : 0xF6100000
 	// vend : 0xFF000000
+	//
+	// 두 번째 first : GIC vmap_area
+	// addr : 0xF0002000, size : 0x2000, first->va_start : 0xF0000000
+	// vend : 0xFF000000
 	while (addr + size > first->va_start && addr + size <= vend) {
+		// 두 번째에는 들어옴
+		// addr : 0xF0002000, cached_hole_size : 0
+		// first->va_start : 0xF0000000
 		if (addr + cached_hole_size < first->va_start)
 			cached_hole_size = first->va_start - addr;
+
 		addr = ALIGN(first->va_end, align);
+		// addr : 0xF0002000
+
+		// addr + size : 0xF0004000, addr : 0xF0002000
 		if (addr + size < addr)
 			goto overflow;
-
+		
 		if (list_is_last(&first->list, &vmap_area_list))
+			// GIC vmap_area가 vmap_area_list의 마지막 노드인지
+			// 확인함.
+			// 여기서는 GIC가 vmap_area_list의 첫 번째 노드이므로
+			// false 반환
 			goto found;
 
 		first = list_entry(first->list.next,
 				struct vmap_area, list);
+		// first : SYSC의 vmap_area
 	}
+	// 위 반복문을 통해 size가 들어갈 수 있는 위치를 찾아봄
+	// 가상 메모리의 시작 주소를 최대한 인자로 넘어온 addr에 맞춰줌
 
 found:
 	// addr : 0xF0000000, size : 0x2000, vend : 0xFF000000
+	//
+	// addr : 0xF0002000, size : 0x2000, vend : 0xFF000000
 	if (addr + size > vend)
 		goto overflow;
 
 	va->va_start = addr;
 	va->va_end = addr + size;
 	va->flags = 0;
-	// va(GIC)
+	// va(GIC#0)
 	// va_start : 0xF0000000
 	// va_end : 0xF0002000
 	// flags : 0
+	//
+	// va(GIC#1)
+	// va_start : 0xF0002000
+	// va_end : 0xF0004000
+	// flags : 0
 	
-	// GIC vmap_area를 삽입
+	// GIC#0 vmap_area를 삽입
+	// 
+	// GIC#1 vmap_area를 삽입
 	__insert_vmap_area(va);
-	// vmap_area_root 의 레드 블랙 트리에 GIC를 새로 삽입함
+	// vmap_area_root 의 레드 블랙 트리에 GIC#0를 새로 삽입함
+	// vmap_area_list 의 리스트에 GIC#0를 새로 삽입함
+	//	
+	// vmap_area_root 의 레드 블랙 트리에 GIC#1를 새로 삽입함
+	// vmap_area_list 의 리스트에 GIC#1를 새로 삽입함
 	
 	free_vmap_cache = &va->rb_node;
-	// free_vmap_cache : GIC->rb_node
+	// free_vmap_cache : GIC#0->rb_node
+	//
+	// free_vmap_cache : GIC#1->rb_node
 	
 	spin_unlock(&vmap_area_lock);
 	// 스핀락 해제
@@ -1328,6 +1382,8 @@ void __init vmalloc_init(void)
 		// tmp : [SYSC : 0xF6100000 + 64KB, PA : 0x10050000]
 
 		__insert_vmap_area(va);
+		// vmap_area_root 의 레드 블랙 트리에 차례대로 노드를 새로 삽입함
+		// vmap_area_list 의 리스트에 차례대로 노드를 새로 삽입함
 	}
 
 	vmap_area_pcpu_hole = VMALLOC_END;
@@ -1450,9 +1506,9 @@ static void clear_vm_uninitialized_flag(struct vm_struct *vm)
 	vm->flags &= ~VM_UNINITIALIZED;
 }
 
-// size : 0x1000, align : 1, flags : VM_IOREMAP(0x00000001)
-// start : VMALLOC_START(0xF0000000), end : VMALLOC_END(0xFF000000),
-// node : NUMA_NO_NODE(-1), gfp_mask : GFP_KERNEL, caller : 복귀 주소
+// [0] size : 0x1000, align : 1, flags : VM_IOREMAP(0x00000001)
+// [0] start : VMALLOC_START(0xF0000000), end : VMALLOC_END(0xFF000000),
+// [0] node : NUMA_NO_NODE(-1), gfp_mask : GFP_KERNEL, caller : 복귀 주소
 static struct vm_struct *__get_vm_area_node(unsigned long size,
 		unsigned long align, unsigned long flags, unsigned long start,
 		unsigned long end, int node, gfp_t gfp_mask, const void *caller)
@@ -1463,24 +1519,24 @@ static struct vm_struct *__get_vm_area_node(unsigned long size,
 	BUG_ON(in_interrupt());
 	// in_interrupt() : 0
 	
-	// flags : VM_IOREMAP
+	// [0] flags : VM_IOREMAP
 	if (flags & VM_IOREMAP)
-		// size : 0x1000, fls(size) : 13, PAGE_SHIFT : 12, IOREMAP_MAX_ORDER : 24
+		// [0] size : 0x1000, fls(size) : 13, PAGE_SHIFT : 12, IOREMAP_MAX_ORDER : 24
 		align = 1ul << clamp(fls(size), PAGE_SHIFT, IOREMAP_MAX_ORDER);
-		// clamp : 13
-		// align : 0x2000
+		// [0] clamp : 13
+		// [0] align : 0x2000
 
-	// size : 0x1000
+	// [0] size : 0x1000
 	size = PAGE_ALIGN(size);
-	// size : 0x1000
+	// [0] size : 0x1000
 	
 	if (unlikely(!size))
 		return NULL;
-	// 통과
+	// [0] 통과
 
-	// sizeof(*area) : 32, gfp_mask : GFP_KERNEL, node : -1
+	// [0] sizeof(*area) : 32, gfp_mask : GFP_KERNEL, node : -1
 	area = kzalloc_node(sizeof(*area), gfp_mask & GFP_RECLAIM_MASK, node);
-	// 슬랩에서 vm_struct용 오브젝트를 하나 받아와 그 주소를 area에 저장함
+	// [0] 슬랩에서 vm_struct용 오브젝트를 하나 받아와 그 주소를 area에 저장함
 	
 	if (unlikely(!area))
 		return NULL;
@@ -1488,31 +1544,41 @@ static struct vm_struct *__get_vm_area_node(unsigned long size,
 	/*
 	 * We always allocate a guard page.
 	 */
+	// [0] size : 0x1000
+	//
 	// size : 0x1000
 	size += PAGE_SIZE;
+	// [0] size : 0x2000
+	// 
 	// size : 0x2000
 
+	// [0] size : 0x2000, align : 0x2000, start : VMALLOC_START(0xF0000000)
+	// [0] end : VMALLOC_END(0xFF000000), node : -1, gfp_mask : GFP_KERNEL
+	//
 	// size : 0x2000, align : 0x2000, start : VMALLOC_START(0xF0000000)
 	// end : VMALLOC_END(0xFF000000), node : -1, gfp_mask : GFP_KERNEL
 	va = alloc_vmap_area(size, align, start, end, node, gfp_mask);
-	// va : GIC vmap_area
+	// [0] va : GIC#0 vmap_area을 위한
+	// [0] 디바이스 매핑 관리용 vmap_area 공간을 할당받고 이를
+	// [0] vmap_area_root 의 레드 블랙 트리에 새로 삽입함
+	//
+	// va : GIC#1 vmap_area을 위한
 	// 디바이스 매핑 관리용 vmap_area 공간을 할당받고 이를
 	// vmap_area_root 의 레드 블랙 트리에 새로 삽입함
-	// 현재는 GIC용 vmap_area를 할당받고 삽입하였음
 
 	if (IS_ERR(va)) {
 		kfree(area);
 		return NULL;
 	}
 
-	// area : vm_struct용 공간, va : GIC vmap_area 공간, flags : GFP_KERNEL
-	// caller : 리턴 주소
+	// [0] area : vm_struct용 공간, va : GIC vmap_area 공간, flags : GFP_KERNEL
+	// [0] caller : 리턴 주소
 	setup_vmalloc_vm(area, va, flags, caller);
-	// vm_struct 내부 값 및 vm_struct를 vmap_area에 등록해 줌
-	// vm->flags : GFP_KERNEL
-	// vm->addr : 0xF0000000
-	// vm->size : 0x2000
-	// vm->caller : caller
+	// [0] vm_struct 내부 값 및 vm_struct를 vmap_area에 등록해 줌
+	// [0] vm->flags : GFP_KERNEL
+	// [0] vm->addr : 0xF0000000
+	// [0] vm->size : 0x2000
+	// [0] vm->caller : caller
 
 	return area;
 }
@@ -1549,18 +1615,19 @@ struct vm_struct *get_vm_area(unsigned long size, unsigned long flags)
 				  __builtin_return_address(0));
 }
 
-// size : 0x1000, flags : VM_IOREMAP(0x00000001), caller : 복귀 주소
+// [0] size : 0x1000, flags : VM_IOREMAP(0x00000001), caller : 복귀 주소
+// [1] size : 0x1000, flags : VM_IOREMAP(0x00000001), caller : 복귀 주소
 struct vm_struct *get_vm_area_caller(unsigned long size, unsigned long flags,
 				const void *caller)
 {
-	// size : 0x1000, 1, flags : VM_IOREMAP(0x00000001)
-	// VMALLOC_START(0xF0000000), VMALLOC_END(0xFF000000),
-	// NUMA_NO_NODE, GFP_KERNEL, caller : 복귀 주소
+	// [0] size : 0x1000, 1, flags : VM_IOREMAP(0x00000001)
+	// [0] VMALLOC_START(0xF0000000), VMALLOC_END(0xFF000000),
+	// [0] NUMA_NO_NODE, GFP_KERNEL, caller : 복귀 주소
 	return __get_vm_area_node(size, 1, flags, VMALLOC_START, VMALLOC_END,
 				  NUMA_NO_NODE, GFP_KERNEL, caller);
-	// size 정보를 이용해 새로운 vmap_area를 생성하고
-	// vmap_area_root 의 레드 블랙 트리에 새로 삽입함
-	// 그 뒤, vm_struct를 생성하고 그 값을 설정해 준 뒤, 그 주소를 반환
+	// [0] size 정보를 이용해 새로운 vmap_area를 생성하고
+	// [0] vmap_area_root 의 레드 블랙 트리에 새로 삽입함
+	// [0] 그 뒤, vm_struct를 생성하고 그 값을 설정해 준 뒤, 그 주소를 반환
 }
 
 /**

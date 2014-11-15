@@ -45,13 +45,20 @@ static inline void INIT_LIST_HEAD_RCU(struct list_head *list)
  * This is only for internal list manipulation where we know
  * the prev/next entries already!
  */
-#ifndef CONFIG_DEBUG_LIST
+#ifndef CONFIG_DEBUG_LIST	// N
+// new : (GIC용 vmap_area)->list, prev : &vmap_area_list, next : SYSC
 static inline void __list_add_rcu(struct list_head *new,
 		struct list_head *prev, struct list_head *next)
 {
 	new->next = next;
 	new->prev = prev;
+	// prev와 next 사이에 삽입
+	
+	// list_next_rcu(prev) : vmap_area_list->next, new : GIC용 list
 	rcu_assign_pointer(list_next_rcu(prev), new);
+	// __rcu_assign_pointer((p), (v), __rcu)
+	// smp_wmb();
+	// (p) = (typeof(*v) __force __rcu *)(v); 
 	next->prev = new;
 }
 #else
@@ -75,8 +82,10 @@ extern void __list_add_rcu(struct list_head *new,
  * the _rcu list-traversal primitives, such as
  * list_for_each_entry_rcu().
  */
+// new : (GIC용 vmap_area)->list, head : &vmap_area_list
 static inline void list_add_rcu(struct list_head *new, struct list_head *head)
 {
+	// new : (GIC용 vmap_area)->list, head : &vmap_area_list, head->next : SYSC
 	__list_add_rcu(new, head, head->next);
 }
 

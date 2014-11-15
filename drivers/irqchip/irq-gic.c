@@ -56,7 +56,7 @@ union gic_base {
 struct gic_chip_data {
 	union gic_base dist_base;
 	union gic_base cpu_base;
-#ifdef CONFIG_CPU_PM
+#ifdef CONFIG_CPU_PM		// Y
 	u32 saved_spi_enable[DIV_ROUND_UP(1020, 32)];
 	u32 saved_spi_conf[DIV_ROUND_UP(1020, 16)];
 	u32 saved_spi_target[DIV_ROUND_UP(1020, 4)];
@@ -65,7 +65,7 @@ struct gic_chip_data {
 #endif
 	struct irq_domain *domain;
 	unsigned int gic_irqs;
-#ifdef CONFIG_GIC_NON_BANKED
+#ifdef CONFIG_GIC_NON_BANKED	// N
 	void __iomem *(*get_base)(union gic_base *);
 #endif
 };
@@ -874,18 +874,25 @@ const struct irq_domain_ops gic_irq_domain_ops = {
 	.xlate = gic_irq_domain_xlate,
 };
 
+// gic_nr : 0, irq_start : -1, dist_base : 0xF0000000, cpu_base : 0xF0002000
+// percpu_offset : 0, node : gic 노드 주소
 void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 			   void __iomem *dist_base, void __iomem *cpu_base,
 			   u32 percpu_offset, struct device_node *node)
 {
 	irq_hw_number_t hwirq_base;
+	// unsigned long 형
 	struct gic_chip_data *gic;
 	int gic_irqs, irq_base, i;
 
+	// gic_nr : 0, MAX_GIC_NR : 1
 	BUG_ON(gic_nr >= MAX_GIC_NR);
+	// 통과
 
 	gic = &gic_data[gic_nr];
-#ifdef CONFIG_GIC_NON_BANKED
+	// gic : &gic_data[0]
+	
+#ifdef CONFIG_GIC_NON_BANKED	// N
 	if (percpu_offset) { /* Frankein-GIC without banked registers... */
 		unsigned int cpu;
 
@@ -906,31 +913,51 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 
 		gic_set_base_accessor(gic, gic_get_percpu_base);
 	} else
-#endif
+#endif	
+	// 위에 부분 통과
 	{			/* Normal, sane GIC... */
 		WARN(percpu_offset,
 		     "GIC_NON_BANKED not enabled, ignoring %08x offset!",
 		     percpu_offset);
+		// 출력 없음
+
+		// gic : &gic_data[0], dist_base : 0xF0000000
 		gic->dist_base.common_base = dist_base;
+		// gic->dist_base.common_base : 0xF0000000
+		
+		// gic : &gic_data[0], cpu_base : 0xF0002000
 		gic->cpu_base.common_base = cpu_base;
+		// gic->cpu_base.common_base : 0xF0002000
+
+		// gic : &gic_data[0], gic_get_common_base : 함수 포인터
 		gic_set_base_accessor(gic, gic_get_common_base);
+		// NULL 함수
 	}
 
 	/*
 	 * Initialize the CPU interface map to all CPUs.
 	 * It will be refined as each CPU probes its ID.
 	 */
+	// NR_GIC_CPU_IF : 8 
 	for (i = 0; i < NR_GIC_CPU_IF; i++)
 		gic_cpu_map[i] = 0xff;
+	// gic_cpu_map[0 ~ 7] : 0xFF 로 초기화
 
 	/*
 	 * For primary GICs, skip over SGIs.
 	 * For secondary GICs, skip over PPIs, too.
-	 */
+	*/
+	// gic_nr : 0, irq_start : -1
+	// irq_start & 31 : 0x1F
 	if (gic_nr == 0 && (irq_start & 31) > 0) {
 		hwirq_base = 16;
+		// hwirq_base : 16
+		
+		// irq_start : -1
 		if (irq_start != -1)
 			irq_start = (irq_start & ~31) + 16;
+		// 통과
+
 	} else {
 		hwirq_base = 32;
 	}
@@ -939,7 +966,16 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 	 * Find out how many interrupts are supported.
 	 * The GIC only supports up to 1020 interrupt sources.
 	 */
+	// gic : &gic_data[0], gic_data_dist_base(gic) : gic->dist_base.common_base => 0xF0000000,
+	// GIC_DIST_CTR : 0x004
 	gic_irqs = readl_relaxed(gic_data_dist_base(gic) + GIC_DIST_CTR) & 0x1f;
+	// readl_relaxed(0xF0000004) : 0xF0000004에서 값을 읽음
+	// 물리 메모리 0x104810004 에서 값을 읽게 됨
+	// 0x0000FC24의 하위 5비트가 gic_irqs에 들어가게 됨
+	// Up to 160 interrupts, 128 external interrupt lines 
+	//
+	// gic_irqs : 0x4
+	
 	gic_irqs = (gic_irqs + 1) * 32;
 	if (gic_irqs > 1020)
 		gic_irqs = 1020;
@@ -995,12 +1031,23 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 	
 	WARN(!dist_base, "unable to map gic dist registers\n");
 
+	// node : gic 노드의 주소, 1
 	cpu_base = of_iomap(node, 1);
+	// 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
+	// 물리 주소 0x10482000 ~ 0x10482FFF을
+	// 가상 주소 0xF0002000 ~ 0xF0002FFF로 연결
+	// cpu_base : 0xF0002000
+	
 	WARN(!cpu_base, "unable to map gic cpu registers\n");
 
 	if (of_property_read_u32(node, "cpu-offset", &percpu_offset))
+		// 디바이스 트리의 gic 노드에 cpu-offset 속성 값을 가져옴
+		// 현재는 cpu-offset 속성이 없기 때문에 true가 반환됨
 		percpu_offset = 0;
+	// percpu_offset : 0
 
+	// gic_cnt : 0, -1, dist_base : 0xF0000000, cpu_base : 0xF0002000
+	// percpu_offset : 0, node : gic 노드 주소
 	gic_init_bases(gic_cnt, -1, dist_base, cpu_base, percpu_offset, node);
 	if (!gic_cnt)
 		gic_init_physaddr(node);
