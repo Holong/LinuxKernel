@@ -203,17 +203,20 @@ radix_tree_find_next_bit(const unsigned long *addr,
  * This assumes that the caller has performed appropriate preallocation, and
  * that the caller has pinned this thread of control to the current CPU.
  */
+// root : &irq_desc_tree
 static struct radix_tree_node *
 radix_tree_node_alloc(struct radix_tree_root *root)
 {
 	struct radix_tree_node *ret = NULL;
 	gfp_t gfp_mask = root_gfp_mask(root);
+	// gfp_mask : GFP_KERNEL
 
 	/*
 	 * Preload code isn't irq safe and it doesn't make sence to use
 	 * preloading in the interrupt anyway as all the allocations have to
 	 * be atomic. So just do normal allocation when in interrupt.
 	 */
+	// gfp_mask : GFP_KERNEL
 	if (!(gfp_mask & __GFP_WAIT) && !in_interrupt()) {
 		struct radix_tree_preload *rtp;
 
@@ -230,7 +233,12 @@ radix_tree_node_alloc(struct radix_tree_root *root)
 		}
 	}
 	if (ret == NULL)
+		// radix_tree_node_cachep : kmem_cache 구조체의 주소
+		// 이전에 미리 radix에 맞게 만들어 두었음
 		ret = kmem_cache_alloc(radix_tree_node_cachep, gfp_mask);
+		// kmem_cache의 내부 정보를 이용해 적절한 공간을 확보하고
+		// 그 공간의 주소를 반환
+		// radix_tree_node용 공간이 반환됨
 
 	BUG_ON(radix_tree_is_indirect_ptr(ret));
 	return ret;
@@ -340,6 +348,7 @@ static inline unsigned long radix_tree_maxindex(unsigned int height)
 /*
  *	Extend a radix tree so it can store key @index.
  */
+// root : &irq_desc_tree, index : 1
 static int radix_tree_extend(struct radix_tree_root *root, unsigned long index)
 {
 	struct radix_tree_node *node;
@@ -348,10 +357,17 @@ static int radix_tree_extend(struct radix_tree_root *root, unsigned long index)
 	int tag;
 
 	/* Figure out what the height should be.  */
+	// irq_desc_tree.height : 0
 	height = root->height + 1;
+	// height : 1
+
+	// index : 1, radix_tree_maxindex(1) : 63
 	while (index > radix_tree_maxindex(height))
 		height++;
+	// 설정하려는 인덱스 값에 맞게 height를 설정해줌
+	// 주어진 인덱스가 가능해질 때까지 height를 증가
 
+	// root->rnode : 0번 irq_desc
 	if (root->rnode == NULL) {
 		root->height = height;
 		goto out;
@@ -359,30 +375,60 @@ static int radix_tree_extend(struct radix_tree_root *root, unsigned long index)
 
 	do {
 		unsigned int newheight;
+
+		// root : &irq_desc_tree
 		if (!(node = radix_tree_node_alloc(root)))
+			// radix_tree_node용 공간을 할당받아 그 주소를
+			// 반환함
+			// node에 저장됨
 			return -ENOMEM;
 
 		/* Propagate the aggregated tag info into the new root */
+		// RADIX_TREE_MAX_TAGS : 3
 		for (tag = 0; tag < RADIX_TREE_MAX_TAGS; tag++) {
+			// root : &irq_desc_tree, tag : 0
 			if (root_tag_get(root, tag))
+				// 0 반환
 				tag_set(node, tag, 0);
 		}
+		// 현재 root의 gfp_flag가 GFP_KERNEL이기 때문에 
+		// 아무 일도 일어나지 않음
 
 		/* Increase the height.  */
+		// root->height : 0
 		newheight = root->height+1;
+		// newheight : 1
+
 		node->height = newheight;
+		// node->height : 1
+
 		node->count = 1;
 		node->parent = NULL;
+		// node값 설정
+
+		// irq_desc_tree.rnode : 0번 irq_desc 구조체 주소
 		slot = root->rnode;
+		// slot : 0번 irq_desc 구조체 주소
+
+		// newheight : 1
 		if (newheight > 1) {
 			slot = indirect_to_ptr(slot);
 			slot->parent = node;
 		}
+
 		node->slots[0] = slot;
+		// node->slots[0] : 0번 irq_desc 구조체 주소
 		node = ptr_to_indirect(node);
+		// indirect 표시한 node 주소를 다시 node로 저장
+		
 		rcu_assign_pointer(root->rnode, node);
+		// irq_desc_tree.rnode : 새로 할당받은 것을 루트 노드로 재설정
+
 		root->height = newheight;
+		// irq_desc_tree.height : 1
+
 	} while (height > root->height);
+	// height : 1, irq_desc_tree.height : 1
 out:
 	return 0;
 }
@@ -396,6 +442,8 @@ out:
  *	Insert an item into the radix tree at position @index.
  */
 // root : &irq_desc_tree, index : 0, item : 할당받은 irq_desc 주소
+// &irq_desc_tree, irq : 1, desc : 할당받은 irq_desc 주소
+// root : &irq_desc_tree, index : 16, item : 할당받은 irq_desc 주소
 int radix_tree_insert(struct radix_tree_root *root,
 			unsigned long index, void *item)
 {
@@ -404,22 +452,52 @@ int radix_tree_insert(struct radix_tree_root *root,
 	int offset;
 	int error;
 
+	// item 주소의 0번 비트가 0인지 확인
 	BUG_ON(radix_tree_is_indirect_ptr(item));
+	// 할당 시 정렬된 공간을 가져오기 때문에
+	// 0번 비트는 0이 아님
 
 	/* Make sure the tree is high enough.  */
+	// root : irq_desc_tree, irq_desc_tree.height : 0
+	// [0] radix_tree_maxindex(0) : 0 이 반환됨
+	// [0] index : 0
+	// [1] radix_tree_maxindex(0) : 0
+	// [1] index : 1 
 	if (index > radix_tree_maxindex(root->height)) {
+
+		// [1] root : &irq_desc_tree, index : 1
 		error = radix_tree_extend(root, index);
+		// root가 가리키는 radix 트리에서 index가 들어갈 수 있을 때까지
+		// 노드를 계속 추가함
+		// 즉, height를 맞춰 줌
 		if (error)
 			return error;
 	}
 
+	// [0] root->rnode : NULL
+	// [1] root->rnode : 이전에 할당받은 node의 주소(indirect)
 	slot = indirect_to_ptr(root->rnode);
+	// [0] slot : NULL
+	// [1] slot : 이전에 할당받은 node 주소
 
 	height = root->height;
+	// [0] height : 0
+	// [1] height : 1
+	
+	// [0] height : 0, RADIX_TREE_MAP_SHIFT : 6
+	// [1] height : 1, RADIX_TREE_MAP_SHIFT : 6
 	shift = (height-1) * RADIX_TREE_MAP_SHIFT;
+	// [0] shift : 0xFFFFFFFA 
+	// [1] shift : 0x0 
 
 	offset = 0;			/* uninitialised var warning */
+	// offset : 0
+	
+	// [0] height : 0
+	// [1] height : 1
 	while (height > 0) {
+
+		// [1] slot : 이전에 할당받은 node의 주소
 		if (slot == NULL) {
 			/* Have to add a child node.  */
 			if (!(slot = radix_tree_node_alloc(root)))
@@ -434,25 +512,55 @@ int radix_tree_insert(struct radix_tree_root *root,
 		}
 
 		/* Go a level down */
+		// [1] index : 1, shift : 0, RADIX_TREE_MAP_MASK : 0x3F
 		offset = (index >> shift) & RADIX_TREE_MAP_MASK;
-		node = slot;
-		slot = node->slots[offset];
-		shift -= RADIX_TREE_MAP_SHIFT;
-		height--;
-	}
+		// [1] offset : 1
+		// 6비트 단위로 height가 하나씩 높아지는 구조임
+		// [0:5] : height 1의 index
+		// [6:11] : height 2의 index
+		// [12:17] : height 3의 index
+		// ...
 
+		node = slot;
+		// [1] node : 이전에 할당받은 node의 주소
+	
+		// [1] node->slots[1] : NULL
+		slot = node->slots[offset];
+		// [1] slot : NULL
+		
+		// RADIX_TREE_MAP_SHIFT : 6
+		shift -= RADIX_TREE_MAP_SHIFT;
+		// [1] shift : -6
+
+		height--;
+		// [1] height : 0
+	}
+	// 첫 번째 삽입 동작 때는 통과함
+
+	// [0] slot : NULL
+	// [1] slot : NULL
 	if (slot != NULL)
 		return -EEXIST;
 
+	// [0] node : NULL
+	// [1] node : 이전에 할당받은 노드 주소
 	if (node) {
 		node->count++;
+		// [1] node->count : 1
 		rcu_assign_pointer(node->slots[offset], item);
+		// [1] node->slots[1] : 1번 irq_desc 주소를 저장함
+
 		BUG_ON(tag_get(node, 0, offset));
 		BUG_ON(tag_get(node, 1, offset));
 	} else {
+		// [0] root->rnode : NULL, item : irq_desc 주소
 		rcu_assign_pointer(root->rnode, item);
+		// [0] root->rnode = (struct radix_tree_root*)item;
+		// [0] 즉 irq_desc_tree.rnode에 삽입하려는 irq_desc의 주소를 저장
+
 		BUG_ON(root_tag_get(root, 0));
 		BUG_ON(root_tag_get(root, 1));
+		// 통과됨
 	}
 
 	return 0;

@@ -273,13 +273,27 @@ int __bitmap_weight(const unsigned long *bitmap, int bits)
 }
 EXPORT_SYMBOL(__bitmap_weight);
 
+// map : allocated_irqs, start : 16, nr : 144
 void bitmap_set(unsigned long *map, int start, int nr)
 {
+	// map : allocated_irqs, start : 16
 	unsigned long *p = map + BIT_WORD(start);
+	// p : allocated_irqs
+	// start번째 비트가 존재하는 바이트의 위치를 찾아냄
+	
+	// start : 16, nr : 144
 	const int size = start + nr;
+	// size : 160
+	
 	int bits_to_set = BITS_PER_LONG - (start % BITS_PER_LONG);
+	// 한 word 내부에서 몇 번째 비트인지 확인
+	// bits_to_set : 16
+	
+	// start : 16
 	unsigned long mask_to_set = BITMAP_FIRST_WORD_MASK(start);
+	// mask_to_set : 0xFFFF0000
 
+	// nr : 144, bits_to_set : 16
 	while (nr - bits_to_set >= 0) {
 		*p |= mask_to_set;
 		nr -= bits_to_set;
@@ -287,10 +301,16 @@ void bitmap_set(unsigned long *map, int start, int nr)
 		mask_to_set = ~0UL;
 		p++;
 	}
+	// 반복문을 통해 16부터 144개의 비트를 1로 설정해줌
+	// 마지막 부분이 WORD 단위로 안끝나면 nr에 0 초과 32 미만의 값이
+	// 설정되게 됨
+
 	if (nr) {
 		mask_to_set &= BITMAP_LAST_WORD_MASK(size);
 		*p |= mask_to_set;
 	}
+	// 남은 부분도 마저 설정함
+	// 여기서는 nr이 0이기 때문에 수행하지 않음
 }
 EXPORT_SYMBOL(bitmap_set);
 
@@ -327,6 +347,7 @@ EXPORT_SYMBOL(bitmap_clear);
  * the bit offset of all zero areas this function finds is multiples of that
  * power of 2. A @align_mask of 0 means no alignment is required.
  */
+// map : allocated_irqs, size : 8212, start : 16, nr : 144, align_mask : 0
 unsigned long bitmap_find_next_zero_area(unsigned long *map,
 					 unsigned long size,
 					 unsigned long start,
@@ -335,20 +356,40 @@ unsigned long bitmap_find_next_zero_area(unsigned long *map,
 {
 	unsigned long index, end, i;
 again:
+	// map : allocated_irqs, size : 8212, start : 16
 	index = find_next_zero_bit(map, size, start);
+	// map에 저장된 비트 맵에서 16 이상 비트 중에 가장 먼저 나오는
+	// 0비트의 인덱스를 반환
+	// 현재 allocated_irqs는 0 ~ 15비트까지 1로 되어 있으므로
+	// index는 16이 됨
 
 	/* Align allocation */
+	// align_mask : 0, index : 16
 	index = __ALIGN_MASK(index, align_mask);
+	// index : 16
+	// 변경 없음
 
+	// index : 16, nr : 144
 	end = index + nr;
+	// end : 160
+
+	// end : 160, size : 8212
 	if (end > size)
 		return end;
+
+	// map : allocate_irqs, end : 160, index : 16
 	i = find_next_bit(map, end, index);
+	// i : 160
+	// 16비트 이후로 1로 설정된 비트가 존재하는 지 확인
+	// 없으므로 마지막 인덱스인 160이 반환됨
+	
 	if (i < end) {
 		start = i + 1;
 		goto again;
 	}
+
 	return index;
+	// 16이 반환됨
 }
 EXPORT_SYMBOL(bitmap_find_next_zero_area);
 
