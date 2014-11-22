@@ -159,9 +159,13 @@ static void irq_insert_desc(unsigned int irq, struct irq_desc *desc)
 	radix_tree_insert(&irq_desc_tree, irq, desc);
 }
 
+// irq : 16
 struct irq_desc *irq_to_desc(unsigned int irq)
 {
+	// irq_desc_tree : irq_desc가 등록되어 있는 radix tree
+	// irq : 16
 	return radix_tree_lookup(&irq_desc_tree, irq);
+	// 16 index에 해당하는 irq_desc 16이 반환됨
 }
 EXPORT_SYMBOL(irq_to_desc);
 
@@ -272,8 +276,10 @@ static int alloc_descs(unsigned int start, unsigned int cnt, int node,
 		// &irq_desc_tree 트리에 삽입
 
 		mutex_unlock(&sparse_irq_lock);
+		// 뮤텍스 락 해제
 	}
 	return start;
+	// 16 반환
 
 err:
 	for (i--; i >= 0; i--)
@@ -521,6 +527,11 @@ __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 	
 	// start : 16, cnt : 144, node : 0, owner : NULL
 	return alloc_descs(start, cnt, node, owner);
+	// 16부터 144까지 struct irq_desc를 할당받고
+	// &irq_desc_tree 트리에 삽입
+	// radix_tree 구조로 되어 있음
+	// 
+	// 16 반환
 
 err:
 	mutex_unlock(&sparse_irq_lock);
@@ -535,22 +546,37 @@ EXPORT_SYMBOL_GPL(__irq_alloc_descs);
  *
  * Returns 0 on success or an appropriate error code
  */
+// from : 16, cnt : 1
 int irq_reserve_irqs(unsigned int from, unsigned int cnt)
 {
 	unsigned int start;
 	int ret = 0;
 
+	// nr_irqs : 160
 	if (!cnt || (from + cnt) > nr_irqs)
 		return -EINVAL;
+	// 통과
 
 	mutex_lock(&sparse_irq_lock);
+	// 뮤텍스 락 획득
+	
+	// allocated_irqs : allocate 여부를 기록해 둔 배열,
+	// nr_irqs : 160, from : 16, cnt : 1, 0
 	start = bitmap_find_next_zero_area(allocated_irqs, nr_irqs, from, cnt, 0);
+	// start : 161
+	
+	// start : 161, from : 16
 	if (start == from)
 		bitmap_set(allocated_irqs, start, cnt);
 	else
 		ret = -EEXIST;
+		// ret : -EEXIST
+
 	mutex_unlock(&sparse_irq_lock);
+	// 뮤텍스 락 해제
+	
 	return ret;
+	// ret : -EEXIST
 }
 
 /**
@@ -564,13 +590,23 @@ unsigned int irq_get_next_irq(unsigned int offset)
 	return find_next_bit(allocated_irqs, nr_irqs, offset);
 }
 
+// [0] irq : 16, flags : &flags, bus : false, check : 0
+// [1] irq : 16, flags : &flags, bus : true, check : 0
 struct irq_desc *
 __irq_get_desc_lock(unsigned int irq, unsigned long *flags, bool bus,
 		    unsigned int check)
 {
+	// [0] irq : 16
+	// [1] irq : 16
 	struct irq_desc *desc = irq_to_desc(irq);
+	// [0] desc : irq_desc(16)
+	// [1] desc : irq_desc(16)
 
+	// [0] desc : irq_desc(16)
+	// [1] desc : irq_desc(16)
 	if (desc) {
+		// [0] check : 0, _IRQ_DESC_CHECK : 1
+		// [1] check : 0, _IRQ_DESC_CHECK : 1
 		if (check & _IRQ_DESC_CHECK) {
 			if ((check & _IRQ_DESC_PERCPU) &&
 			    !irq_settings_is_per_cpu_devid(desc))
@@ -580,10 +616,23 @@ __irq_get_desc_lock(unsigned int irq, unsigned long *flags, bool bus,
 			    irq_settings_is_per_cpu_devid(desc))
 				return NULL;
 		}
+		// [0] 통과
+		// [1] 통과
 
+		// [0] bus : false
+		// [1] bus : true
 		if (bus)
+			// [1] desc : irq_desc(16)
 			chip_bus_lock(desc);
+			// [1] irq_desc.irq_data.chip->irq_bus_lock : NULL
+			// [1] 이므로 따로 하는 것이 없음
+		// [0] 통과
+
 		raw_spin_lock_irqsave(&desc->lock, *flags);
+		// [0] 락 획득
+		// [0] cpsr 값이 flags로 저장됨
+		// [1] 락 획득
+		// [1] cpsr 값이 flags로 저장됨
 	}
 	return desc;
 }
@@ -595,9 +644,11 @@ void __irq_put_desc_unlock(struct irq_desc *desc, unsigned long flags, bool bus)
 		chip_bus_sync_unlock(desc);
 }
 
+// irq : 16
 int irq_set_percpu_devid(unsigned int irq)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
+	// desc : irq_desc(16)
 
 	if (!desc)
 		return -EINVAL;
@@ -606,11 +657,17 @@ int irq_set_percpu_devid(unsigned int irq)
 		return -EINVAL;
 
 	desc->percpu_enabled = kzalloc(sizeof(*desc->percpu_enabled), GFP_KERNEL);
+	// desc->percpu_enabled : 4byte 공간을 할당받아 저장
+	// 4byte인 이유는 CPU 4개를 위해 4bit가 필요하기 때문임
 
 	if (!desc->percpu_enabled)
 		return -ENOMEM;
 
+	// irq : 16
 	irq_set_percpu_devid_flags(irq);
+	// irq_desc(16).status_use_accessors 값을 set으로 설정
+	// irq_desc(16).irq_data.status_use_accessors 값을
+	// irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
 	return 0;
 }
 

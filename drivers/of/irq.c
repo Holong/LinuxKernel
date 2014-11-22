@@ -549,6 +549,7 @@ void __init of_irq_init(const struct of_device_id *matches)
 
 			// desc->dev : gic 노드의 주소, desc->interrupt_parent : NULL
 			ret = irq_init_cb(desc->dev, desc->interrupt_parent);
+			// gic_of_init(desc->dev, desc->interrupt_parent)가 호출됨
 			if (ret) {
 				kfree(desc);
 				continue;

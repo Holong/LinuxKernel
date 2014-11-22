@@ -25,25 +25,39 @@
  *	@irq:	irq number
  *	@chip:	pointer to irq chip description structure
  */
+// irq : 16, chip : &gic_chip
 int irq_set_chip(unsigned int irq, struct irq_chip *chip)
 {
 	unsigned long flags;
 	struct irq_desc *desc = irq_get_desc_lock(irq, &flags, 0);
+	// irq_desc(16)을 위한 스핀락을 획득
+	// desc : irq_desc(16)
 
+	// desc : irq_desc(16)
 	if (!desc)
 		return -EINVAL;
 
+	// chip : &gic_chip
 	if (!chip)
 		chip = &no_irq_chip;
 
+	// desc : irq_desc(16)
 	desc->irq_data.chip = chip;
+	// irq_desc(16).irq_data.chip : &gic_chip
+	// 으로 설정
+	
 	irq_put_desc_unlock(desc, flags);
+	// 스핀락 해제
+
 	/*
 	 * For !CONFIG_SPARSE_IRQ make the irq show up in
 	 * allocated_irqs. For the CONFIG_SPARSE_IRQ case, it is
 	 * already marked, and this call is harmless.
 	 */
+	// irq : 16
 	irq_reserve_irq(irq);
+	// allocated_irqs의 16번 비트를 확실하게 1로 설정
+	// 지금은 미리 되어 있었기 때문에 따로 다시 하지는 않음
 	return 0;
 }
 EXPORT_SYMBOL(irq_set_chip);
@@ -131,24 +145,34 @@ int irq_set_msi_desc(unsigned int irq, struct msi_desc *entry)
  *
  *	Set the hardware irq chip data for an irq
  */
+// irq : 16, d->host_data : &gic_data[0]
 int irq_set_chip_data(unsigned int irq, void *data)
 {
 	unsigned long flags;
 	struct irq_desc *desc = irq_get_desc_lock(irq, &flags, 0);
+	// irq_desc(16)에 대한 스핀락 설정
 
+	// desc : irq_desc(16)
 	if (!desc)
 		return -EINVAL;
+
 	desc->irq_data.chip_data = data;
+	// irq_desc(16).chip_data : &gic_data[0]
 	irq_put_desc_unlock(desc, flags);
+	// irq_desc(16)에 대한 스핀락 해제
 	return 0;
 }
 EXPORT_SYMBOL(irq_set_chip_data);
 
+// irq : 16
 struct irq_data *irq_get_irq_data(unsigned int irq)
 {
+	// irq : 16
 	struct irq_desc *desc = irq_to_desc(irq);
+	// 16 index에 해당하는 irq_desc 16이 반환됨
 
 	return desc ? &desc->irq_data : NULL;
+	// irq_desc(16).irq_data 주소가 반환됨
 }
 EXPORT_SYMBOL_GPL(irq_get_irq_data);
 
@@ -654,76 +678,129 @@ void handle_percpu_devid_irq(unsigned int irq, struct irq_desc *desc)
 		chip->irq_eoi(&desc->irq_data);
 }
 
+// irq : 16, handle : handle_percpu_devid_irq, is_chained : 0, name : NULL
 void
 __irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
 		  const char *name)
 {
 	unsigned long flags;
+	// irq : 16, &flags, 0
 	struct irq_desc *desc = irq_get_desc_buslock(irq, &flags, 0);
+	// irq_desc(16)에 대한 스핀락 획득
+	// desc : irq_desc(16)
 
+	// desc : irq_desc(16)
 	if (!desc)
 		return;
 
+	// handle : handle_percpu_devid_irq
 	if (!handle) {
 		handle = handle_bad_irq;
 	} else {
+		// irq_desc(16).irq_data.chip : &gic_chip
 		if (WARN_ON(desc->irq_data.chip == &no_irq_chip))
 			goto out;
 	}
 
 	/* Uninstall? */
+	// handle : handle_percpu_devid_irq
 	if (handle == handle_bad_irq) {
 		if (desc->irq_data.chip != &no_irq_chip)
 			mask_ack_irq(desc);
 		irq_state_set_disabled(desc);
 		desc->depth = 1;
 	}
+	// 통과
+	
 	desc->handle_irq = handle;
+	// irq_desc(16).handle_irq : handle_percpu_devid_irq
 	desc->name = name;
+	// irq_desc(16).name : NULL
 
+	// is_chained : 0
 	if (handle != handle_bad_irq && is_chained) {
 		irq_settings_set_noprobe(desc);
 		irq_settings_set_norequest(desc);
 		irq_settings_set_nothread(desc);
 		irq_startup(desc, true);
 	}
+	// 통과
 out:
 	irq_put_desc_busunlock(desc, flags);
+	// irq_desc(16)에 대한 스핀락 해제
 }
 EXPORT_SYMBOL_GPL(__irq_set_handler);
 
+// irq : 16, chip : &gic_chip, handle : handle_percpu_devid_irq
+// name : NULL
 void
 irq_set_chip_and_handler_name(unsigned int irq, struct irq_chip *chip,
 			      irq_flow_handler_t handle, const char *name)
 {
+	// irq : 16, chip : &gic_chip
 	irq_set_chip(irq, chip);
+	// irq_desc(16).irq_data.chip : &gic_chip 로 설정
+	// allocated_irqs의 16번 비트를 1로 확실하게 만들어 줌
+	// (지금은 미리 되어 있기 때문에 다시 설정하는 것은 아님)
+	
+	// irq : 16, handle : handle_percpu_devid_irq, 0, name : NULL
 	__irq_set_handler(irq, handle, 0, name);
+	// irq_desc(16).handle_irq : handle_percpu_devid_irq
+	// irq_desc(16).name : NULL
+	// 로 설정
 }
 EXPORT_SYMBOL_GPL(irq_set_chip_and_handler_name);
 
+// irq : 16, clr : 0
+// set : IRQ_NOAUTOEN | IRQ_PER_CPU | IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID
 void irq_modify_status(unsigned int irq, unsigned long clr, unsigned long set)
 {
 	unsigned long flags;
+	// irq : 16, &flags, 0
 	struct irq_desc *desc = irq_get_desc_lock(irq, &flags, 0);
+	// irq_desc(16)에 해당하는 스핀락을 획득함
 
 	if (!desc)
 		return;
-	irq_settings_clr_and_set(desc, clr, set);
 
+	// desc : irq_desc(16), clr : 0
+	// set : IRQ_NOAUTOEN | IRQ_PER_CPU |
+	// 	 IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID
+	irq_settings_clr_and_set(desc, clr, set);
+	// irq_desc(16).status_use_accessors : set과 동일한 값으로 설정됨
+
+	// irq_desc.irq_data
 	irqd_clear(&desc->irq_data, IRQD_NO_BALANCING | IRQD_PER_CPU |
 		   IRQD_TRIGGER_MASK | IRQD_LEVEL | IRQD_MOVE_PCNTXT);
+	// irq_data.status_use_accessors : IRQD_IRQ_DISABLED
+
+	// desc : irq_desc(16)
 	if (irq_settings_has_no_balance_set(desc))
 		irqd_set(&desc->irq_data, IRQD_NO_BALANCING);
+	// 통과
+	
 	if (irq_settings_is_per_cpu(desc))
 		irqd_set(&desc->irq_data, IRQD_PER_CPU);
+	// 수행
+	
 	if (irq_settings_can_move_pcntxt(desc))
 		irqd_set(&desc->irq_data, IRQD_MOVE_PCNTXT);
+	// 통과 
+	
 	if (irq_settings_is_level(desc))
 		irqd_set(&desc->irq_data, IRQD_LEVEL);
+	// irq_desc(16) : irq_desc.status_use_accessors에 설정되어 있는 값을 이용해
+	//                irq_desc.irq_data.status_use_accessors 값을 설정
+	//
+	// irq_desc(16).irq_data.status_use_accessors
 
+	// &desc->irq_data, irq_settings_get_trigger_mask(desc) : 0
 	irqd_set(&desc->irq_data, irq_settings_get_trigger_mask(desc));
+	// 두 번째 인자 비트를 추가
+	// 하는 것 없음
 
 	irq_put_desc_unlock(desc, flags);
+	// irq_desc(16)에 해당하는 스핀락 해제
 }
 EXPORT_SYMBOL_GPL(irq_modify_status);
 

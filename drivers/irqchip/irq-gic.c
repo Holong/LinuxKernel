@@ -812,21 +812,41 @@ void __init gic_init_physaddr(struct device_node *node)
 #define gic_init_physaddr(node)  do { } while (0)
 #endif
 
+// d : 이전에 할당받은 domain 주소, irq : 16, hw : 16
 static int gic_irq_domain_map(struct irq_domain *d, unsigned int irq,
 				irq_hw_number_t hw)
 {
+	// hw : 16
 	if (hw < 32) {
+		// irq : 16
 		irq_set_percpu_devid(irq);
+		// irq 16을 위한 percpu_enabled 공간을 확보
+		// irq_desc(16).status_use_accessors 값을 set으로 설정
+		// irq_desc(16).irq_data.status_use_accessors 값을
+		// irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
+
+		// irq : 16, &gic_chip, handle_percpu_devid_irq
 		irq_set_chip_and_handler(irq, &gic_chip,
 					 handle_percpu_devid_irq);
+		// irq_desc(16).irq_data.chip : &gic_chip 로 설정
+		// irq_desc(16).handle_irq : handle_percpu_devid_irq
+		// irq_desc(16).name : NULL
+		
+		// irq : 16, IRQF_VALID | IRQF_NOAUTOEN
 		set_irq_flags(irq, IRQF_VALID | IRQF_NOAUTOEN);
+		// 내부 flag 값 설정
 	} else {
 		irq_set_chip_and_handler(irq, &gic_chip,
 					 handle_fasteoi_irq);
 		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
 	}
+	
+	// irq : 16, d->host_data : &gic_data[0]
 	irq_set_chip_data(irq, d->host_data);
+	// irq_desc(16).chip_data : &gic_data[0] 로 설정
+	
 	return 0;
+	// 0 반환
 }
 
 static int gic_irq_domain_xlate(struct irq_domain *d,
@@ -914,7 +934,6 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 		gic_set_base_accessor(gic, gic_get_percpu_base);
 	} else
 #endif	
-	// 위에 부분 통과
 	{			/* Normal, sane GIC... */
 		WARN(percpu_offset,
 		     "GIC_NON_BANKED not enabled, ignoring %08x offset!",
@@ -980,6 +999,8 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 	gic_irqs = (gic_irqs + 1) * 32;
 	// gic_irqs : 160
 	// gic가 지원 가능한 인터럽트의 개수
+	// 결국 하드웨어에 설정되어 있던 gic가 지원 가능한 인터럽트의 개수를
+	// 얻을 수 있게 됨
 	
 	// gic_irqs : 1020
 	if (gic_irqs > 1020)
@@ -997,11 +1018,21 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 	
 	// irq_start : -1, 16, gic_irqs : 144, numa_node_id() : 0
 	irq_base = irq_alloc_descs(irq_start, 16, gic_irqs, numa_node_id());
+	// 16부터 144개의 struct irq_desc를 할당받고
+	// &irq_desc_tree 트리에 삽입
+	// 추가된 irq 중 첫 번째 번호가 반환됨
+	// irq_base : 16 
+
+	// irq_base : 16
 	if (IS_ERR_VALUE(irq_base)) {
 		WARN(1, "Cannot allocate irq_descs @ IRQ%d, assuming pre-allocated\n",
 		     irq_start);
 		irq_base = irq_start;
 	}
+	// 통과
+	
+	// node : gic 노드, gic_irqs : 144, irq_base : 16, hwirq_base : 16
+	// gic_irq_domain_ops : 전역 구조체, gic : &gic_data[0]
 	gic->domain = irq_domain_add_legacy(node, gic_irqs, irq_base,
 				    hwirq_base, &gic_irq_domain_ops, gic);
 	if (WARN_ON(!gic->domain))
@@ -1063,6 +1094,7 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 	// gic_cnt : 0, -1, dist_base : 0xF0000000, cpu_base : 0xF0002000
 	// percpu_offset : 0, node : gic 노드 주소
 	gic_init_bases(gic_cnt, -1, dist_base, cpu_base, percpu_offset, node);
+
 	if (!gic_cnt)
 		gic_init_physaddr(node);
 

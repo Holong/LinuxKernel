@@ -31,18 +31,24 @@ enum {
 #undef IRQF_MODIFY_MASK
 #define IRQF_MODIFY_MASK	GOT_YOU_MORON
 
-// desc : 할당받은 irq_desc, clr : 0xFFFFFFFF, set : _IRQ_DEFAULT_INIT_FLAGS
+// [0] desc : 할당받은 irq_desc, clr : 0xFFFFFFFF, set : _IRQ_DEFAULT_INIT_FLAGS
+// [1] desc : irq_desc(16), clr : 0
+// [1] set : IRQ_NOAUTOEN | IRQ_PER_CPU |
+// 	     IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID
 static inline void
 irq_settings_clr_and_set(struct irq_desc *desc, u32 clr, u32 set)
 {
-	// _IRQF_MODIFY_MASK : 0x3FF0F
-	// desc->status_use_accessors : 0
+	// [0] _IRQF_MODIFY_MASK : 0x3FF0F
+	// [0] desc->status_use_accessors : 0
 	desc->status_use_accessors &= ~(clr & _IRQF_MODIFY_MASK);
-	// desc->status_use_accessors : 0
+	// [0] desc->status_use_accessors : 0
 	
-	// set : 0xC00, _IRQF_MOIFY_MASK : 0x3FF0F
+	// [0] set : 0xC00, _IRQF_MOIFY_MASK : 0x3FF0F
 	desc->status_use_accessors |= (set & _IRQF_MODIFY_MASK);
-	// desc->status_use_accessors : 0xC00로 설정됨
+	// [0] desc->status_use_accessors : 0xC00로 설정됨
+	// [1] irq_desc(16).status_use_accessors : set으로 설정됨
+	// [1] set : IRQ_NOAUTOEN | IRQ_PER_CPU |
+	// 	     IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID
 }
 
 static inline bool irq_settings_is_per_cpu(struct irq_desc *desc)

@@ -35,6 +35,8 @@ static struct irq_domain *irq_default_domain;
  * register allocated irq_domain with irq_domain_register().  Returns pointer
  * to IRQ domain, or NULL on failure.
  */
+// of_node : gic 노드, size : 160, hwirq_max : 160, direct_max ; 0,
+// ops : &gic_irq_domain_ops, host_data : &gic_data[0]
 struct irq_domain *__irq_domain_add(struct device_node *of_node, int size,
 				    irq_hw_number_t hwirq_max, int direct_max,
 				    const struct irq_domain_ops *ops,
@@ -44,24 +46,45 @@ struct irq_domain *__irq_domain_add(struct device_node *of_node, int size,
 
 	domain = kzalloc_node(sizeof(*domain) + (sizeof(unsigned int) * size),
 			      GFP_KERNEL, of_node_to_nid(of_node));
+	// struct irq_domain과 160개 int를 저장하기 위한 오브젝트를 할당받음
+	
 	if (WARN_ON(!domain))
 		return NULL;
 
 	/* Fill structure */
 	INIT_RADIX_TREE(&domain->revmap_tree, GFP_KERNEL);
+	// radix tree 루트 초기화
+	
+	// ops : &gic_irq_domain_ops
 	domain->ops = ops;
-	domain->host_data = host_data;
-	domain->of_node = of_node_get(of_node);
-	domain->hwirq_max = hwirq_max;
-	domain->revmap_size = size;
-	domain->revmap_direct_max_irq = direct_max;
 
+	// host_data: &gic_data[0]
+	domain->host_data = host_data;
+
+	// of_node_get(of_node) : 그냥 of_node 반환
+	domain->of_node = of_node_get(of_node);
+	// of_node : gic 노드의 주소가 들어감
+	
+	// hwirq_max : 160
+	domain->hwirq_max = hwirq_max;
+	
+	// size : 160
+	domain->revmap_size = size;
+
+	// direct_max : 0
+	domain->revmap_direct_max_irq = direct_max;
+	//
+	// 할당 받은 domain 내부를 적절하게 초기화 해 줌
+	
 	mutex_lock(&irq_domain_mutex);
 	list_add(&domain->link, &irq_domain_list);
 	mutex_unlock(&irq_domain_mutex);
+	// irq_domain_list에 현재 domain을 연결함
 
 	pr_debug("Added domain %s\n", domain->name);
+
 	return domain;
+	// domain 반환
 }
 EXPORT_SYMBOL_GPL(__irq_domain_add);
 
@@ -162,6 +185,8 @@ EXPORT_SYMBOL_GPL(irq_domain_add_simple);
  * for all legacy interrupts except 0 (which is always the invalid irq for
  * a legacy controller).
  */
+// of_node : gic 노드, size : 144, first_irq : 16, first_hwirq : 16
+// ops : &gic_irq_domain_ops, host_data : &gic_data[0]
 struct irq_domain *irq_domain_add_legacy(struct device_node *of_node,
 					 unsigned int size,
 					 unsigned int first_irq,
@@ -171,11 +196,20 @@ struct irq_domain *irq_domain_add_legacy(struct device_node *of_node,
 {
 	struct irq_domain *domain;
 
+	// of_node : gic 노드, first_hwirq + size : 160,
+	// first_hwirq + size : 160, 0,
+	// ops : &gic_irq_domain_ops, host_data : &gic_data[0]
 	domain = __irq_domain_add(of_node, first_hwirq + size,
 				  first_hwirq + size, 0, ops, host_data);
+	// interrupt 160개에 대한 struct irq_domain을 할당받고,
+	// 이를 irq_domain_list에 삽입함
+	// 그 주소를 반환하게 됨
+	
 	if (!domain)
 		return NULL;
 
+	// domain : struct irq_domain, first_irq : 16, first_hwirq : 16
+	// size : 144
 	irq_domain_associate_many(domain, first_irq, first_hwirq, size);
 
 	return domain;
@@ -266,25 +300,56 @@ static void irq_domain_disassociate(struct irq_domain *domain, unsigned int irq)
 	}
 }
 
+// domain : struct irq_domain, virq : 16, hwirq : 16
 int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 			 irq_hw_number_t hwirq)
 {
+	// virq : 16
 	struct irq_data *irq_data = irq_get_irq_data(virq);
+	// virq 번호를 이용해서 irq_desc_tree에 연결되어 있던
+	// struct irq_desc를 얻고, 그 구조체의 irq_data 멤버 주소를 반환
+	// irq_desc(16).irq_data 주소가 반환됨
 	int ret;
 
+	// hwirq : 16, domain->hwirq_max : 160
 	if (WARN(hwirq >= domain->hwirq_max,
 		 "error: hwirq 0x%x is too large for %s\n", (int)hwirq, domain->name))
 		return -EINVAL;
+
+	// irq_data : &irq_desc(16).irq_data
 	if (WARN(!irq_data, "error: virq%i is not allocated", virq))
 		return -EINVAL;
+
+	// irq_data->domain : NULL
 	if (WARN(irq_data->domain, "error: virq%i is already associated", virq))
 		return -EINVAL;
 
 	mutex_lock(&irq_domain_mutex);
+	// 뮤텍스 락 획득
+	
+	// hwirq : 16
 	irq_data->hwirq = hwirq;
+	// domain : 이전에 할당받은 domain 주소
 	irq_data->domain = domain;
+
+	// domain->ops : gic_irq_domain_ops
+	// domain->ops->map : gic_irq_domain_map
 	if (domain->ops->map) {
+		// domain : 이전에 할당받은 domain 주소
+		// virq : 16, hwirq : 16
 		ret = domain->ops->map(domain, virq, hwirq);
+		// gic_irq_domain_map(domain, virq, hwirq) 가 호출됨
+		//
+		// irq 16을 위한 percpu_enabled 공간을 확보
+		// irq_desc(16).status_use_accessors 값을 set으로 설정
+		// irq_desc(16).irq_data.status_use_accessors 값을
+		// irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
+		// irq_desc(16).irq_data.chip : &gic_chip 로 설정
+		// irq_desc(16).handle_irq : handle_percpu_devid_irq
+		// irq_desc(16).name : NULL
+		// irq_desc(16).chip_data : &gic_data[0] 로 설정
+
+		// ret : 0
 		if (ret != 0) {
 			/*
 			 * If map() returns -EPERM, this interrupt is protected
@@ -300,20 +365,26 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 			mutex_unlock(&irq_domain_mutex);
 			return ret;
 		}
+		// 통과
 
 		/* If not already assigned, give the domain the chip's name */
+		// domain->name : NULL, irq_data->chip : &gic_chip
 		if (!domain->name && irq_data->chip)
 			domain->name = irq_data->chip->name;
+			// domain->name : "GIC"
 	}
 
+	// hwirq : 16, domain->revmap_size : 160
 	if (hwirq < domain->revmap_size) {
 		domain->linear_revmap[hwirq] = virq;
+		// domain->linear_revmap[16] : 16
 	} else {
 		mutex_lock(&revmap_trees_mutex);
 		radix_tree_insert(&domain->revmap_tree, hwirq, irq_data);
 		mutex_unlock(&revmap_trees_mutex);
 	}
 	mutex_unlock(&irq_domain_mutex);
+	// 뮤텍스 락 해제
 
 	irq_clear_status_flags(virq, IRQ_NOREQUEST);
 
@@ -321,15 +392,20 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 }
 EXPORT_SYMBOL_GPL(irq_domain_associate);
 
+// domain : struct irq_domain, irq_base : 16, hwirq_base : 16, count : 144
 void irq_domain_associate_many(struct irq_domain *domain, unsigned int irq_base,
 			       irq_hw_number_t hwirq_base, int count)
 {
 	int i;
 
+	// of_node_full_name(domain->of_node) : "/interrupt-controller@10481000"
+	// irq_base : 16, hwirq_base : 16, count : 144
 	pr_debug("%s(%s, irqbase=%i, hwbase=%i, count=%i)\n", __func__,
 		of_node_full_name(domain->of_node), irq_base, (int)hwirq_base, count);
 
+	// count : 144
 	for (i = 0; i < count; i++) {
+		// domain : struct irq_domain, irq_base : 16, hwirq_base : 16
 		irq_domain_associate(domain, irq_base + i, hwirq_base + i);
 	}
 }

@@ -439,10 +439,15 @@ extern void
 irq_set_chip_and_handler_name(unsigned int irq, struct irq_chip *chip,
 			      irq_flow_handler_t handle, const char *name);
 
+// irq : 16, chip : &gic_chip, handle : handle_percpu_devid_irq
 static inline void irq_set_chip_and_handler(unsigned int irq, struct irq_chip *chip,
 					    irq_flow_handler_t handle)
 {
+	// irq : 16, chip : &gic_chip, handle : handle_percpu_devid_irq
 	irq_set_chip_and_handler_name(irq, chip, handle, NULL);
+	// irq_desc(16).irq_data.chip : &gic_chip 로 설정
+	// irq_desc(16).handle_irq : handle_percpu_devid_irq
+	// irq_desc(16).name : NULL
 }
 
 extern int irq_set_percpu_devid(unsigned int irq);
@@ -470,9 +475,18 @@ irq_set_chained_handler(unsigned int irq, irq_flow_handler_t handle)
 
 void irq_modify_status(unsigned int irq, unsigned long clr, unsigned long set);
 
+// irq : 16, 
+// set : IRQ_NOAUTOEN | IRQ_PER_CPU | IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID
 static inline void irq_set_status_flags(unsigned int irq, unsigned long set)
 {
+	// irq : 16, 0
+	// set : IRQ_NOAUTOEN | IRQ_PER_CPU | IRQ_NOTHREAD
+	// 	 | IRQ_NOPROBE | IRQ_PER_CPU_DEVID
 	irq_modify_status(irq, 0, set);
+	// irq_desc(16).status_use_accessors 값을 set으로 설정
+	// irq_desc(16).irq_data.status_use_accessors 값을
+	// irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
+
 }
 
 static inline void irq_clear_status_flags(unsigned int irq, unsigned long clr)
@@ -508,11 +522,16 @@ static inline void irq_set_nested_thread(unsigned int irq, bool nest)
 		irq_clear_status_flags(irq, IRQ_NESTED_THREAD);
 }
 
+// irq : 16
 static inline void irq_set_percpu_devid_flags(unsigned int irq)
 {
+	// irq : 16
 	irq_set_status_flags(irq,
 			     IRQ_NOAUTOEN | IRQ_PER_CPU | IRQ_NOTHREAD |
 			     IRQ_NOPROBE | IRQ_PER_CPU_DEVID);
+	// irq_desc(16).status_use_accessors 값을 set으로 설정
+	// irq_desc(16).irq_data.status_use_accessors 값을
+	// irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
 }
 
 /* Handle dynamic irq creation and destruction */
@@ -620,9 +639,12 @@ static inline void irq_free_desc(unsigned int irq)
 	irq_free_descs(irq, 1);
 }
 
+// irq : 16
 static inline int irq_reserve_irq(unsigned int irq)
 {
+	// irq : 16
 	return irq_reserve_irqs(irq, 1);
+	// ret : -EEXIST
 }
 
 #ifndef irq_reg_writel

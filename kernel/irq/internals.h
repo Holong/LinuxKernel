@@ -105,8 +105,11 @@ extern int irq_do_set_affinity(struct irq_data *data,
 			       const struct cpumask *dest, bool force);
 
 /* Inline functions for support of irq chips on slow busses */
+// desc : irq_desc(16)
 static inline void chip_bus_lock(struct irq_desc *desc)
 {
+	// desc->irq_data.chip : gic_chip
+	// desc->irq_data.chip->irq_bus_lock : NULL
 	if (unlikely(desc->irq_data.chip->irq_bus_lock))
 		desc->irq_data.chip->irq_bus_lock(&desc->irq_data);
 }
@@ -128,9 +131,11 @@ __irq_get_desc_lock(unsigned int irq, unsigned long *flags, bool bus,
 		    unsigned int check);
 void __irq_put_desc_unlock(struct irq_desc *desc, unsigned long flags, bool bus);
 
+// irq : 16, flags : &flags, check : 0
 static inline struct irq_desc *
 irq_get_desc_buslock(unsigned int irq, unsigned long *flags, unsigned int check)
 {
+	// irq : 16, flags : &flags, true, check : 0
 	return __irq_get_desc_lock(irq, flags, true, check);
 }
 
@@ -140,6 +145,7 @@ irq_put_desc_busunlock(struct irq_desc *desc, unsigned long flags)
 	__irq_put_desc_unlock(desc, flags, true);
 }
 
+// irq : 16, flags : &flags, check : 0
 static inline struct irq_desc *
 irq_get_desc_lock(unsigned int irq, unsigned long *flags, unsigned int check)
 {
@@ -165,9 +171,14 @@ static inline void irqd_clr_move_pending(struct irq_data *d)
 	d->state_use_accessors &= ~IRQD_SETAFFINITY_PENDING;
 }
 
+// d : &irq_desc.irq_data
+// mask : IRQD_NO_BALANCING | IRQD_PER_CPU |
+//        IRQD_TRIGGER_MASK | IRQD_LEVEL | IRQD_MOVE_PCNTXT
 static inline void irqd_clear(struct irq_data *d, unsigned int mask)
 {
+	// irq_data.status_use_accessors : IRQD_IRQ_DISABLED
 	d->state_use_accessors &= ~mask;
+	// irq_data.status_use_accessors : IRQD_IRQ_DISABLED
 }
 
 // d : 할당받은 desc->irq_data, mask : IRQD_IRQ_DISABLED

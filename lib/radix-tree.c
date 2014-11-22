@@ -510,6 +510,7 @@ int radix_tree_insert(struct radix_tree_root *root,
 			} else
 				rcu_assign_pointer(root->rnode, ptr_to_indirect(slot));
 		}
+		// 관리 노드가 존재하지 않는 경우 새로 할당 받아서 끼워 넣음
 
 		/* Go a level down */
 		// [1] index : 1, shift : 0, RADIX_TREE_MAP_MASK : 0x3F
@@ -571,41 +572,92 @@ EXPORT_SYMBOL(radix_tree_insert);
  * is_slot == 1 : search for the slot.
  * is_slot == 0 : search for the node.
  */
+// root : &irq_desc_tree(irq_desc가 등록되어 있는 radix tree)
+// index : 16, is_slot : 0
 static void *radix_tree_lookup_element(struct radix_tree_root *root,
 				unsigned long index, int is_slot)
 {
 	unsigned int height, shift;
 	struct radix_tree_node *node, **slot;
 
+	// root->rnode : irq_desc_tree.rnode
 	node = rcu_dereference_raw(root->rnode);
+	// rcu_dereference_check(root->rnode, 1)
+	// __rcu_dereference_check(root->rnode, rcu_read_lock_held() || 1, __rcu)
+	// rcu_read_lock_held() : 항상 1 반환
+	// __rcu : 공백
+	// __rcu_dereference_check(root->rnode, rcu_read_lock_held() || 1, __rcu)
+	// 가 아래 매크로로 변경됨
+	//
+	//	typeof(*root->rnode) *_________p1 = (typeof(*root->rnode)*__force )ACCESS_ONCE(root->rnode);
+	//
+	//	rcu_lockdep_assert(1, "suspicious rcu_dereference_check() usage");
+	//	// NULL 함수
+	//
+	//	rcu_dereference_sparse(root->rnode, ); 
+	//	// NULL 매크로
+	//
+	//	smp_read_barrier_depends(); 
+	//	// NULL 매크로
+	//
+	//	((typeof(*root->rnode) __force __kernel *)(_________p1)); 
+	//
+	// 결국 volatile 을 중간에 삽입되는 역할만 수행됨
+
+	// node : root 노드가 됨
+
 	if (node == NULL)
 		return NULL;
 
+	// radix_tree_is_indirect_ptr(node) : 1
+	// 현재 연결되어 있는 것이 관리 노드임
 	if (!radix_tree_is_indirect_ptr(node)) {
 		if (index > 0)
 			return NULL;
 		return is_slot ? (void *)&root->rnode : node;
 	}
 	node = indirect_to_ptr(node);
+	// node : indirect 표시(최하위 1비트)를 지워서 반환
 
+	// node->height : 2
 	height = node->height;
+	// height : 2
+	
+	// index : 16, radix_tree_maxindex(2) : 0xFFF(4095)
 	if (index > radix_tree_maxindex(height))
 		return NULL;
+	// index 값에 문제가 있는 지 확인함
 
+	// height : 2, RADIX_TREE_MAP_SHIFT : 6
 	shift = (height-1) * RADIX_TREE_MAP_SHIFT;
+	// shift : 6
 
 	do {
 		slot = (struct radix_tree_node **)
 			(node->slots + ((index>>shift) & RADIX_TREE_MAP_MASK));
+		// index에 맞는 적절한 slot의 주소를 뽑아냄
+		// 현재 height가 2이기 때문에 index를 6비트만큼 right shift 수행 후
+		// 마스킹을 통해 얻어 낼 수 있음
+
 		node = rcu_dereference_raw(*slot);
+		// slot에 저장되어 있는 다음 노드 주소를 node에 저장함
+
+		// 할당이 되어 있는 것인지 확인
 		if (node == NULL)
 			return NULL;
 
 		shift -= RADIX_TREE_MAP_SHIFT;
-		height--;
-	} while (height > 0);
+		// shift : 0
+		// 가장 아래 node까지 도달했으므로 shift가 0이 되어야 함
 
+		height--;
+		// height : 1
+	} while (height > 0);
+	// 결국 height와 index를 이용해 일치하는 slot에 연결되어 있는 주소를 뽑아옴
+
+	// is_slot : 0
 	return is_slot ? (void *)slot : indirect_to_ptr(node);
+	// 16 index에 해당하는 irq_desc 16이 반환됨
 }
 
 /**
@@ -639,9 +691,14 @@ EXPORT_SYMBOL(radix_tree_lookup_slot);
  *	them safely). No RCU barriers are required to access or modify the
  *	returned item, however.
  */
+// root : &irq_desc_tree(irq_desc가 등록되어 있는 radix tree)
+// index : 16
 void *radix_tree_lookup(struct radix_tree_root *root, unsigned long index)
 {
+	// root : &irq_desc_tree(irq_desc가 등록되어 있는 radix tree)
+	// index : 16, 0
 	return radix_tree_lookup_element(root, index, 0);
+	// 16 index에 해당하는 irq_desc 16이 반환됨
 }
 EXPORT_SYMBOL(radix_tree_lookup);
 
