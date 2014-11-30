@@ -781,6 +781,9 @@ static int __of_address_to_resource(struct device_node *dev,
  * pci_address_to_pio(), that is because it's either called to early or it
  * can't be matched to any host bridge IO space
  */
+/*
+ * of_address_to_resource - dev의 res 정보를 struct recource로 바꿔줌
+ */
 // [0] dev : gic 노드의 주소, index : 0, r : res 주소
 // [1] dev : gic 노드의 주소, index : 1, r : res 주소
 int of_address_to_resource(struct device_node *dev, int index,

@@ -461,6 +461,7 @@ void __init of_irq_init(const struct of_device_id *matches)
 		// np : matches에 일치하는 디바이스 노드의 주소
 		if (!of_find_property(np, "interrupt-controller", NULL))
 		// of_find_property() : interrupt-contoller 속성 구조체의 주소를 반환
+		// 즉, 찾아낸 노드가 interrupt-controller가 아니면 다음 노드로 이동하라는 뜻임
 			continue;
 
 		/*
@@ -483,8 +484,8 @@ void __init of_irq_init(const struct of_device_id *matches)
 		// 일단 자기 자신에게 interrupt-parent 속성이 있는지 확인하고
 		// 없으면 부모로 하나씩 올라가면서 부모에게 interrupt-parent가 있는지 확인
 		// 있는 경우 그 주소를 가져옴
-
-		// desc->interrupt_parent : NULL
+		// desc->interrupt_parent : gic 노드의 주소
+		
 		// np : combiner 노드 주소
 		if (desc->interrupt_parent == np)
 			desc->interrupt_parent = NULL;
@@ -497,8 +498,9 @@ void __init of_irq_init(const struct of_device_id *matches)
 	// 	.compatible = "samsung,exynos4210-combiner",
 	// 	.compatible = "arm,cortex-a15-gic",
 	// 	인 노드 2개가 연결됨
-	// gic의 경우 interrupt_parent가 NULL이 되어 root 컨트롤러가 됨
-
+	// gic의 경우 interrupt_parent가 NULL임. 즉 root 컨트롤러가 됨
+	// combiner의 경우 interrupt_parent가 gic의 노드 주소가 됨
+	
 	/*
 	 * The root irq controller is the one without an interrupt-parent.
 	 * That one goes first, followed by the controllers that reference it,
@@ -518,6 +520,7 @@ void __init of_irq_init(const struct of_device_id *matches)
 			if (desc->interrupt_parent != parent)
 				continue;
 			// desc가 gic에 대한 것일 때 아래로 진행됨
+			// 즉 interrupt_parent가 NULL일 때
 
 			list_del(&desc->list);
 			// intc_desc_list에서 gic 노드 제거
@@ -550,6 +553,12 @@ void __init of_irq_init(const struct of_device_id *matches)
 			// desc->dev : gic 노드의 주소, desc->interrupt_parent : NULL
 			ret = irq_init_cb(desc->dev, desc->interrupt_parent);
 			// gic_of_init(desc->dev, desc->interrupt_parent)가 호출됨
+			// 
+			// gic 메모리를 가상 메모리 위로 올려주고,
+			// gic 하드웨어 초기화 및 struct irq_desc와 struct irq_domain을
+			// 설정해줌
+			//
+			// ret : 0
 			if (ret) {
 				kfree(desc);
 				continue;
@@ -560,17 +569,28 @@ void __init of_irq_init(const struct of_device_id *matches)
 			 * its children can get processed in a subsequent pass.
 			 */
 			list_add_tail(&desc->list, &intc_parent_list);
+			// intc_parent_list에 gic의 intc_desc 구조체를 연결해 줌
+			// 즉 int_desc_list에서 제거됨
 		}
+		// parent가 NULL인 interrupt controller는 gic 밖에 없음
+		// gic에 대해서만 위의 동작이 수행됨
 
 		/* Get the next pending parent that might have children */
 		desc = list_first_entry_or_null(&intc_parent_list,
 						typeof(*desc), list);
+		// desc : gic에 대한 intc_desc
+
 		if (!desc) {
 			pr_err("of_irq_init: children remain, but no parents\n");
 			break;
 		}
 		list_del(&desc->list);
+		// intc_parent_list에서 gic의 intc_desc 구조체가 제거됨
+
 		parent = desc->dev;
+		// parent : gic 노드
+
+		// desc : gic의 intc_desc 구조체의 주소
 		kfree(desc);
 	}
 

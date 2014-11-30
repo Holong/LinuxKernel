@@ -354,54 +354,86 @@ void __init gic_cascade_irq(unsigned int gic_nr, unsigned int irq)
 	irq_set_chained_handler(irq, gic_handle_cascade_irq);
 }
 
+// gic : gic_data[0]
 static u8 gic_get_cpumask(struct gic_chip_data *gic)
 {
 	void __iomem *base = gic_data_dist_base(gic);
+	// base : 0xF0000000
+	
 	u32 mask, i;
 
 	for (i = mask = 0; i < 32; i += 4) {
+		// GIC_DIST_TARGET : 0x800
 		mask = readl_relaxed(base + GIC_DIST_TARGET + i);
+		// GICD_ITARGETSR 에서 4바이트를 읽어옴
+		// mask : 0x01010101
+		// CPU target, byte offset 0 ~ 4까지의 interrupt target을
+		// "CPU interface 0"으로 설정
+
 		mask |= mask >> 16;
+		// mask : 0x01010101
 		mask |= mask >> 8;
+		// mask : 0x01010101
 		if (mask)
 			break;
 	}
 
+	// mask : 0x01010101
 	if (!mask)
 		pr_crit("GIC CPU mask not found - kernel will fail to boot.\n");
 
 	return mask;
 }
 
+// gic : &gic_data[0]
 static void __init gic_dist_init(struct gic_chip_data *gic)
 {
 	unsigned int i;
 	u32 cpumask;
-	unsigned int gic_irqs = gic->gic_irqs;
-	void __iomem *base = gic_data_dist_base(gic);
 
+	// gic->gic_irqs : 160
+	unsigned int gic_irqs = gic->gic_irqs;
+	// gic_irqs : 160
+	
+	void __iomem *base = gic_data_dist_base(gic);
+	// gic_data[0].dist_base 멤버를 반환함
+	// base : 0xF0000000
+
+	// GIC_DIST_CTRL : 0
 	writel_relaxed(0, base + GIC_DIST_CTRL);
+	// 0을 0xF0000000에 씀
+	// GICD_CTLR : 0 으로 초기화
 
 	/*
 	 * Set all global interrupts to be level triggered, active low.
 	 */
+	// gic_irqs : 160
 	for (i = 32; i < gic_irqs; i += 16)
+		// GIC_DIST_CONFIG : 0xC00
 		writel_relaxed(0, base + GIC_DIST_CONFIG + i * 4 / 16);
+		// irq 32 ~ irq 159 까지 level-sensitive로 변경
 
 	/*
 	 * Set all global interrupts to this CPU only.
 	 */
+	// gic : gic_data[0]
 	cpumask = gic_get_cpumask(gic);
+	// cpumask : 0x01010101
 	cpumask |= cpumask << 8;
 	cpumask |= cpumask << 16;
+	// cpumask : 0x01010101
+	
 	for (i = 32; i < gic_irqs; i += 4)
 		writel_relaxed(cpumask, base + GIC_DIST_TARGET + i * 4 / 4);
+	// irq 32 ~ 160 까지 GICD_ITARGETSR을 전부 0x01010101로 설정
+	// 즉, 모든 irq를 받는 CPU가 0 번 CPU가 되게 됨
 
 	/*
 	 * Set priority on all global interrupts.
 	 */
 	for (i = 32; i < gic_irqs; i += 4)
 		writel_relaxed(0xa0a0a0a0, base + GIC_DIST_PRI + i * 4 / 4);
+	// irq 32 ~ 160 까지 동일한 priority를 설정해줌
 
 	/*
 	 * Disable all interrupts.  Leave the PPI and SGIs alone
@@ -409,47 +441,74 @@ static void __init gic_dist_init(struct gic_chip_data *gic)
 	 */
 	for (i = 32; i < gic_irqs; i += 32)
 		writel_relaxed(0xffffffff, base + GIC_DIST_ENABLE_CLEAR + i * 4 / 32);
+	// irq 32 ~ 160 까지 전부 disable 시킴
 
 	writel_relaxed(1, base + GIC_DIST_CTRL);
+	// gic를 동작하게 만듬
 }
 
+// gic : &gic_data[0]
 static void gic_cpu_init(struct gic_chip_data *gic)
 {
 	void __iomem *dist_base = gic_data_dist_base(gic);
+	// dist_base : 0xF0000000
+	// gic_data.dist_base를 가져옴
+	
 	void __iomem *base = gic_data_cpu_base(gic);
+	// base : 0xF0002000
+	// gic_data.cpu_base를 가져옴
+	
 	unsigned int cpu_mask, cpu = smp_processor_id();
+	// cpu : 0
 	int i;
 
 	/*
 	 * Get what the GIC says our CPU mask is.
 	 */
+	// NR_GIC_CPU_IF : 8, cpu : 0
 	BUG_ON(cpu >= NR_GIC_CPU_IF);
 	cpu_mask = gic_get_cpumask(gic);
+	// cpu_mask : 0x01010101
+	
+	// cpu_mask : 0x01010101
 	gic_cpu_map[cpu] = cpu_mask;
+	// gic_cpu_map[0] : 0x01010101
 
 	/*
 	 * Clear our mask from the other map entries in case they're
 	 * still undefined.
 	 */
+	// NR_GIC_CPU_IF : 8
 	for (i = 0; i < NR_GIC_CPU_IF; i++)
 		if (i != cpu)
+			// gic_cpu_map[1] : 0xFF
 			gic_cpu_map[i] &= ~cpu_mask;
+			// gic_cpu_map[1] : 0xFE
+	// gic_cpu_map[1 ~ 7] : 0xFE
 
 	/*
 	 * Deal with the banked PPI and SGI interrupts - disable all
 	 * PPI interrupts, ensure all SGI interrupts are enabled.
 	 */
+	
 	writel_relaxed(0xffff0000, dist_base + GIC_DIST_ENABLE_CLEAR);
+	// irq 16 ~ 31까지 disable
 	writel_relaxed(0x0000ffff, dist_base + GIC_DIST_ENABLE_SET);
-
+	// irq 0 ~ 15까지 enable
+	
 	/*
 	 * Set priority on PPI and SGI interrupts
 	 */
 	for (i = 0; i < 32; i += 4)
 		writel_relaxed(0xa0a0a0a0, dist_base + GIC_DIST_PRI + i * 4 / 4);
+		// irq 0 ~ irq 31 까지 동일한 priority로 설정
 
+	// base : 0xF0002000
 	writel_relaxed(0xf0, base + GIC_CPU_PRIMASK);
+	// GIC_PMR을 0xF0으로 설정
+	// priority가 0xF0보다 큰 인터럽트만 처리 됨
 	writel_relaxed(1, base + GIC_CPU_CTRL);
+	// GICC_CTLR을 1로 설정
 }
 
 void gic_cpu_if_down(void)
@@ -458,7 +517,7 @@ void gic_cpu_if_down(void)
 	writel_relaxed(0, cpu_base + GIC_CPU_CTRL);
 }
 
-#ifdef CONFIG_CPU_PM
+#ifdef CONFIG_CPU_PM	// Y
 /*
  * Saves the GIC distributor registers during suspend or idle.  Must be called
  * with interrupts disabled but before powering down the GIC.  After calling
@@ -628,18 +687,23 @@ static struct notifier_block gic_notifier_block = {
 	.notifier_call = gic_notifier,
 };
 
+// gic : &gic_data[0]
 static void __init gic_pm_init(struct gic_chip_data *gic)
 {
 	gic->saved_ppi_enable = __alloc_percpu(DIV_ROUND_UP(32, 32) * 4,
 		sizeof(u32));
+	// gic->saved_ppi_enable : percpu 4byte를 할당받고 그 시작 주소가 저장됨
 	BUG_ON(!gic->saved_ppi_enable);
 
 	gic->saved_ppi_conf = __alloc_percpu(DIV_ROUND_UP(32, 16) * 4,
 		sizeof(u32));
+	// gic->saved_ppi_enable : percpu 8byte를 할당받고 그 시작 주소가 저장됨
 	BUG_ON(!gic->saved_ppi_conf);
 
+	// gic : &gic_data[0]
 	if (gic == &gic_data[0])
 		cpu_pm_register_notifier(&gic_notifier_block);
+		// gic_notifier_block을 cpu_pm_notifier_chain에 등록함
 }
 #else
 static void __init gic_pm_init(struct gic_chip_data *gic)
@@ -821,7 +885,8 @@ static int gic_irq_domain_map(struct irq_domain *d, unsigned int irq,
 		// irq : 16
 		irq_set_percpu_devid(irq);
 		// irq 16을 위한 percpu_enabled 공간을 확보
-		// irq_desc(16).status_use_accessors 값을 set으로 설정
+		// irq_desc(16).status_use_accessors 값을
+		// IRQ_NOAUTOEN | IRQ_PER_CPU | IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID 로 설정
 		// irq_desc(16).irq_data.status_use_accessors 값을
 		// irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
 
@@ -1022,6 +1087,28 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 	// &irq_desc_tree 트리에 삽입
 	// 추가된 irq 중 첫 번째 번호가 반환됨
 	// irq_base : 16 
+	
+	/*
+	 * (&irq_desc_tree)->rnode --> +-----------------------+
+	 *                             |    radix_tree_node    |
+	 *                             |   (kmem_cache#20-o1)  |
+	 *                             +-----------------------+
+	 *                             | height: 2 | count: 3  |
+	 *                             +-----------------------+
+	 *                             | radix_tree_node 0 ~ 2 |
+	 *                             +-----------------------+
+	 *                            /            |             \
+	 *    slot: 0                /   slot: 1   |              \ slot: 2
+	 *    +-----------------------+  +-----------------------+  +-----------------------+
+	 *    |    radix_tree_node    |  |    radix_tree_node    |  |    radix_tree_node    |
+	 *    |   (kmem_cache#20-o0)  |  |   (kmem_cache#20-o2)  |  |   (kmem_cache#20-o3)  |
+	 *    +-----------------------+  +-----------------------+  +-----------------------+
+	 *    | height: 1 | count: 64 |  | height: 1 | count: 64 |  | height: 1 | count: 32 |
+	 *    +-----------------------+  +-----------------------+  +-----------------------+
+	 *    |    irq  0 ~ 63        |  |    irq 64 ~ 127       |  |    irq 128 ~ 160      |
+	 *    +-----------------------+  +-----------------------+  +-----------------------+
+	 */
+	
 
 	// irq_base : 16
 	if (IS_ERR_VALUE(irq_base)) {
@@ -1035,21 +1122,52 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 	// gic_irq_domain_ops : 전역 구조체, gic : &gic_data[0]
 	gic->domain = irq_domain_add_legacy(node, gic_irqs, irq_base,
 				    hwirq_base, &gic_irq_domain_ops, gic);
+	// irq 16 ~ 144를 위한 struct irq_domain 을 할당받고 
+	// irq_desc(16 ~ 144) 내부 정보를 초기화해 줌
+	// 할당받은 irq_domain의 주소가 반환 됨
+	
 	if (WARN_ON(!gic->domain))
 		return;
 
+	// gic_nr : 0
 	if (gic_nr == 0) {
 #ifdef CONFIG_SMP
+		// gic_raise_softirq : 함수 포인터
 		set_smp_cross_call(gic_raise_softirq);
+		// smp_cross_call : gic_raise_softirq
+		// 전역 함수 포인터에 gic_raise_softirq를 대입
 		register_cpu_notifier(&gic_cpu_notifier);
+		// gic_cpu_notifier 등록
 #endif
+		// gic_handle_irq : 함수 포인터
 		set_handle_irq(gic_handle_irq);
 	}
 
+	// gic_arch_extn.flags : 0
 	gic_chip.flags |= gic_arch_extn.flags;
+	// gic_chip.flags : 0
+	
+	// gic : &gic_data[0]
 	gic_dist_init(gic);
+	// irq 32 ~ irq 160 까지 level-sensitive로 변경
+	// 모든 irq를 받는 CPU가 0 번 CPU가 되게 됨
+	// irq 32 ~ 160 까지 동일한 priority를 설정해줌
+	// irq 32 ~ 160 까지 전부 disable 시킴
+	// gic를 동작하게 만듬
+	
+	// gic : &gic_data[0]
 	gic_cpu_init(gic);
+	// gic_cpu_map[1 ~ 7] : 0xFE
+	// irq 16 ~ 31까지 disable
+	// irq 0 ~ 15까지 enable
+	// irq 0 ~ irq 31 까지 동일한 priority로 설정
+	// GIC_PMR을 0xF0로 설정
+	// priority가 0xF0보다 큰 인터럽트만 처리 됨
+	// GICC_CTLR을 1로 설정
+	
+	// gic : &gic_data[0]
 	gic_pm_init(gic);
+	// percpu 공간 할당받음
 }
 
 #ifdef CONFIG_OF
@@ -1069,10 +1187,13 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 
 	// node : gic 노드의 주소, 0
 	dist_base = of_iomap(node, 0);
+	// free_vmap_cache에 새 정보 삽입(rb_tree)
+	// vmap_area_list에 새 정보 연결(list)
 	// 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
 	// 물리 주소 0x10481000 ~ 0x10481FFF을
 	// 가상 주소 0xF0000000 ~ 0xF0000FFF로 연결
 	// dist_base : 0xF0000000
+	// 두 번째 인자에 의해 디바이스 트리 내부의 0번 reg 정보를 이용하게 됨
 	
 	WARN(!dist_base, "unable to map gic dist registers\n");
 
@@ -1082,6 +1203,8 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 	// 물리 주소 0x10482000 ~ 0x10482FFF을
 	// 가상 주소 0xF0002000 ~ 0xF0002FFF로 연결
 	// cpu_base : 0xF0002000
+	// 
+	// 두 번째 인자에 의해 디바이스 트리 내부의 1번 reg 정보를 이용하게 됨
 	
 	WARN(!cpu_base, "unable to map gic cpu registers\n");
 
@@ -1094,15 +1217,29 @@ int __init gic_of_init(struct device_node *node, struct device_node *parent)
 	// gic_cnt : 0, -1, dist_base : 0xF0000000, cpu_base : 0xF0002000
 	// percpu_offset : 0, node : gic 노드 주소
 	gic_init_bases(gic_cnt, -1, dist_base, cpu_base, percpu_offset, node);
+	// gic 하드웨어 초기화 값을 읽은 뒤,
+	// 하드웨어에 맞게 struct irq_domain, struct irq_desc들을 만들고 초기화함.
+	// 그 뒤, gic 레지스터에 초기화 값을 넣어줌
+	// 
+	// 현재는 irq 0 ~ 15 enable, 16 ~ 31 disable, 32 ~ 160 disable 상태임
+	// priority는 전부 동일함
+	// 현재 cpu는 interrupt disable 상태이기 때문에 실제로 처리 되지는 않음
 
+	// gic_cnt : 0
 	if (!gic_cnt)
+		// node : gic node 주소
 		gic_init_physaddr(node);
+		// NULL 함수
 
+	// parent : NULL
 	if (parent) {
 		irq = irq_of_parse_and_map(node, 0);
 		gic_cascade_irq(gic_cnt, irq);
 	}
+
+	// gic_cnt : 0
 	gic_cnt++;
+	// gic_cnt : 1
 	return 0;
 }
 IRQCHIP_DECLARE(cortex_a15_gic, "arm,cortex-a15-gic", gic_of_init);

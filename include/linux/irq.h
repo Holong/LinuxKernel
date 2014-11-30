@@ -489,8 +489,10 @@ static inline void irq_set_status_flags(unsigned int irq, unsigned long set)
 
 }
 
+// irq : 16, clr : IRQ_NOREQUEST
 static inline void irq_clear_status_flags(unsigned int irq, unsigned long clr)
 {
+	// irq : 16, clr : IRQ_NOREQUEST
 	irq_modify_status(irq, clr, 0);
 }
 

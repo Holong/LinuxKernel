@@ -4003,6 +4003,7 @@ size_t ksize(const void *object)
 }
 EXPORT_SYMBOL(ksize);
 
+// x : gic의 intc_desc 구조체의 주소
 void kfree(const void *x)
 {
 	struct page *page;

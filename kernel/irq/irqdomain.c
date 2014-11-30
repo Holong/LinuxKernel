@@ -204,6 +204,9 @@ struct irq_domain *irq_domain_add_legacy(struct device_node *of_node,
 	// interrupt 160개에 대한 struct irq_domain을 할당받고,
 	// 이를 irq_domain_list에 삽입함
 	// 그 주소를 반환하게 됨
+	//
+	// 반환 받은 struct irq_domain 한 개가 160개 인터럽트를
+	// 관리하기 위한 것임
 	
 	if (!domain)
 		return NULL;
@@ -211,6 +214,7 @@ struct irq_domain *irq_domain_add_legacy(struct device_node *of_node,
 	// domain : struct irq_domain, first_irq : 16, first_hwirq : 16
 	// size : 144
 	irq_domain_associate_many(domain, first_irq, first_hwirq, size);
+	// domain 정보를 이용해 irq_desc(16 ~ 160) 내부 정보 초기화 수행
 
 	return domain;
 }
@@ -329,6 +333,7 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 	
 	// hwirq : 16
 	irq_data->hwirq = hwirq;
+
 	// domain : 이전에 할당받은 domain 주소
 	irq_data->domain = domain;
 
@@ -341,7 +346,8 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 		// gic_irq_domain_map(domain, virq, hwirq) 가 호출됨
 		//
 		// irq 16을 위한 percpu_enabled 공간을 확보
-		// irq_desc(16).status_use_accessors 값을 set으로 설정
+		// irq_desc(16).status_use_accessors 값을 IRQ_NOAUTOEN | IRQ_PER_CPU |
+		// IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID 로 설정
 		// irq_desc(16).irq_data.status_use_accessors 값을
 		// irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
 		// irq_desc(16).irq_data.chip : &gic_chip 로 설정
@@ -386,7 +392,9 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 	mutex_unlock(&irq_domain_mutex);
 	// 뮤텍스 락 해제
 
+	// virq : 16, IRQ_NOREQUEST
 	irq_clear_status_flags(virq, IRQ_NOREQUEST);
+	// irq_desc(16)에서 IRQ_NOREQUEST 플래그 제거
 
 	return 0;
 }
@@ -407,6 +415,7 @@ void irq_domain_associate_many(struct irq_domain *domain, unsigned int irq_base,
 	for (i = 0; i < count; i++) {
 		// domain : struct irq_domain, irq_base : 16, hwirq_base : 16
 		irq_domain_associate(domain, irq_base + i, hwirq_base + i);
+		// irq_desc(16 ~ 160) 내부 정보 초기화 수행
 	}
 }
 EXPORT_SYMBOL_GPL(irq_domain_associate_many);

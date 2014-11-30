@@ -384,6 +384,26 @@ void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
 	// vmap_area_root 의 레드 블랙 트리에 새로 삽입함
 	// 그 뒤, vm_struct를 생성하고 그 값을 설정해 준 뒤, 그 주소를 반환
 	
+	/* get_vm_area_caller이 한일:
+	 * alloc area (GIC#0) 를 만들고 rb tree에 alloc area 를 추가
+	 * 가상주소 va_start 기준으로 GIC#0 를 RB Tree 추가한 결과
+	 *
+	 *                                CHID-b
+	 *                             (0xF8000000)
+	 *                            /            \
+	 *                       TMR-r               PMU-r
+	 *                  (0xF6300000)             (0xF8180000)
+	 *                    /      \               /           \
+	 *               SYSC-b      WDT-b         CMU-b         SRAM-b
+	 *          (0xF6100000)   (0xF6400000)  (0xF8100000)   (0xF8400000)
+	 *           /                                                 \
+	 *      GIC#0-r                                                 ROMC-r
+	 * (0xF0000000)                                                 (0xF84C0000)
+	 *
+	 * vmap_area_list에 GIC#0 - SYSC -TMR - WDT - CHID - CMU - PMU - SRAM - ROMC
+	 * 순서로 리스트에 연결이 됨
+	 */
+	
  	if (!area)
  		return NULL;
 

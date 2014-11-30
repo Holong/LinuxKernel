@@ -432,6 +432,7 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 
 static void (*smp_cross_call)(const struct cpumask *, unsigned int);
 
+// fn : gic_raise_softirq
 void __init set_smp_cross_call(void (*fn)(const struct cpumask *, unsigned int))
 {
 	if (!smp_cross_call)

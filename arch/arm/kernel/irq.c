@@ -133,7 +133,8 @@ void __init init_IRQ(void)
 		machine_desc->init_irq();
 }
 
-#ifdef CONFIG_MULTI_IRQ_HANDLER
+#ifdef CONFIG_MULTI_IRQ_HANDLER	// Y
+// handle_irq : gic_handle_irq
 void __init set_handle_irq(void (*handle_irq)(struct pt_regs *))
 {
 	if (handle_arch_irq)

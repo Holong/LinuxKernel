@@ -665,7 +665,8 @@ int irq_set_percpu_devid(unsigned int irq)
 
 	// irq : 16
 	irq_set_percpu_devid_flags(irq);
-	// irq_desc(16).status_use_accessors 값을 set으로 설정
+	// irq_desc(16).status_use_accessors 값을
+	// IRQ_NOAUTOEN | IRQ_PER_CPU | IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID 로 설정
 	// irq_desc(16).irq_data.status_use_accessors 값을
 	// irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
 	return 0;
