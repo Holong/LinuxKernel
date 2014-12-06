@@ -472,6 +472,7 @@ EXPORT_SYMBOL_GPL(irq_free_descs);
  * Returns the first irq number or error code
  */
 // irq : -1, from : 16, cnt : 144, node : 0, owner : NULL
+// irq : 160, from : 160, cnt : 256, node : 0, owner : NULL
 int __ref
 __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 		  struct module *owner)

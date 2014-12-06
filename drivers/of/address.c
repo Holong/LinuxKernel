@@ -853,28 +853,43 @@ struct device_node *of_find_matching_node_by_address(struct device_node *from,
  */
 // [0] np : gic 노드의 주소, index : 0
 // [1] np : gic 노드의 주소, index : 1
+// [2] np : combiner 노드의 주소
 void __iomem *of_iomap(struct device_node *np, int index)
 {
 	struct resource res;
 
 	// [0] np : gic 노드의 주소, index : 0, res : res 주소
 	// [1] np : gic 노드의 주소, index : 1, res : res 주소
+	// [2] np : combiner 노드의 주소, index : 0, res : res 주소
 	if (of_address_to_resource(np, index, &res))
 		// of_address_to_resource : np의 reg 값을 해석해 resource 구조체로 변경
-		// return 0
-		// res->start : 0x10481000
-		// res->end : 0x10481FFF
-		// res->flags : IORESOURCE_MEM
-		// res->name : "/interrupt-contoller@10481000"
+		//
+		// [0] return 0
+		// [0] res->start : 0x10481000
+		// [0] res->end : 0x10481FFF
+		// [0] res->flags : IORESOURCE_MEM
+		// [0] res->name : "/interrupt-contoller@10481000"
+		//
+		// [2] return 0
+		// [2] res->start : 0x10440000
+		// [2] res->end : 0x10440FFF
+		// [2] res->flags : IORESOURCE_MEM
+		// [2] res->name : "/interrupt-contoller@10440000"
 		return NULL;
 
-	// res.start : 0x10481000
-	// resource_size(&res) : 0x1000
+	// [0] res.start : 0x10481000
+	// [0] resource_size(&res) : 0x1000
+	// [2] res.start : 0x10440000
+	// [2] resource_size(&res) : 0x1000
 	return ioremap(res.start, resource_size(&res));
-	// ioremap(0x10481000, 0x1000) 이
-	// __arm_ioremap(0x10481000, 0x1000, MT_DEVICE) 로 바뀜
+	// [0] ioremap(0x10481000, 0x1000) 이
+	// [0] __arm_ioremap(0x10481000, 0x1000, MT_DEVICE) 로 바뀜
+	// [0] 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
+	// [0] return 0xF0000000
 	//
-	// 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
-	// return 0xF0000000
+	// [2] ioremap(0x10440000, 0x1000) 이
+	// [2] __arm_ioremap(0x10440000, 0x1000, MT_DEVICE) 로 바뀜
+	// [2] 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
+	//
 }
 EXPORT_SYMBOL(of_iomap);

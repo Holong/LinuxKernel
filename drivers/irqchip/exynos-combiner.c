@@ -169,6 +169,8 @@ static struct irq_domain_ops combiner_irq_domain_ops = {
 	.map	= combiner_irq_domain_map,
 };
 
+// combiner_base : 0xF0004000, np : combiner 노드의 주소
+// max_nr : 32, irq_base : 160
 static void __init combiner_init(void __iomem *combiner_base,
 				 struct device_node *np,
 				 unsigned int max_nr,
@@ -178,14 +180,23 @@ static void __init combiner_init(void __iomem *combiner_base,
 	unsigned int nr_irq;
 	struct combiner_chip_data *combiner_data;
 
+	// max_nr : 32, IRQ_IN_COMBINER : 8
 	nr_irq = max_nr * IRQ_IN_COMBINER;
+	// nr_irq : 256
 
+	// max_nr : 32, sizeof(combiner_chip_data) : 16, GFP_KERNEL
 	combiner_data = kcalloc(max_nr, sizeof (*combiner_data), GFP_KERNEL);
+	// combiner_data : 512짜리 object를 새로 할당받음
+	
+	// combiner_data : 할당받은 공간
 	if (!combiner_data) {
 		pr_warning("%s: could not allocate combiner data\n", __func__);
 		return;
 	}
+	// 통과
 
+	// np : combiner 노드의 주소, nr_irq : 256, irq_base : 160
+	// &combiner_irq_domain_ops, combiner_data : combiner_chip_data용 공간
 	combiner_irq_domain = irq_domain_add_simple(np, nr_irq, irq_base,
 				&combiner_irq_domain_ops, combiner_data);
 	if (WARN_ON(!combiner_irq_domain)) {
@@ -210,17 +221,30 @@ static int __init combiner_of_init(struct device_node *np,
 	unsigned int max_nr = 20;
 	int irq_base = -1;
 
+	// np : combiner 노드의 주소
 	combiner_base = of_iomap(np, 0);
+ 	// free_vmap_cache에 새 정보 삽입(rb_tree)
+	// vmap_area_list에 새 정보 연결(list)
+	// 가상주소와 물리주소 연결을 위한 페이지 테이블 생성
+	// 물리 주소 0x10440000 ~ 0x10440000을
+	// 가상 주소 0xF0004000 ~ 0xF0004FFF로 연결
+	// combiner_base : 0xF0004000
+	//
+	// 두 번째 인자에 의해 디바이스 트리 내부의 0번 reg 정보를 이용하게 됨
+	
 	if (!combiner_base) {
 		pr_err("%s: failed to map combiner registers\n", __func__);
 		return -ENXIO;
 	}
 
+	// np : combiner 노드의 주소, "samsung,combiner-nr", &max_nr
 	if (of_property_read_u32(np, "samsung,combiner-nr", &max_nr)) {
 		pr_info("%s: number of combiners not specified, "
 			"setting default as %d.\n",
 			__func__, max_nr);
 	}
+	// max_nr : 32
+	// 디바이스 트리의 combiner 노드에서 samsung,combiner-nr 속성의 값을 가져옴
 
 	/* 
 	 * FIXME: This is a hardwired COMBINER_IRQ(0,0). Once all devices
@@ -228,7 +252,10 @@ static int __init combiner_of_init(struct device_node *np,
 	 * allocation.
 	 */
 	irq_base = 160;
+	// irq_base : 160
 
+	// combiner_base : 0xF0004000, np : combiner 노드의 주소
+	// max_nr : 32, irq_base : 160
 	combiner_init(combiner_base, np, max_nr, irq_base);
 
 	return 0;

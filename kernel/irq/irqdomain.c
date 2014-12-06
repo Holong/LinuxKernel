@@ -35,8 +35,10 @@ static struct irq_domain *irq_default_domain;
  * register allocated irq_domain with irq_domain_register().  Returns pointer
  * to IRQ domain, or NULL on failure.
  */
-// of_node : gic 노드, size : 160, hwirq_max : 160, direct_max ; 0,
-// ops : &gic_irq_domain_ops, host_data : &gic_data[0]
+// [1] of_node : gic 노드, size : 160, hwirq_max : 160, direct_max ; 0,
+// [1] ops : &gic_irq_domain_ops, host_data : &gic_data[0]
+// [2] of_node : combiner 노드의 주소, size : 256, hwirq_max : 256, direct_max : 0,
+// [2] ops : combiner_irq_domain_ops, host_data : combiner_chip_data용 공간 주소
 struct irq_domain *__irq_domain_add(struct device_node *of_node, int size,
 				    irq_hw_number_t hwirq_max, int direct_max,
 				    const struct irq_domain_ops *ops,
@@ -46,29 +48,36 @@ struct irq_domain *__irq_domain_add(struct device_node *of_node, int size,
 
 	domain = kzalloc_node(sizeof(*domain) + (sizeof(unsigned int) * size),
 			      GFP_KERNEL, of_node_to_nid(of_node));
-	// struct irq_domain과 160개 int를 저장하기 위한 오브젝트를 할당받음
+	// [1] struct irq_domain과 160개 int를 저장하기 위한 오브젝트를 할당받음
+	// [2] struct irq_domain과 256개 int를 저장하기 위한 오브젝트를 할당받음
 	
 	if (WARN_ON(!domain))
 		return NULL;
 
 	/* Fill structure */
 	INIT_RADIX_TREE(&domain->revmap_tree, GFP_KERNEL);
-	// radix tree 루트 초기화
+	// [1] radix tree 루트 초기화
+	// [2] radix tree 루트 초기화
 	
-	// ops : &gic_irq_domain_ops
+	// [1] ops : &gic_irq_domain_ops
+	// [2] ops : &combiner_irq_domain_ops
 	domain->ops = ops;
 
-	// host_data: &gic_data[0]
+	// [1] host_data: &gic_data[0]
+	// [2] host_data: &combiner_chip_data용 object 공간
 	domain->host_data = host_data;
 
 	// of_node_get(of_node) : 그냥 of_node 반환
 	domain->of_node = of_node_get(of_node);
-	// of_node : gic 노드의 주소가 들어감
+	// [1] of_node : gic 노드의 주소가 들어감
+	// [2] of_node : combiner 노드의 주소가 들어감
 	
-	// hwirq_max : 160
+	// [1] hwirq_max : 160
+	// [2] hwirq_max : 256
 	domain->hwirq_max = hwirq_max;
 	
-	// size : 160
+	// [1] size : 160
+	// [2] size : 160
 	domain->revmap_size = size;
 
 	// direct_max : 0
@@ -80,6 +89,8 @@ struct irq_domain *__irq_domain_add(struct device_node *of_node, int size,
 	list_add(&domain->link, &irq_domain_list);
 	mutex_unlock(&irq_domain_mutex);
 	// irq_domain_list에 현재 domain을 연결함
+	// [2] 결국 irq_domain_list에는 gic용 irq_domain과
+	//     combiner용 irq_domain이 연결됨
 
 	pr_debug("Added domain %s\n", domain->name);
 
@@ -142,6 +153,8 @@ EXPORT_SYMBOL_GPL(irq_domain_remove);
  * irqs get mapped dynamically on the fly. However, if the controller requires
  * static virq assignments (non-DT boot) then it will set that up correctly.
  */
+// of_node : combiner 노드의 주소, size : 256, first_irq : 160
+// ops : &combiner_irq_domain_ops, host_data : combiner_chip_data용 공간 주소
 struct irq_domain *irq_domain_add_simple(struct device_node *of_node,
 					 unsigned int size,
 					 unsigned int first_irq,
@@ -150,13 +163,23 @@ struct irq_domain *irq_domain_add_simple(struct device_node *of_node,
 {
 	struct irq_domain *domain;
 
+	// of_node : combiner 노드의 주소, size : 256, size : 256, 0,
+	// ops : combiner_irq_domain_ops, host_data : combiner_chip_data용 공간 주소
 	domain = __irq_domain_add(of_node, size, size, 0, ops, host_data);
+	// irq_domain 공간을 할당받고 적절히 초기화를 해 준 후
+	// irq_domain_list에 그 구조체를 연결해 둠
+	
+	// domain : 할당받은 irq_domain 구조체
 	if (!domain)
 		return NULL;
 
+	// first_irq : 160
 	if (first_irq > 0) {
+		// CONFIG_SPARSE_IRQ : Y
 		if (IS_ENABLED(CONFIG_SPARSE_IRQ)) {
 			/* attempt to allocated irq_descs */
+			// first_irq : 160, first_irq : 160, size : 256,
+			// of_node_to_nid() : 0
 			int rc = irq_alloc_descs(first_irq, first_irq, size,
 						 of_node_to_nid(of_node));
 			if (rc < 0)

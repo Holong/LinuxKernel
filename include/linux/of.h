@@ -600,6 +600,7 @@ static inline int of_property_read_u16(const struct device_node *np,
 }
 
 // device_node : cpu@0의 노드 주소, propname : "reg", out_value : &hwid
+// np : combiner 노드의 주소, "samsung,combiner-nr", &max_nr
 static inline int of_property_read_u32(const struct device_node *np,
 				       const char *propname,
 				       u32 *out_value)

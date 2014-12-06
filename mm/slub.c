@@ -3958,20 +3958,28 @@ static int __init setup_slub_nomerge(char *str)
 
 __setup("slub_nomerge", setup_slub_nomerge);
 
+// size : 512, flags : GFP_KERNEL | __GFP_ZERO
 void *__kmalloc(size_t size, gfp_t flags)
 {
 	struct kmem_cache *s;
 	void *ret;
 
+	// size : 512, KMALLOC_MAX_CACHE_SIZE : 4096 
 	if (unlikely(size > KMALLOC_MAX_CACHE_SIZE))
 		return kmalloc_large(size, flags);
+	// 통과
 
+	// size : 512, flags : GFP_KERNEL | __GFP_ZERO
 	s = kmalloc_slab(size, flags);
+	// 512를 위한 kmem_cache를 찾아서
+	// 그 주소를 반환함
 
 	if (unlikely(ZERO_OR_NULL_PTR(s)))
 		return s;
 
+	// s : kmem_cache, flags : GFP_KERNEL | __GFP_ZERO
 	ret = slab_alloc(s, flags, _RET_IP_);
+	// ret : kmem_cache에 맞는 object 하나가 반환됨
 
 	trace_kmalloc(_RET_IP_, ret, size, s->size, flags);
 

@@ -583,11 +583,17 @@ void print_slabinfo_header(struct seq_file *m);
  * @size: element size.
  * @flags: the type of memory to allocate (see kmalloc).
  */
+// n : 32, size : 16, flags : GFP_KERNEL | __GFP_ZERO
 static inline void *kmalloc_array(size_t n, size_t size, gfp_t flags)
 {
+	// size : 16, n : 32
 	if (size != 0 && n > SIZE_MAX / size)
 		return NULL;
+	// 통과됨
+	
+	// n * size : 512, flags : GFP_KERNEL | __GFP_ZERO
 	return __kmalloc(n * size, flags);
+	// 512짜리 object가 하나 반환됨
 }
 
 /**
@@ -596,9 +602,12 @@ static inline void *kmalloc_array(size_t n, size_t size, gfp_t flags)
  * @size: element size.
  * @flags: the type of memory to allocate (see kmalloc).
  */
+// n : 32, size : 16, flags : GFP_KERNEL
 static inline void *kcalloc(size_t n, size_t size, gfp_t flags)
 {
+	// n : 32, size : 16, flags : GFP_KERNEL | __GFP_ZERO
 	return kmalloc_array(n, size, flags | __GFP_ZERO);
+	// 512짜리 object가 하나 반환됨
 }
 
 /*
