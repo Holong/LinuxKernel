@@ -519,19 +519,29 @@ void __init of_irq_init(const struct of_device_id *matches)
 
 			if (desc->interrupt_parent != parent)
 				continue;
-			// desc가 gic에 대한 것일 때 아래로 진행됨
-			// 즉 interrupt_parent가 NULL일 때
+			// [1] desc가 gic에 대한 것일 때는 아래로 진행됨
+			//     즉 interrupt_parent가 NULL일 때
+			//
+			//     desc가 combiner인 채로 들어오는 첫 번째에는
+			//     parent가 NULL이기 때문에 continue로 빠져나감
+			//
+			// [2] desc가 combiner에 대한 것으로 다시 들어오는데,
+			//     그 때는 parent가 gic 노드 주소이기 때문에
+			//     아래로 수행됨
 
 			list_del(&desc->list);
 			// intc_desc_list에서 gic 노드 제거
+			// intc_desc_list에서 combiner 노드 제거
 			
 			// matches : __irqchip_begin 배열
-			// desc->dev : gic 노드의 주소
+			// [1] desc->dev : gic 노드의 주소
+			// [2] desc->dev : combiner 노드의 주소
 			match = of_match_node(matches, desc->dev);
 			// of_match_node()
 			// matches 배열에서 desc->dev와 compatible이 일치하는 원소를 뽑아옴
 			//
-			// match : irqchip_of_match_cortex_a15_gic 
+			// [1] match : irqchip_of_match_cortex_a15_gic 
+			// [2] match : irqchip_of_match_exynos4210_combiner
 
 			if (WARN(!match->data,
 			    "of_irq_init: no init function for %s\n",
@@ -546,13 +556,17 @@ void __init of_irq_init(const struct of_device_id *matches)
 				 desc->dev, desc->interrupt_parent);
 			// 통과
 
-			// match->data : gic_of_init (함수 포인터)
+			// [1] match->data : gic_of_init (함수 포인터)
+			// [2] match->data : combiner_of_init (함수 포인터)
 			irq_init_cb = (of_irq_init_cb_t)match->data;
-			// irq_init_cb : gic_of_init
+			// [1] irq_init_cb : gic_of_init
+			// [2] irq_init_cb : combiner_of_init
 
-			// desc->dev : gic 노드의 주소, desc->interrupt_parent : NULL
+			// [1] desc->dev : gic 노드의 주소, desc->interrupt_parent : NULL
+			// [2] desc->dev : combiner 노드의 주소, desc->interrupt_parent : gic 노드 주소
 			ret = irq_init_cb(desc->dev, desc->interrupt_parent);
-			// gic_of_init(desc->dev, desc->interrupt_parent)가 호출됨
+			// [1] gic_of_init(desc->dev, desc->interrupt_parent)가 호출됨
+			// [2] combiner_of_init(desc->dev, desc->interrupt_parent)가 호출됨
 			// 
 			// gic 메모리를 가상 메모리 위로 올려주고,
 			// gic 하드웨어 초기화 및 struct irq_desc와 struct irq_domain을
@@ -592,6 +606,7 @@ void __init of_irq_init(const struct of_device_id *matches)
 
 		// desc : gic의 intc_desc 구조체의 주소
 		kfree(desc);
+		// desc 를 해제하고 slab으로 반환함
 	}
 
 	list_for_each_entry_safe(desc, temp_desc, &intc_parent_list, list) {

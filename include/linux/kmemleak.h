@@ -45,6 +45,8 @@ static inline void kmemleak_alloc_recursive(const void *ptr, size_t size,
 		kmemleak_alloc(ptr, size, min_count, gfp);
 }
 
+// s : intc_desc를 위한 kmem_cache
+// x : intc_desc 구조체의 주소
 static inline void kmemleak_free_recursive(const void *ptr, unsigned long flags)
 {
 	if (!(flags & SLAB_NOLEAKTRACE))

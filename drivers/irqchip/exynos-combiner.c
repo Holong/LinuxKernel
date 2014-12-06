@@ -202,6 +202,7 @@ static void __init combiner_init(void __iomem *combiner_base,
 	}
 }
 
+// np : combiner 노드의 주소, parent : gic 노드 주소
 static int __init combiner_of_init(struct device_node *np,
 				   struct device_node *parent)
 {

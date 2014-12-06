@@ -1021,16 +1021,21 @@ static inline void slab_post_alloc_hook(struct kmem_cache *s,
 	// 둘 다 NULL 함수
 }
 
+// s : intc_desc를 위한 kmem_cache
+// x : intc_desc 구조체의 주소
 static inline void slab_free_hook(struct kmem_cache *s, void *x)
 {
+	// s->flags : 0
+	// x : intc_desc 구조체의 주소
 	kmemleak_free_recursive(x, s->flags);
+	// NULL 함수
 
 	/*
 	 * Trouble is that we may no longer disable interrupts in the fast path
 	 * So in order to make the debug calls that expect irqs to be
 	 * disabled we need to disable interrupts temporarily.
 	 */
-#if defined(CONFIG_KMEMCHECK) || defined(CONFIG_LOCKDEP)
+#if defined(CONFIG_KMEMCHECK) || defined(CONFIG_LOCKDEP)	// 둘 다 N
 	{
 		unsigned long flags;
 
@@ -1040,8 +1045,12 @@ static inline void slab_free_hook(struct kmem_cache *s, void *x)
 		local_irq_restore(flags);
 	}
 #endif
+	// s->flags : 0, SLAB_DEBUG_OBJECTS : 0
 	if (!(s->flags & SLAB_DEBUG_OBJECTS))
+		// x : intc_desc 구조체의 주소
+		// s->object_size : 64
 		debug_check_no_obj_freed(x, s->object_size);
+		// NULL 함수
 }
 
 /*
@@ -3055,14 +3064,22 @@ slab_empty:
  * If fastpath is not possible then fall back to __slab_free where we deal
  * with all sorts of special processing.
  */
+// s : intc_desc를 위한 kmem_cache, page : intc_desc 담당 page, 
+// x : intc_desc 구조체 주소, addr : _RET_IP_
 static __always_inline void slab_free(struct kmem_cache *s,
 			struct page *page, void *x, unsigned long addr)
 {
 	void **object = (void *)x;
+	// object : intc_desc 구조체의 주소
+	
 	struct kmem_cache_cpu *c;
 	unsigned long tid;
 
+	// s : intc_desc를 위한 kmem_cache
+	// x : intc_desc 구조체의 주소
 	slab_free_hook(s, x);
+	// 내부 기능이 전부 NULL 함수로 대체됨
+	// 하는 일 없음
 
 redo:
 	/*
@@ -3072,14 +3089,34 @@ redo:
 	 * during the cmpxchg then the free will succedd.
 	 */
 	preempt_disable();
+	// 비선점형으로 바꿈
+	
+	// s->cpu_slab : kmem_cache_cpu의 베이스 주소
 	c = __this_cpu_ptr(s->cpu_slab);
+	// c : cpu 0번을 위한 kmem_cache_cpu의 주소
 
+	// c->tid : transaction id
 	tid = c->tid;
+	// tid : c->tid가 저장됨
+	
 	preempt_enable();
+	// 선점형으로 바꿈
 
+	// page와 c->page가 동일할 확률이 높음(아직 정확한 로직은 기억이 안남)
+	// mm_init과 percpu_init을 다시 봐야 함
 	if (likely(page == c->page)) {
+		// s : intc_desc를 위한 kmem_cache
+		// object : intc_desc 구조체의 주소
 		set_freepointer(s, object, c->freelist);
+		// 현재 해제하려는 구조체를 freelist에 다시 연결시켜줌
+		// 해제하는 공간이 freelist의 첫 번째 object가 되게 됨
 
+		// s->cpu_slab->freelist == c->freelist
+		// s->cpu_slab->tid == tid  이면
+		// s->cpu_slab->freelist를 object로 바꾸고
+		// s->cpu_slab_tid를 next_tid(tid)로 바꿈
+		// 결국 값 스위칭이 됨
+		// freelist 구조가 변경되기 때문에 해제 동작을 수행한 것으로 보임
 		if (unlikely(!this_cpu_cmpxchg_double(
 				s->cpu_slab->freelist, s->cpu_slab->tid,
 				c->freelist, tid,
@@ -3089,6 +3126,7 @@ redo:
 			goto redo;
 		}
 		stat(s, FREE_FASTPATH);
+		// NULL 함수
 	} else
 		__slab_free(s, page, x, addr);
 
@@ -4014,14 +4052,21 @@ void kfree(const void *x)
 	if (unlikely(ZERO_OR_NULL_PTR(x)))
 		return;
 
+	// x : gic의 intc_desc 구조체 주소
 	page = virt_to_head_page(x);
+	// intc_desc를 담당하는 page를 뽑아옴
+	
 	if (unlikely(!PageSlab(page))) {
 		BUG_ON(!PageCompound(page));
 		kfree_hook(x);
 		__free_memcg_kmem_pages(page, compound_order(page));
 		return;
 	}
+
+	// page->slab_cache : intc_desc를 위한 kmem_cache, page : intc_desc 담당 page, 
+	// object : intc_desc 구조체 주소, _RET_IP_ : 반환 주소
 	slab_free(page->slab_cache, page, object, _RET_IP_);
+	// intc_desc 구조체가 해제되고 slab으로 반환됨
 }
 EXPORT_SYMBOL(kfree);
 

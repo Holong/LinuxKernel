@@ -453,9 +453,12 @@ static inline void get_page(struct page *page)
 	atomic_inc(&page->_count);
 }
 
+// x : gic의 intc_desc 구조체 주소
 static inline struct page *virt_to_head_page(const void *x)
 {
 	struct page *page = virt_to_page(x);
+	// intc_desc를 담당하는 page를 뽑아옴
+	
 	return compound_head(page);
 }
 
