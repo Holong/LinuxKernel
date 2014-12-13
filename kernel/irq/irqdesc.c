@@ -251,7 +251,8 @@ static void free_desc(unsigned int irq)
 	kfree(desc);
 }
 
-// start : 16, cnt : 144, node : 0, owner : NULL
+// [1] start : 16, cnt : 144, node : 0, owner : NULL
+// [2] start : 160, cnt : 256, node : 0, owner : NULL
 static int alloc_descs(unsigned int start, unsigned int cnt, int node,
 		       struct module *owner)
 {
@@ -477,62 +478,83 @@ int __ref
 __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 		  struct module *owner)
 {
+	// [1] gic 할 때 옴
+	// [2] combiner 할 때 옴
 	int start, ret;
 
-	// cnt : 144
+	// [1] cnt : 144
+	// [2] cnt : 256
 	if (!cnt)
 		return -EINVAL;
 
-	// irq : -1
+	// [1] irq : -1
+	// [2] irq : 160 
 	if (irq >= 0) {
+		// [2] from : 160, irq : 160
 		if (from > irq)
 			return -EINVAL;
+
+		// [2] irq : 160
 		from = irq;
+		// [2] from : 160
 	}
+	// 이 부분은 irq 번호가 0보다 클 때, from 값을 다시 설정하는 부분임
 
 	mutex_lock(&sparse_irq_lock);
 	// mutex lock 획득
 
-	// allocated_irqs : 전역 배열, IRQ_BITMAP_BITS : 8212, from : 16, cnt : 144, 0
+	// [1] allocated_irqs : 전역 배열, IRQ_BITMAP_BITS : 8212, from : 16, cnt : 144, 0
+	// [2] allocated_irqs : 전역 배열, IRQ_BITMAP_BITS : 8212, from : 160, cnt : 256, 0
 	start = bitmap_find_next_zero_area(allocated_irqs, IRQ_BITMAP_BITS,
 					   from, cnt, 0);
-	// allocated_irqs에서 0이 연속으로 설정되어 있는 공간 중 연속 비트 길이가 144가 되는
-	// 존재하는 공간을 찾아내 그 곳의 시작 인덱스를 반환함
-	// 현재 allocated_irqs는 0~15까지만 1로 설정되어 있으므로 16이 반환됨
+	// [1] allocated_irqs에서 0이 연속으로 설정되어 있는 공간 중 연속 비트 길이가 144가 되는
+	//     존재하는 공간을 찾아내 그 곳의 시작 인덱스를 반환함
+	//     현재 allocated_irqs는 0~15까지만 1로 설정되어 있으므로 16이 반환됨
+	// [2] 이 때는 allocated_irqs가 0~159까지 1로 되어 있으므로 160이 반환됨
 	
 	ret = -EEXIST;
 	// ret : -EEXIST
 
-	// irq : -1, start : 16
+	// [1] irq : -1, start : 16
+	// [2] irq : 160, start : 160
 	if (irq >=0 && start != irq)
 		goto err;
+	// err 반환하는 경우는 irq 번호가 잘 못 들어오는 경우임
 
-	// start : 16, cnt : 144, nr_irqs : 16
+	// [1] start : 16, cnt : 144, nr_irqs : 16
+	// [2] start : 160, cnt : 256, nr_irqs : 160
 	if (start + cnt > nr_irqs) {
-		// start + cnt : 160
+		// [1] start + cnt : 160
+		// [2] start + cnt : 416
 		ret = irq_expand_nr_irqs(start + cnt);
-		// 전역 변수  nr_irqs 값을 160으로 설정
-		// ret : 0
+		// [1] 전역 변수  nr_irqs 값을 160으로 설정
+		// [2] 전역 변수  nr_irqs 값을 416으로 설정
 		
 		if (ret)
 			goto err;
 	}
 
-	// start : 16, cnt : 144
+	// [1] start : 16, cnt : 144
+	// [2] start : 160, cnt : 256
 	bitmap_set(allocated_irqs, start, cnt);
-	// allocated_irqs의 16 ~ 160비트까지 전부 1로 설정
-	// 결국 allocated_irqs는 0 ~ 160비트까지 1로 설정된 상태가 됨
+	// [1] allocated_irqs의 16 ~ 159비트까지 전부 1로 설정
+	//     결국 allocated_irqs는 0 ~ 159비트까지 1로 설정된 상태가 됨
+	// [2] allocated_irqs의 160 ~ 415비트까지 전부 1로 설정
+	//     결국 allocated_irqs는 0 ~ 415비트까지 1로 설정된 상태가 됨
 	
 	mutex_unlock(&sparse_irq_lock);
 	// 락 해제
 	
-	// start : 16, cnt : 144, node : 0, owner : NULL
+	// [1] start : 16, cnt : 144, node : 0, owner : NULL
+	// [2] start : 160, cnt : 256, node : 0, owner : NULL
 	return alloc_descs(start, cnt, node, owner);
-	// 16부터 144까지 struct irq_desc를 할당받고
-	// &irq_desc_tree 트리에 삽입
-	// radix_tree 구조로 되어 있음
-	// 
-	// 16 반환
+	// [1] 16부터 159까지 struct irq_desc를 할당받고
+	//     &irq_desc_tree 트리에 삽입
+	//     radix_tree 구조로 되어 있음
+	//     16 반환
+	// [2] 160부터 415까지 struct irq_desc를 할당받고
+	//     &irq_desc_tree 트리에 삽입
+	//     160 반환
 
 err:
 	mutex_unlock(&sparse_irq_lock);

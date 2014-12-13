@@ -347,7 +347,8 @@ EXPORT_SYMBOL(bitmap_clear);
  * the bit offset of all zero areas this function finds is multiples of that
  * power of 2. A @align_mask of 0 means no alignment is required.
  */
-// map : allocated_irqs, size : 8212, start : 16, nr : 144, align_mask : 0
+// [1] map : allocated_irqs, size : 8212, start : 16, nr : 144, align_mask : 0
+// [2] map : allocated_irqs, size : 8212, start : 160, nr : 256, align_mask : 0
 unsigned long bitmap_find_next_zero_area(unsigned long *map,
 					 unsigned long size,
 					 unsigned long start,
@@ -387,6 +388,9 @@ again:
 		start = i + 1;
 		goto again;
 	}
+	// 이 부분이 수행되는 경우는 i 값이 end 보다 작은 경우로,
+	// 즉, 중간에 1인 비트가 존재한다는 뜻임
+	// 그러므로 그 1인 비트 다음부터 다시 찾는 것임
 
 	return index;
 	// 16이 반환됨

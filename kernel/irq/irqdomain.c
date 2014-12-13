@@ -182,10 +182,16 @@ struct irq_domain *irq_domain_add_simple(struct device_node *of_node,
 			// of_node_to_nid() : 0
 			int rc = irq_alloc_descs(first_irq, first_irq, size,
 						 of_node_to_nid(of_node));
+			// allocated_irqs의 160 ~ 415비트까지 전부 1로 설정
+			// 160부터 415까지 struct irq_desc를 할당하고, 초기화 한 뒤
+			// &irq_desc_tree 트리에 삽입
+			// rc : 160
+
 			if (rc < 0)
 				pr_info("Cannot allocate irq_descs @ IRQ%d, assuming pre-allocated\n",
 					first_irq);
 		}
+		// domain : 할당받은 irq_domain, first_irq : 160, 0, size : 256
 		irq_domain_associate_many(domain, first_irq, 0, size);
 	}
 
@@ -423,7 +429,8 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 }
 EXPORT_SYMBOL_GPL(irq_domain_associate);
 
-// domain : struct irq_domain, irq_base : 16, hwirq_base : 16, count : 144
+// domain : gic용 irq_domain, irq_base : 16, hwirq_base : 16, count : 144
+// domain : combiner용 irq_domain, irq_base : 160, hwirq_base : 0, count : 256
 void irq_domain_associate_many(struct irq_domain *domain, unsigned int irq_base,
 			       irq_hw_number_t hwirq_base, int count)
 {
