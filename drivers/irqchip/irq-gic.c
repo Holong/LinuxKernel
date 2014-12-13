@@ -914,24 +914,37 @@ static int gic_irq_domain_map(struct irq_domain *d, unsigned int irq,
 	// 0 반환
 }
 
+// irq_domain : gic용 irq_domain, controller : gic용 노드 주소
+// intspec : oirq.args, intsize : 3, out_hwirq : &hwirq, out_type : &type
 static int gic_irq_domain_xlate(struct irq_domain *d,
 				struct device_node *controller,
 				const u32 *intspec, unsigned int intsize,
 				unsigned long *out_hwirq, unsigned int *out_type)
 {
+	// d->of_node : gic용 노드의 주소
 	if (d->of_node != controller)
 		return -EINVAL;
+	// 통과
+	
+	// intsize : 3
 	if (intsize < 3)
 		return -EINVAL;
+	// 통과
 
 	/* Get the interrupt number and add 16 to skip over SGIs */
 	*out_hwirq = intspec[1] + 16;
+	// out_hwirq : 16
 
 	/* For SPIs, we need to add 16 more to get the GIC irq ID number */
+	// intspec[0] : 0
 	if (!intspec[0])
 		*out_hwirq += 16;
+		// out_hwirq : 32
 
+	// intspec[2] : 0, IRQ_TYPE_SENSE_MASK : 0x0000000f
 	*out_type = intspec[2] & IRQ_TYPE_SENSE_MASK;
+	// out_type : IRQ_TYPE_NONE
+
 	return 0;
 }
 

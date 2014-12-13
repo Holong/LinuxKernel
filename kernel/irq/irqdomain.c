@@ -254,6 +254,7 @@ EXPORT_SYMBOL_GPL(irq_domain_add_legacy);
  * irq_find_host() - Locates a domain for a given device node
  * @node: device-tree node of the interrupt controller
  */
+// node : gic 노드의 주소
 struct irq_domain *irq_find_host(struct device_node *node)
 {
 	struct irq_domain *h, *found = NULL;
@@ -265,14 +266,23 @@ struct irq_domain *irq_find_host(struct device_node *node)
 	 * yet though...
 	 */
 	mutex_lock(&irq_domain_mutex);
+	// 뮤텍스 락 획득
+	
+	// irq_domain_list : irq_domain이 연결된 리스트
+	// 현재 gic용과 combiner용 2개가 연결되어 있음
 	list_for_each_entry(h, &irq_domain_list, link) {
+		// h->ops : &gic_irq_domain_ops
+		// h->ops->match : NULL
 		if (h->ops->match)
 			rc = h->ops->match(h, node);
 		else
+			// h->of_node : gic 노드의 주소
 			rc = (h->of_node != NULL) && (h->of_node == node);
+			// rc : 1
 
 		if (rc) {
 			found = h;
+			// found : gic용 irq_domain의 주소
 			break;
 		}
 	}
@@ -535,6 +545,7 @@ EXPORT_SYMBOL_GPL(irq_create_direct_mapping);
  * If the sense/trigger is to be specified, set_irq_type() should be called
  * on the number returned from that call.
  */
+// domain : gic용 irq_domain 주소, hwirq : 32
 unsigned int irq_create_mapping(struct irq_domain *domain,
 				irq_hw_number_t hwirq)
 {
@@ -544,19 +555,26 @@ unsigned int irq_create_mapping(struct irq_domain *domain,
 	pr_debug("irq_create_mapping(0x%p, 0x%lx)\n", domain, hwirq);
 
 	/* Look for default domain if nececssary */
+	// domain : gic용 irq_domain 주소
 	if (domain == NULL)
 		domain = irq_default_domain;
 	if (domain == NULL) {
 		WARN(1, "%s(, %lx) called with NULL domain\n", __func__, hwirq);
 		return 0;
 	}
+	// 전부 통과
 	pr_debug("-> using domain @%p\n", domain);
 
 	/* Check if mapping already exists */
+	// domain : gic용 irq_domain 주소, hwirq : 32
 	virq = irq_find_mapping(domain, hwirq);
+	// virq : 32가 반환됨
+	
+	// virq : 32
 	if (virq) {
 		pr_debug("-> existing mapping on virq %d\n", virq);
 		return virq;
+		// return 32
 	}
 
 	/* Allocate a virtual interrupt number */
@@ -616,6 +634,7 @@ int irq_create_strict_mappings(struct irq_domain *domain, unsigned int irq_base,
 }
 EXPORT_SYMBOL_GPL(irq_create_strict_mappings);
 
+// irq_data : &oirq
 unsigned int irq_create_of_mapping(struct of_phandle_args *irq_data)
 {
 	struct irq_domain *domain;
@@ -623,32 +642,53 @@ unsigned int irq_create_of_mapping(struct of_phandle_args *irq_data)
 	unsigned int type = IRQ_TYPE_NONE;
 	unsigned int virq;
 
+	// irq_data->np : gic 노드의 주소
 	domain = irq_data->np ? irq_find_host(irq_data->np) : irq_default_domain;
+	// irq_find_host : 인자로 넘어가는 노드에 대한 irq_domain 구조체의 주소를 반환
+	// domain : gic용 irq_domain의 주소
+	
+	// domain : gic용 irq_domain의 주소
 	if (!domain) {
 		pr_warn("no irq domain found for %s !\n",
 			of_node_full_name(irq_data->np));
 		return 0;
 	}
+	// 통과
 
 	/* If domain has no translation, then we assume interrupt line */
+	// domain->ops : &gic_irq_domain_ops
+	// domain->ops->xlate : gic_irq_domain_xlate
 	if (domain->ops->xlate == NULL)
 		hwirq = irq_data->args[0];
 	else {
+		// domain : gic용 irq_domain, irq_data->np : gic용 노드 주소
+		// irq_data->args, irq_data->args_count : 3, &hwirq, &type
 		if (domain->ops->xlate(domain, irq_data->np, irq_data->args,
 					irq_data->args_count, &hwirq, &type))
+		// gic_irq_domain_xlate() 함수가 호출됨
+		// hwirq : 32
+		// type : IRQ_TYPE_NONE 로 설정
 			return 0;
 	}
 
 	/* Create mapping */
+	// domain : gic용 irq_domain 주소, hwirq : 32
 	virq = irq_create_mapping(domain, hwirq);
+	// gic용 irq_domain 내부에서 hwirq 번호에 대한 virq 번호를 찾아내서 반환
+	// virq : 32
+	
+	// virq : 32
 	if (!virq)
 		return virq;
 
 	/* Set type if specified and different than the current one */
+	// type : IRQ_TYPE_NONE
 	if (type != IRQ_TYPE_NONE &&
 	    type != irq_get_trigger_type(virq))
 		irq_set_irq_type(virq, type);
+
 	return virq;
+	// return 32
 }
 EXPORT_SYMBOL_GPL(irq_create_of_mapping);
 
@@ -678,26 +718,33 @@ EXPORT_SYMBOL_GPL(irq_dispose_mapping);
  * @domain: domain owning this hardware interrupt
  * @hwirq: hardware irq number in that domain space
  */
+// domain : gic용 irq_domain 주소, hwirq : 32
 unsigned int irq_find_mapping(struct irq_domain *domain,
 			      irq_hw_number_t hwirq)
 {
 	struct irq_data *data;
 
 	/* Look for default domain if nececssary */
+	// domain : gic용 irq_domain 주소
 	if (domain == NULL)
 		domain = irq_default_domain;
 	if (domain == NULL)
 		return 0;
 
+	// hwirq : 32, domain->revmap_direct_max_irq : 0
 	if (hwirq < domain->revmap_direct_max_irq) {
 		data = irq_get_irq_data(hwirq);
 		if (data && (data->domain == domain) && (data->hwirq == hwirq))
 			return hwirq;
 	}
+	// 통과
 
 	/* Check if the hwirq is in the linear revmap. */
+	// hwirq : 32, domain->revmap_size : 160
 	if (hwirq < domain->revmap_size)
+		// domain->linear_revmap[32] : 32
 		return domain->linear_revmap[hwirq];
+		// 32가 반환됨
 
 	rcu_read_lock();
 	data = radix_tree_lookup(&domain->revmap_tree, hwirq);

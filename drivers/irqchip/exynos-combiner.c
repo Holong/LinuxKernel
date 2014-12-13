@@ -121,16 +121,30 @@ static void __init combiner_cascade_irq(struct combiner_chip_data *combiner_data
 	irq_set_chained_handler(irq, combiner_handle_cascade_irq);
 }
 
+// combiner_data : combiner_chip_data[0], combiner_nr : 0,
+// base : 0xF0004000, irq : 32
 static void __init combiner_init_one(struct combiner_chip_data *combiner_data,
 				     unsigned int combiner_nr,
 				     void __iomem *base, unsigned int irq)
 {
 	combiner_data->base = base;
+	// combiner_chip_data[0].base : 0xF0004000
+	
+	// combiner_nr : 0, IRQ_IN_COMBINER : 8
 	combiner_data->hwirq_offset = (combiner_nr & ~3) * IRQ_IN_COMBINER;
+	// combiner_chip_data[0].hwirq_offset : 0
+	
+	// combiner_nr : 0
 	combiner_data->irq_mask = 0xff << ((combiner_nr % 4) << 3);
+	// combiner_chip_data[0].irq_mask : 0xFF
+	
+	// irq : 32
 	combiner_data->parent_irq = irq;
+	// combiner_chip_data[0].parent_irq : 32
 
 	/* Disable all interrupts */
+	// combiner_chip_data[0].irq_mask : 0xFF, base : 0xF0004000
+	// COMBINER_ENABLE_CLEAR : 0x4
 	__raw_writel(combiner_data->irq_mask, base + COMBINER_ENABLE_CLEAR);
 }
 
@@ -221,9 +235,15 @@ static void __init combiner_init(void __iomem *combiner_base,
 		return;
 	}
 
+	// max_nr : 32
 	for (i = 0; i < max_nr; i++) {
+		// np : combiner 노드 주소, i : 0
 		irq = irq_of_parse_and_map(np, i);
+		// combiner의 interrupts 속성의 i번째 값을 확인한 후
+		// 그에 맞는 인터럽트 번호를 반환함
+		// irq : 32
 
+		// combiner_data[0], i : 0, combiner_base : 0xF0004000, irq : 32
 		combiner_init_one(&combiner_data[i], i,
 				  combiner_base + (i >> 2) * 0x10, irq);
 		combiner_cascade_irq(&combiner_data[i], irq);
