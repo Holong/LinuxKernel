@@ -77,7 +77,7 @@ struct irq_domain *__irq_domain_add(struct device_node *of_node, int size,
 	domain->hwirq_max = hwirq_max;
 	
 	// [1] size : 160
-	// [2] size : 160
+	// [2] size : 256
 	domain->revmap_size = size;
 
 	// direct_max : 0
@@ -183,7 +183,7 @@ struct irq_domain *irq_domain_add_simple(struct device_node *of_node,
 			int rc = irq_alloc_descs(first_irq, first_irq, size,
 						 of_node_to_nid(of_node));
 			// allocated_irqs의 160 ~ 415비트까지 전부 1로 설정
-			// 160부터 415까지 struct irq_desc를 할당하고, 초기화 한 뒤
+			// 160부터 415까지 struct irq_desc를 할당하고
 			// &irq_desc_tree 트리에 삽입
 			// rc : 160
 
@@ -193,6 +193,7 @@ struct irq_domain *irq_domain_add_simple(struct device_node *of_node,
 		}
 		// domain : 할당받은 irq_domain, first_irq : 160, 0, size : 256
 		irq_domain_associate_many(domain, first_irq, 0, size);
+		// irq_desc 160 ~ 415까지 내부 값을 설정해 줌
 	}
 
 	return domain;
@@ -333,56 +334,77 @@ static void irq_domain_disassociate(struct irq_domain *domain, unsigned int irq)
 	}
 }
 
-// domain : struct irq_domain, virq : 16, hwirq : 16
+// [1] domain : struct irq_domain, virq : 16, hwirq : 16
+// [2] domain : combiner용 irq_domain, virq : 160, hwirq : 0
 int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 			 irq_hw_number_t hwirq)
 {
-	// virq : 16
+	// [1] virq : 16
+	// [2] virq : 160
 	struct irq_data *irq_data = irq_get_irq_data(virq);
 	// virq 번호를 이용해서 irq_desc_tree에 연결되어 있던
 	// struct irq_desc를 얻고, 그 구조체의 irq_data 멤버 주소를 반환
-	// irq_desc(16).irq_data 주소가 반환됨
+	// [1] irq_desc(16).irq_data 주소가 반환됨
+	// [2] irq_desc(160).irq_data 주소가 반환됨
+	
 	int ret;
 
-	// hwirq : 16, domain->hwirq_max : 160
+	// [1] hwirq : 16, domain->hwirq_max : 160
+	// [2] hwirq : 0, domain->hwirq_max : 256
 	if (WARN(hwirq >= domain->hwirq_max,
 		 "error: hwirq 0x%x is too large for %s\n", (int)hwirq, domain->name))
 		return -EINVAL;
 
-	// irq_data : &irq_desc(16).irq_data
+	// [1] irq_data : &irq_desc(16).irq_data
+	// [2] irq_data : &irq_desc(256).irq_data
 	if (WARN(!irq_data, "error: virq%i is not allocated", virq))
 		return -EINVAL;
 
-	// irq_data->domain : NULL
+	// [1] irq_data->domain : NULL
+	// [2] irq_data->domain : NULL
 	if (WARN(irq_data->domain, "error: virq%i is already associated", virq))
 		return -EINVAL;
 
 	mutex_lock(&irq_domain_mutex);
 	// 뮤텍스 락 획득
 	
-	// hwirq : 16
+	// [1] hwirq : 16
+	// [2] hwirq : 0
 	irq_data->hwirq = hwirq;
+	// irq_data->hwirq : 0
 
-	// domain : 이전에 할당받은 domain 주소
+	// [1] domain : 이전에 할당받은 gic용 domain 주소
+	// [2] domain : 이전에 할당받은 combiner용 domain 주소
 	irq_data->domain = domain;
 
-	// domain->ops : gic_irq_domain_ops
-	// domain->ops->map : gic_irq_domain_map
+	// [1] domain->ops : gic_irq_domain_ops
+	//     domain->ops->map : gic_irq_domain_map
+	// [2] domain->ops : combiner_irq_domain_ops
+	//     domain->ops->map : combiner_irq_domain_map,
 	if (domain->ops->map) {
-		// domain : 이전에 할당받은 domain 주소
-		// virq : 16, hwirq : 16
+		// [1] domain : gic용 domain 주소
+		//     virq : 16, hwirq : 16
+		// [2] domain : combiner용 domain 주소
+		//     virq : 160, hwirq : 0
 		ret = domain->ops->map(domain, virq, hwirq);
-		// gic_irq_domain_map(domain, virq, hwirq) 가 호출됨
+		// [1] gic_irq_domain_map(domain, virq, hwirq) 가 호출됨
+		//     irq 16을 위한 percpu_enabled 공간을 확보
+		//     irq_desc(16).status_use_accessors 값을 IRQ_NOAUTOEN | IRQ_PER_CPU |
+		//     IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID 로 설정
+		//     irq_desc(16).irq_data.status_use_accessors 값을
+		//     irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
+		//     irq_desc(16).irq_data.chip : &gic_chip 로 설정
+		//     irq_desc(16).handle_irq : handle_percpu_devid_irq
+		//     irq_desc(16).name : NULL
+		//     irq_desc(16).chip_data : &gic_data[0] 로 설정
 		//
-		// irq 16을 위한 percpu_enabled 공간을 확보
-		// irq_desc(16).status_use_accessors 값을 IRQ_NOAUTOEN | IRQ_PER_CPU |
-		// IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID 로 설정
-		// irq_desc(16).irq_data.status_use_accessors 값을
-		// irq_desc(16).status_use_accessors 값을 이용해 설정해 줌
-		// irq_desc(16).irq_data.chip : &gic_chip 로 설정
-		// irq_desc(16).handle_irq : handle_percpu_devid_irq
-		// irq_desc(16).name : NULL
-		// irq_desc(16).chip_data : &gic_data[0] 로 설정
+		// [2] combiner_irq_domain_map(domain, virq, hwirq) 가 호출됨
+		//     irq_desc(160).irq_data.chip : &combiner_chip 로 설정
+		//     irq_desc(160).handle_irq : handle_level_irq
+		//     irq_desc(160).name : NULL
+		//     irq_desc(160).chip_data : &combiner_chip_data[0]
+		//     irq_desc(160).status_use_accessors을 설정하고, 그 값을 이용해
+		//     irq_desc(160).irq_data.status_use_accessors 값을 설정
 
 		// ret : 0
 		if (ret != 0) {
@@ -403,16 +425,20 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 		// 통과
 
 		/* If not already assigned, give the domain the chip's name */
-		// domain->name : NULL, irq_data->chip : &gic_chip
+		// [1] domain->name : NULL, irq_data->chip : &gic_chip
+		// [2] domain->name : NULL, irq_data->chip : &combiner_chip
 		if (!domain->name && irq_data->chip)
 			domain->name = irq_data->chip->name;
-			// domain->name : "GIC"
+			// [1] domain->name : "GIC"
+			// [2] domain->name : "COMBINER"
 	}
 
-	// hwirq : 16, domain->revmap_size : 160
+	// [1] hwirq : 16, domain->revmap_size : 160
+	// [2] hwirq : 0, domain->revmap_size : 256
 	if (hwirq < domain->revmap_size) {
 		domain->linear_revmap[hwirq] = virq;
-		// domain->linear_revmap[16] : 16
+		// [1] domain->linear_revmap[16] : 16
+		// [2] domain->linear_revmap[0] : 160
 	} else {
 		mutex_lock(&revmap_trees_mutex);
 		radix_tree_insert(&domain->revmap_tree, hwirq, irq_data);
@@ -421,31 +447,41 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 	mutex_unlock(&irq_domain_mutex);
 	// 뮤텍스 락 해제
 
-	// virq : 16, IRQ_NOREQUEST
+	// [1] virq : 16, IRQ_NOREQUEST
+	// [2] virq : 160, IRQ_NOREQUEST
 	irq_clear_status_flags(virq, IRQ_NOREQUEST);
-	// irq_desc(16)에서 IRQ_NOREQUEST 플래그 제거
+	// [1] irq_desc(16)에서 IRQ_NOREQUEST 플래그 제거
+	// [2] irq_desc(160)에서 IRQ_NOREQUEST 플래그 제거
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(irq_domain_associate);
 
-// domain : gic용 irq_domain, irq_base : 16, hwirq_base : 16, count : 144
-// domain : combiner용 irq_domain, irq_base : 160, hwirq_base : 0, count : 256
+// [1] domain : gic용 irq_domain, irq_base : 16, hwirq_base : 16, count : 144
+// [2] domain : combiner용 irq_domain, irq_base : 160, hwirq_base : 0, count : 256
 void irq_domain_associate_many(struct irq_domain *domain, unsigned int irq_base,
 			       irq_hw_number_t hwirq_base, int count)
 {
 	int i;
 
-	// of_node_full_name(domain->of_node) : "/interrupt-controller@10481000"
-	// irq_base : 16, hwirq_base : 16, count : 144
+	// [1] of_node_full_name(domain->of_node) : "/interrupt-controller@10481000"
+	//     irq_base : 16, hwirq_base : 16, count : 144
+	// [2] of_node_full_name(domain->of_node) : "/interrupt-controller@10440000"
+	//     irq_base : 160, hwirq_base : 0, count :256 
 	pr_debug("%s(%s, irqbase=%i, hwbase=%i, count=%i)\n", __func__,
 		of_node_full_name(domain->of_node), irq_base, (int)hwirq_base, count);
 
-	// count : 144
+	// [1] count : 144
+	// [2] count : 256
 	for (i = 0; i < count; i++) {
-		// domain : struct irq_domain, irq_base : 16, hwirq_base : 16
+		// [1] domain : gic용 irq_domain, irq_base : 16, hwirq_base : 16
+		// [2] domain : combiner용 irq_domain, irq_base : 160, hwirq_base : 0
 		irq_domain_associate(domain, irq_base + i, hwirq_base + i);
-		// irq_desc(16 ~ 160) 내부 정보 초기화 수행
+		// [1] irq_desc(16 ~ 159) 내부 정보 초기화 수행
+		//     domain->linear_revmap[hwirq] : irq 로 설정
+		//     domain->linear_revmap[n] : n 이 됨
+		// [2] irq_desc(160 ~ 415) 내부 정보 초기화 수행
+		//     domain->linear_revmap[n] : n+160 이 됨
 	}
 }
 EXPORT_SYMBOL_GPL(irq_domain_associate_many);

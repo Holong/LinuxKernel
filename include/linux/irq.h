@@ -439,15 +439,19 @@ extern void
 irq_set_chip_and_handler_name(unsigned int irq, struct irq_chip *chip,
 			      irq_flow_handler_t handle, const char *name);
 
-// irq : 16, chip : &gic_chip, handle : handle_percpu_devid_irq
+// [1] irq : 16, chip : &gic_chip, handle : handle_percpu_devid_irq
+// [2] irq : 160, chip : &combiner_chip, handle : handle_level_irq
 static inline void irq_set_chip_and_handler(unsigned int irq, struct irq_chip *chip,
 					    irq_flow_handler_t handle)
 {
-	// irq : 16, chip : &gic_chip, handle : handle_percpu_devid_irq
+	// [1] irq : 16, chip : &gic_chip, handle : handle_percpu_devid_irq
 	irq_set_chip_and_handler_name(irq, chip, handle, NULL);
-	// irq_desc(16).irq_data.chip : &gic_chip 로 설정
-	// irq_desc(16).handle_irq : handle_percpu_devid_irq
-	// irq_desc(16).name : NULL
+	// [1] irq_desc(16).irq_data.chip : &gic_chip 로 설정
+	//     irq_desc(16).handle_irq : handle_percpu_devid_irq
+	//     irq_desc(16).name : NULL
+	// [2] irq_desc(160).irq_data.chip : &combiner_chip 로 설정
+	//     irq_desc(160).handle_irq : handle_level_irq
+	//     irq_desc(160).name : NULL
 }
 
 extern int irq_set_percpu_devid(unsigned int irq);

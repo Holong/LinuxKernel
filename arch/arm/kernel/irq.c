@@ -93,30 +93,36 @@ asm_do_IRQ(unsigned int irq, struct pt_regs *regs)
 	handle_IRQ(irq, regs);
 }
 
-// irq : 16, iflags : IRQF_VALID | IRQF_NOAUTOEN
+// [1] irq : 16, iflags : IRQF_VALID | IRQF_NOAUTOEN
+// [2] irq : 160, iflags : IRQF_VALID | IRQF_PROBE
 void set_irq_flags(unsigned int irq, unsigned int iflags)
 {
 	unsigned long clr = 0, set = IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN;
 
-	// nr_irqs : 160
+	// [1] nr_irqs : 160
+	// [2] nr_irqs : 416
 	if (irq >= nr_irqs) {
 		printk(KERN_ERR "Trying to set irq flags for IRQ%d\n", irq);
 		return;
 	}
+	// 통과
 
-	// iflags : IRQF_VALID | IRQF_NOAUTOEN
+	// [1] iflags : IRQF_VALID | IRQF_NOAUTOEN
+	// [2] iflags : IRQF_VALID | IRQF_PROBE
 	if (iflags & IRQF_VALID)
 		clr |= IRQ_NOREQUEST;
 	if (iflags & IRQF_PROBE)
 		clr |= IRQ_NOPROBE;
 	if (!(iflags & IRQF_NOAUTOEN))
 		clr |= IRQ_NOAUTOEN;
-	// clr : IRQ_NOREQUEST
-	//       로 설정됨
+	// [1] clr : IRQ_NOREQUEST 로 설정됨
+	// [2] clr : IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN 로 설정됨
 	
 	/* Order is clear bits in "clr" then set bits in "set" */
-	// clr : IRQ_NOREQUEST
-	// set : IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN;
+	// [1] clr : IRQ_NOREQUEST
+	//     set : IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN
+	// [2] clr : IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN
+	//     set : IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN
 	irq_modify_status(irq, clr, set & ~clr);
 
 }

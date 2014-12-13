@@ -751,8 +751,10 @@ irq_set_chip_and_handler_name(unsigned int irq, struct irq_chip *chip,
 }
 EXPORT_SYMBOL_GPL(irq_set_chip_and_handler_name);
 
-// irq : 16, clr : 0
-// set : IRQ_NOAUTOEN | IRQ_PER_CPU | IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID
+// [1] irq : 16, clr : 0
+//     set : IRQ_NOAUTOEN | IRQ_PER_CPU | IRQ_NOTHREAD | IRQ_NOPROBE | IRQ_PER_CPU_DEVID
+// [2] clr : IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN
+//     set : 0 
 void irq_modify_status(unsigned int irq, unsigned long clr, unsigned long set)
 {
 	unsigned long flags;

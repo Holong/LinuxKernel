@@ -152,14 +152,27 @@ static int combiner_irq_domain_xlate(struct irq_domain *d,
 	return 0;
 }
 
+// d : combiner용 domain 주소, irq : 160, hw : 0
 static int combiner_irq_domain_map(struct irq_domain *d, unsigned int irq,
 				   irq_hw_number_t hw)
 {
 	struct combiner_chip_data *combiner_data = d->host_data;
+	// combiner_data : 할당받은 combiner_chip_data용 공간의 시작 주소
 
+	// irq : 160, combiner_chip : 전역 변수 주소, handle_level_irq : 함수 포인터
 	irq_set_chip_and_handler(irq, &combiner_chip, handle_level_irq);
+	// irq_desc(160).irq_data.chip : &combiner_chip 로 설정
+	// irq_desc(160).handle_irq : handle_level_irq
+	// irq_desc(160).name : NULL
+	
+	// irq : 160, &combiner_chip_data[0]
 	irq_set_chip_data(irq, &combiner_data[hw >> 3]);
+	// irq_desc(160).chip_data : &combiner_chip_data[0] 로 설정
+	
+	// irq : 160, IRQF_VALID | IRQF_PROBE
 	set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
+	// irq_desc(160).status_use_accessors을 설정하고, 그 값을 이용해
+	// irq_desc(160).irq_data.status_use_accessors 값을 설정
 
 	return 0;
 }
@@ -187,6 +200,7 @@ static void __init combiner_init(void __iomem *combiner_base,
 	// max_nr : 32, sizeof(combiner_chip_data) : 16, GFP_KERNEL
 	combiner_data = kcalloc(max_nr, sizeof (*combiner_data), GFP_KERNEL);
 	// combiner_data : 512짜리 object를 새로 할당받음
+	// 		   즉, combiner_chip_data가 32개 들어가는 배열 공간이 됨
 	
 	// combiner_data : 할당받은 공간
 	if (!combiner_data) {
@@ -199,6 +213,9 @@ static void __init combiner_init(void __iomem *combiner_base,
 	// &combiner_irq_domain_ops, combiner_data : combiner_chip_data용 공간
 	combiner_irq_domain = irq_domain_add_simple(np, nr_irq, irq_base,
 				&combiner_irq_domain_ops, combiner_data);
+	// irq_domain, irq_desc 공간을 만들고 내부 값을 설정하는 작업 수행
+	// 만들어진 irq_domain의 주소가 반환됨
+	
 	if (WARN_ON(!combiner_irq_domain)) {
 		pr_warning("%s: irq domain init failed\n", __func__);
 		return;
