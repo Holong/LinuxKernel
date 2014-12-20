@@ -113,12 +113,19 @@ static struct irq_chip combiner_chip = {
 #endif
 };
 
+// combiner_data : &combiner_data[0], irq : 32
 static void __init combiner_cascade_irq(struct combiner_chip_data *combiner_data,
 					unsigned int irq)
 {
+	// irq : 32, combiner_data : &combiner_data[0]
 	if (irq_set_handler_data(irq, combiner_data) != 0)
+		// irq_desc에 combiner_data 정보를 연결해줌
 		BUG();
+
+	// irq : 32, combiner_handle_cascade_irq : 함수 포인터
 	irq_set_chained_handler(irq, combiner_handle_cascade_irq);
+	// irq_desc(32).handle_irq : combiner_handle_cascade_irq로 설정하고
+	// 32번 인터럽트 enable
 }
 
 // combiner_data : combiner_chip_data[0], combiner_nr : 0,
@@ -146,6 +153,7 @@ static void __init combiner_init_one(struct combiner_chip_data *combiner_data,
 	// combiner_chip_data[0].irq_mask : 0xFF, base : 0xF0004000
 	// COMBINER_ENABLE_CLEAR : 0x4
 	__raw_writel(combiner_data->irq_mask, base + COMBINER_ENABLE_CLEAR);
+	// TZASC에 관련된 인터럽트 disable 동작을 수행
 }
 
 static int combiner_irq_domain_xlate(struct irq_domain *d,
@@ -246,8 +254,19 @@ static void __init combiner_init(void __iomem *combiner_base,
 		// combiner_data[0], i : 0, combiner_base : 0xF0004000, irq : 32
 		combiner_init_one(&combiner_data[i], i,
 				  combiner_base + (i >> 2) * 0x10, irq);
+		// gic로 들어가는 인터럽트에 해당하는 
+		// combiner_chip_data 구조체를 만들어주고
+		// 해당하는 인터럽트를 전부 disable 수행
+
+		// combiner_data[0], irq : 32
 		combiner_cascade_irq(&combiner_data[i], irq);
+		// irq_desc(32)에 combiner_data 정보를 연결해줌
+		// irq_desc(32).handle_irq : combiner_handle_cascade_irq로 설정하고
+		// 32번 인터럽트 enable
 	}
+
+	// irq_desc(32 ~ 63)까지 위 동작 수행
+	// 32 ~ 63번 인터럽트 enable
 }
 
 // np : combiner 노드의 주소, parent : gic 노드 주소
@@ -294,6 +313,11 @@ static int __init combiner_of_init(struct device_node *np,
 	// combiner_base : 0xF0004000, np : combiner 노드의 주소
 	// max_nr : 32, irq_base : 160
 	combiner_init(combiner_base, np, max_nr, irq_base);
+	// irq_desc(160 ~ 415), irq_domain을 할당하고 설정
+	// combiner_chip_data 구조체를 만들어주고
+	// irq_desc(32 ~ 63)에 combiner_chip_data를 연결해줌
+	// 그 뒤, gic의 32 ~ 63번 인터럽트 enable 수행
+	// 즉, gic 0 ~ 15, 32 ~ 63만 인터럽트 enable 상태임
 
 	return 0;
 }

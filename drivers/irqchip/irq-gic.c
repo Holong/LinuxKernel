@@ -143,9 +143,11 @@ static inline void __iomem *gic_cpu_base(struct irq_data *d)
 	return gic_data_cpu_base(gic_data);
 }
 
+// d : &irq_desc(32).irq_data
 static inline unsigned int gic_irq(struct irq_data *d)
 {
 	return d->hwirq;
+	// irq_desc(32).irq_data.hwirq : 32
 }
 
 /*
@@ -162,15 +164,29 @@ static void gic_mask_irq(struct irq_data *d)
 	raw_spin_unlock(&irq_controller_lock);
 }
 
+// d : &irq_desc(32).irq_data
 static void gic_unmask_irq(struct irq_data *d)
 {
+	// d : &irq_desc(32).irq_data
+	// gic_irq(d) : 32
 	u32 mask = 1 << (gic_irq(d) % 32);
+	// mask : 1
 
 	raw_spin_lock(&irq_controller_lock);
+	// 스핀락 획득
+
+	// gic_arch_extn.irq_unmask : NULL
 	if (gic_arch_extn.irq_unmask)
 		gic_arch_extn.irq_unmask(d);
+
+	// gic_dist_base(d) : 0xF0000000
+	// gic_dist_base(d) + GIC_DIST_ENABLE_SET : 0xF0000100
+	// gic_dist_base(d) + GIC_DIST_ENABLE_SET + (gic_irq(d) / 32) * 4 : 0xF0000104
 	writel_relaxed(mask, gic_dist_base(d) + GIC_DIST_ENABLE_SET + (gic_irq(d) / 32) * 4);
+	// 32번 인터럽트 활성화
+	
 	raw_spin_unlock(&irq_controller_lock);
+	// 스핀락 해제
 }
 
 static void gic_eoi_irq(struct irq_data *d)

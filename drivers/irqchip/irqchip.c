@@ -53,4 +53,17 @@ void __init irqchip_init(void)
 	// 	.data = gic_of_init
 	// }
 	of_irq_init(__irqchip_begin);
+	// irq 관련 init 수행
+	// gic_of_init, combiner_of_init이 수행됨
+	// gic 메모리를 가상 메모리 위로 올려주고,
+	// gic 하드웨어 초기화 및 struct irq_desc와 struct irq_domain을
+	// 설정해줌
+	// combiner 메모리를 가상 메모리 위로 올려주고,
+	// combiner 하드웨어 초기화 및 struct irq_desc와 struct irq_domain을
+	// 설정해줌
+	// irq_desc(160 ~ 415), irq_domain을 할당하고 설정
+	// combiner_chip_data 구조체를 만들어주고
+	// irq_desc(32 ~ 63)에 combiner_chip_data를 연결해줌
+	// 그 뒤, gic의 32 ~ 63번 인터럽트 enable 수행
+	// 즉, gic 0 ~ 15, 32 ~ 63만 인터럽트 enable 상태임
 }

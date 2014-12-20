@@ -471,10 +471,18 @@ irq_set_handler(unsigned int irq, irq_flow_handler_t handle)
  * (a chained handler is automatically enabled and set to
  *  IRQ_NOREQUEST, IRQ_NOPROBE, and IRQ_NOTHREAD)
  */
+// irq : 32, handle : combiner_handle_cascade_irq
 static inline void
 irq_set_chained_handler(unsigned int irq, irq_flow_handler_t handle)
 {
+	// irq : 32, handle : combiner_handle_cascade_irq
+	// 1, NULL
 	__irq_set_handler(irq, handle, 1, NULL);
+	// irq_desc(32).handle_irq : combiner_handle_cascade_irq 로 설정
+	// desc의 status_use_accessors에
+	// IRQ_NOPROBE | IRQ_NOREQUEST | IRQ_NOTHREAD 를 설정
+	// irq_desc(32).status_use_accessors : IRQD_PER_CPU 로 변경
+	// 32번 인터럽트 enable
 }
 
 void irq_modify_status(unsigned int irq, unsigned long clr, unsigned long set);

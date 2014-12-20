@@ -90,14 +90,23 @@ EXPORT_SYMBOL(irq_set_irq_type);
  *
  *	Set the hardware irq controller data for an irq
  */
+// irq : 32, data : &combiner_data[0]
 int irq_set_handler_data(unsigned int irq, void *data)
 {
 	unsigned long flags;
+	// irq : 32, &flags, 0
 	struct irq_desc *desc = irq_get_desc_lock(irq, &flags, 0);
+	// desc : irq_desc(32)
 
 	if (!desc)
 		return -EINVAL;
+
+	// desc : irq_desc(32)
 	desc->irq_data.handler_data = data;
+	// desc->irq_data.handler_data : data
+	// irq_desc에 해당하는 combiner_chip_data의 주소를 저장
+	
+	// desc : irq_desc(32), flags : int 정보
 	irq_put_desc_unlock(desc, flags);
 	return 0;
 }
@@ -176,9 +185,15 @@ struct irq_data *irq_get_irq_data(unsigned int irq)
 }
 EXPORT_SYMBOL_GPL(irq_get_irq_data);
 
+// desc : irq_desc(32)
 static void irq_state_clr_disabled(struct irq_desc *desc)
 {
+	// irq_desc(32).irq_data, IRQD_IRQ_DISABLED
 	irqd_clear(&desc->irq_data, IRQD_IRQ_DISABLED);
+	// irq_data(32).status_use_accessors에서
+	// IRQD_IRQ_DISABLED 비트를 삭제
+	// irq_data(32).status_use_accessors : IRQD_PER_CPU
+	// 가 됨
 }
 
 static void irq_state_set_disabled(struct irq_desc *desc)
@@ -196,21 +211,37 @@ static void irq_state_set_masked(struct irq_desc *desc)
 	irqd_set(&desc->irq_data, IRQD_IRQ_MASKED);
 }
 
+// desc : irq_desc(32), resend : true
 int irq_startup(struct irq_desc *desc, bool resend)
 {
 	int ret = 0;
 
+	// desc : irq_desc(32)
 	irq_state_clr_disabled(desc);
+	// irq_data(32).status_use_accessors에서
+	// IRQD_IRQ_DISABLED 비트를 삭제
+	// irq_data(32).status_use_accessors : IRQD_PER_CPU
+	
 	desc->depth = 0;
+	// irq_data.depth : 0
 
+	// irq_desc(32).irq_data.chip : gic_chip
+	// desc->irq_data.chip->irq_startup : NULL
 	if (desc->irq_data.chip->irq_startup) {
 		ret = desc->irq_data.chip->irq_startup(&desc->irq_data);
 		irq_state_clr_masked(desc);
 	} else {
+		// irq_desc(32)
 		irq_enable(desc);
+		// irq_desc(32).status_use_accessors : IRQD_PER_CPU 로 변경
+		// 32번 인터럽트 enable
 	}
+	// resend : true
 	if (resend)
+		// desc : irq_desc(32), desc->irq_data.irq : 32
 		check_irq_resend(desc, desc->irq_data.irq);
+		// resend 여부 체크하는 듯 한데
+		// 지금은 flag 값이 없어서 하는 일이 없음
 	return ret;
 }
 
@@ -227,14 +258,30 @@ void irq_shutdown(struct irq_desc *desc)
 	irq_state_set_masked(desc);
 }
 
+// desc : irq_desc(32)
 void irq_enable(struct irq_desc *desc)
 {
+	// desc : irq_desc(32)
 	irq_state_clr_disabled(desc);
+	// irq_data(32).status_use_accessors에서
+	// IRQD_IRQ_DISABLED 비트를 삭제
+	
+	// desc->irq_data.chip : gic_chip
+	// desc->irq_data.chip->irq_enable : NULL
 	if (desc->irq_data.chip->irq_enable)
 		desc->irq_data.chip->irq_enable(&desc->irq_data);
 	else
+		// desc->irq_data.chip->irq_unmask : gic_unmask_irq
 		desc->irq_data.chip->irq_unmask(&desc->irq_data);
+		// gic_unmask_irq(&desc->irq_data) 가 호출됨
+		// irq_desc(32)의 hwirq 번호를 알아낸 뒤, 그 인터럽트를
+		// enable 시킴
+
 	irq_state_clr_masked(desc);
+	// irq_data(32).status_use_accessors에서
+	// IRQD_IRQ_MASKED 비트를 삭제
+	// 현재는 irq_data(32).status_use_accessors : IRQD_PER_CPU 이기
+	// 때문에 변동되는 것이 없음
 }
 
 /**
@@ -678,32 +725,41 @@ void handle_percpu_devid_irq(unsigned int irq, struct irq_desc *desc)
 		chip->irq_eoi(&desc->irq_data);
 }
 
-// irq : 16, handle : handle_percpu_devid_irq, is_chained : 0, name : NULL
+// [1] irq : 16, handle : handle_percpu_devid_irq, is_chained : 0, name : NULL
+// [2] irq : 160, handle : handle_level_irq, is_chained : 0, name : NULL
+// [3] irq : 32, handle : combiner_handle_cascade_irq, is_chained : 1, name : NULL
 void
 __irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
 		  const char *name)
 {
 	unsigned long flags;
-	// irq : 16, &flags, 0
+	// [1] irq : 16, &flags, 0
+	// [3] irq : 32, &flags, 0
 	struct irq_desc *desc = irq_get_desc_buslock(irq, &flags, 0);
-	// irq_desc(16)에 대한 스핀락 획득
-	// desc : irq_desc(16)
+	// [1] irq_desc(16)에 대한 스핀락 획득
+	// [1] desc : irq_desc(16)
+	// [3] irq_desc(32)에 대한 스핀락 획득
+	// [3] desc : irq_desc(32)
 
-	// desc : irq_desc(16)
+	// [1] desc : irq_desc(16)
+	// [3] desc : irq_desc(32)
 	if (!desc)
 		return;
 
-	// handle : handle_percpu_devid_irq
+	// [1] handle : handle_percpu_devid_irq
+	// [3] handle : combiner_handle_cascade_irq
 	if (!handle) {
 		handle = handle_bad_irq;
 	} else {
-		// irq_desc(16).irq_data.chip : &gic_chip
+		// [1] irq_desc(16).irq_data.chip : &gic_chip
+		// [3] irq_desc(32).irq_data.chip : &combiner_chip
 		if (WARN_ON(desc->irq_data.chip == &no_irq_chip))
 			goto out;
 	}
 
 	/* Uninstall? */
-	// handle : handle_percpu_devid_irq
+	// [1] handle : handle_percpu_devid_irq
+	// [3] handle : combiner_handle_cascade_irq
 	if (handle == handle_bad_irq) {
 		if (desc->irq_data.chip != &no_irq_chip)
 			mask_ack_irq(desc);
@@ -713,18 +769,28 @@ __irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
 	// 통과
 	
 	desc->handle_irq = handle;
-	// irq_desc(16).handle_irq : handle_percpu_devid_irq
+	// [1] irq_desc(16).handle_irq : handle_percpu_devid_irq
+	// [3] irq_desc(32).handle_irq : combiner_handle_cascade_irq
 	desc->name = name;
-	// irq_desc(16).name : NULL
+	// [1] irq_desc(16).name : NULL
+	// [3] irq_desc(32).name : NULL
 
-	// is_chained : 0
+	// [1] is_chained : 0
+	// [3] is_chained : 1
 	if (handle != handle_bad_irq && is_chained) {
+		// [3] desc : irq_desc(32)
 		irq_settings_set_noprobe(desc);
 		irq_settings_set_norequest(desc);
 		irq_settings_set_nothread(desc);
+		// [3] desc의 status_use_accessors에
+		//     IRQ_NOPROBE | IRQ_NOREQUEST | IRQ_NOTHREAD 를 설정
+		
+		// [3] desc : irq_desc(32), true
 		irq_startup(desc, true);
+		// [3] irq_desc(32).status_use_accessors : IRQD_PER_CPU 로 변경
+		//     32번 인터럽트 enable
 	}
-	// 통과
+	// [1] 통과
 out:
 	irq_put_desc_busunlock(desc, flags);
 	// irq_desc(16)에 대한 스핀락 해제

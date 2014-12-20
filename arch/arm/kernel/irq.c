@@ -135,6 +135,8 @@ void __init init_IRQ(void)
 	// machine_desc->init_irq : NULl
 	if (IS_ENABLED(CONFIG_OF) && !machine_desc->init_irq)
 		irqchip_init();
+		// irq 관련 init 수행
+		// gic_of_init, combiner_of_init이 수행됨
 	else
 		machine_desc->init_irq();
 }

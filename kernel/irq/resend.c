@@ -53,6 +53,7 @@ static DECLARE_TASKLET(resend_tasklet, resend_irqs, 0);
  *
  * Is called with interrupts disabled and desc->lock held.
  */
+// desc : irq_desc(32), desc->irq_data.irq : 32
 void check_irq_resend(struct irq_desc *desc, unsigned int irq)
 {
 	/*
@@ -62,9 +63,13 @@ void check_irq_resend(struct irq_desc *desc, unsigned int irq)
 	 * get confused.
 	 */
 	if (irq_settings_is_level(desc)) {
+		// irq_setting_is_level : 0
 		desc->istate &= ~IRQS_PENDING;
 		return;
 	}
+	// 통과
+
+	// irq_desc(32).istate : 0
 	if (desc->istate & IRQS_REPLAY)
 		return;
 	if (desc->istate & IRQS_PENDING) {
@@ -88,4 +93,5 @@ void check_irq_resend(struct irq_desc *desc, unsigned int irq)
 #endif
 		}
 	}
+	// 전부 통과
 }

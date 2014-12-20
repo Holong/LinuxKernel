@@ -152,6 +152,7 @@ irq_get_desc_lock(unsigned int irq, unsigned long *flags, unsigned int check)
 	return __irq_get_desc_lock(irq, flags, false, check);
 }
 
+// desc : irq_desc(32), flags : int 정보
 static inline void
 irq_put_desc_unlock(struct irq_desc *desc, unsigned long flags)
 {

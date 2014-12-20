@@ -465,6 +465,7 @@ int of_irq_parse_one(struct device_node *device, int index, struct of_phandle_ar
 	/* Check if there are any interrupt-map translations to process */
 	// addr : reg 속성 값의 주소, out_irq : oirq
 	res = of_irq_parse_raw(addr, out_irq);
+	// 딱히 안에서 하는 일이 없음
 	// res : 0
 out:
 	of_node_put(p);
@@ -681,11 +682,20 @@ void __init of_irq_init(const struct of_device_id *matches)
 			// [1] gic_of_init(desc->dev, desc->interrupt_parent)가 호출됨
 			// [2] combiner_of_init(desc->dev, desc->interrupt_parent)가 호출됨
 			// 
-			// gic 메모리를 가상 메모리 위로 올려주고,
-			// gic 하드웨어 초기화 및 struct irq_desc와 struct irq_domain을
-			// 설정해줌
-			//
-			// ret : 0
+			// [1] gic 메모리를 가상 메모리 위로 올려주고,
+			//     gic 하드웨어 초기화 및 struct irq_desc와 struct irq_domain을
+			//     설정해줌
+			// [2] combiner 메모리를 가상 메모리 위로 올려주고,
+			//     combiner 하드웨어 초기화 및 struct irq_desc와 struct irq_domain을
+			//     설정해줌
+			//     irq_desc(160 ~ 415), irq_domain을 할당하고 설정
+			//     combiner_chip_data 구조체를 만들어주고
+			//     irq_desc(32 ~ 63)에 combiner_chip_data를 연결해줌
+			//     그 뒤, gic의 32 ~ 63번 인터럽트 enable 수행
+			//     즉, gic 0 ~ 15, 32 ~ 63만 인터럽트 enable 상태임
+
+			// [1] ret : 0
+			// [2] ret : 0
 			if (ret) {
 				kfree(desc);
 				continue;
@@ -696,28 +706,40 @@ void __init of_irq_init(const struct of_device_id *matches)
 			 * its children can get processed in a subsequent pass.
 			 */
 			list_add_tail(&desc->list, &intc_parent_list);
-			// intc_parent_list에 gic의 intc_desc 구조체를 연결해 줌
-			// 즉 int_desc_list에서 제거됨
+			// [1] intc_parent_list에 gic의 intc_desc 구조체를 연결해 줌
+			//     즉 int_desc_list에서 제거됨
+			// [2] intc_parent_list에 combiner의 intc_desc 구조체를 연결해 줌
+			//     즉 int_desc_list에서 제거됨
 		}
 		// parent가 NULL인 interrupt controller는 gic 밖에 없음
 		// gic에 대해서만 위의 동작이 수행됨
+		//
+		// 그 다음에 다시 들어올 때는 parent가 바뀌었기 때문에 combiner에 대해 수행
+		// 그러면 int_desc_list에는 아무 것도 연결되어 있지 않기 때문에
+		// 루프에서 빠져나옴
 
 		/* Get the next pending parent that might have children */
 		desc = list_first_entry_or_null(&intc_parent_list,
 						typeof(*desc), list);
-		// desc : gic에 대한 intc_desc
+		// [1] desc : gic에 대한 intc_desc
+		// [2] desc : combiner에 대한 intc_desc
+		//     gic의 intc_desc는 이전에 이미 제거되었기 때문에
+		//     현재 intc_parent_list에는 combiner intc_desc 밖에 없음
 
 		if (!desc) {
 			pr_err("of_irq_init: children remain, but no parents\n");
 			break;
 		}
 		list_del(&desc->list);
-		// intc_parent_list에서 gic의 intc_desc 구조체가 제거됨
+		// [1] intc_parent_list에서 gic의 intc_desc 구조체가 제거됨
+		// [2] intc_parent_list에서 combiner의 intc_desc 구조체가 제거됨
 
 		parent = desc->dev;
-		// parent : gic 노드
+		// [1] parent : gic 노드
+		// [2] parent : combiner 노드
 
-		// desc : gic의 intc_desc 구조체의 주소
+		// [1] desc : gic의 intc_desc 구조체의 주소
+		// [2] desc : gic의 intc_desc 구조체의 주소
 		kfree(desc);
 		// desc 를 해제하고 slab으로 반환함
 	}
@@ -726,9 +748,11 @@ void __init of_irq_init(const struct of_device_id *matches)
 		list_del(&desc->list);
 		kfree(desc);
 	}
+	// intc_parent_list에 아무 것도 없으므로 통과
 err:
 	list_for_each_entry_safe(desc, temp_desc, &intc_desc_list, list) {
 		list_del(&desc->list);
 		kfree(desc);
 	}
+	// intc_desc_list에 아무 것도 없으므로 통과
 }
