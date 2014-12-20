@@ -1013,6 +1013,42 @@ vector_rst:
  */
 	vector_stub	irq, IRQ_MODE, 4
 
+	
+/*	아래와 같이 매크로가 풀리게 됨
+	.align	5
+
+vector_irq:
+	sub	lr, lr, 4 
+
+	@
+	@ Save r0, lr_<exception> (parent PC) and spsr_<exception>
+	@ (parent CPSR)
+	@
+	stmia	sp, {r0, lr}		@ save r0, lr
+	mrs	lr, spsr
+	str	lr, [sp, #8]		@ save spsr
+
+	@
+	@ Prepare for SVC32 mode.  IRQs remain disabled.
+	@
+	mrs	r0, cpsr
+	eor	r0, r0, #(IRQ_MODE ^ SVC_MODE | PSR_ISETSTATE)
+	msr	spsr_cxsf, r0
+
+	@
+	@ the branch table must immediately follow this code
+	@
+	and	lr, lr, #0x0f
+	mov	r0, sp
+ 	ldr	lr, [pc, lr, lsl #2]	
+	movs	pc, lr			@ branch to handler in SVC mode
+ENDPROC(vector_irq)
+
+	.align	2
+	@ handler addresses follow this label
+1:
+*/
+
 	.long	__irq_usr			@  0  (USR_26 / USR_32)
 	.long	__irq_invalid			@  1  (FIQ_26 / FIQ_32)
 	.long	__irq_invalid			@  2  (IRQ_26 / IRQ_32)
@@ -1127,6 +1163,7 @@ vector_fiq:
 	.globl	vector_fiq_offset
 	.equ	vector_fiq_offset, vector_fiq
 
+	/* 벡터 테이블이 되는 부분 */
 	.section .vectors, "ax", %progbits
 __vectors_start:
 	W(b)	vector_rst
@@ -1137,7 +1174,8 @@ __vectors_start:
 	W(b)	vector_addrexcptn
 	W(b)	vector_irq
 	W(b)	vector_fiq
-
+	/* 여기까지 벡터 테이블이 됨 */
+	
 	.data
 
 	.globl	cr_alignment

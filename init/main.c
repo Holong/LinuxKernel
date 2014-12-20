@@ -686,6 +686,9 @@ asmlinkage void __init start_kernel(void)
 	// 이를 irq_desc_tree에 삽입
 	
 	init_IRQ();
+	// IRQ 관련 초기화 수행
+	// gic_of_init, combiner_of_init이 수행됨
+	
 	tick_init();
 	init_timers();
 	hrtimers_init();
