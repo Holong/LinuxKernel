@@ -601,16 +601,34 @@ void rcu_irq_enter(void)
 	long long oldval;
 
 	local_irq_save(flags);
+	// flags에 cpsr 값을 저장
+	
+	// rcu_dynticks : per_cpu 변수
 	rdtp = this_cpu_ptr(&rcu_dynticks);
+	// rdtp : cpu 0번의 rcu_dynticks 값을 가져옴
+	
+	// rdtp->dynticks_nesting : DYNTICK_TASK_EXIT_IDLE로
+	// 초기화 되어 있었음
 	oldval = rdtp->dynticks_nesting;
+	// oldval : DYNTICK_TASK_EXIT_IDLE
+	
 	rdtp->dynticks_nesting++;
+	// nesting level을 증가시킴
+
 	WARN_ON_ONCE(rdtp->dynticks_nesting == 0);
+
+	// oldval : DYNTICK_TASK_EXIT_IDLE
 	if (oldval)
 		trace_rcu_dyntick(TPS("++="), oldval, rdtp->dynticks_nesting);
+		// NULL 함수
 	else
 		rcu_eqs_exit_common(rdtp, oldval, true);
+
 	rcu_sysidle_exit(rdtp, 1);
+	// NULL 함수
+	
 	local_irq_restore(flags);
+	// cpsr 값 복구
 }
 
 /**

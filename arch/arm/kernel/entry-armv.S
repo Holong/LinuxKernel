@@ -207,21 +207,38 @@ __irq_svc:
 					// 모든 레지스터를 스택에 저장
 	sub	sp, sp, #(S_FRAME_SIZE + \stack_hole - 4)
 					// S_FRAME_SIZE : 72
+					// struct pt_regs의 크기
 					// stack_hole : 0
 
  	tst	sp, #4	
  	subeq	sp, sp, #4
-	stmia	sp, {r1 - r12}
+	stmia	sp, {r1 - r12}		// r1 ~ r12까지 스택에 저장
 
-	ldmia	r0, {r3 - r5}
+	ldmia	r0, {r3 - r5}		// r0 : &stk.irq[0]
+					// 그러므로 이전에 저장해둔 값이
+					// r3, r4, r5에 저장됨
+					// r3 : 인터럽트 걸릴 때의 r0
+					// r4 : 인터럽트 복귀 주소 lr
+					// r5 : 인터럽트 걸릴 때의 cpsr
 	add	r7, sp, #S_SP - 4	@ here for interlock avoidance
+					// S_SP : 52
+					// r7 : pt_regs의 sp가 저장되는 위치가 저장됨
 	mov	r6, #-1			@  ""  ""      ""       ""
+					// r6 : -1 대입
 	add	r2, sp, #(S_FRAME_SIZE + \stack_hole - 4)
- 	addeq	r2, r2, #4
+					// r2 : 이전에 스택에 r0 - pc 저장할 때
+					//      r0가 저장된 곳의 주소가 저장됨
+ 	addeq	r2, r2, #4		// r2 : 위에서 뺏으면 다시 더함
+					//      위의 subeq와 연동됨
+
 	str	r3, [sp, #-4]!		@ save the "real" r0 copied
 					@ from the exception stack
+					// r3 : 인터럽트 걸릴 때의 r0
+					// 이 것을 pt_regs의 r0 위치에 저장
 
-	mov	r3, lr
+	mov	r3, lr			// r3 : lr_svc 값이 저장됨
+					// 인터럽트가 발생하기 전에 사용하던
+					// lr 값이 r3에 저장됨
 
 	@
 	@ We are now ready to fill in the remaining blanks on the stack:
@@ -232,10 +249,28 @@ __irq_svc:
 	@  r5 - spsr_<exception>
 	@  r6 - orig_r0 (see pt_regs definition in ptrace.h)
 	@
-	stmia	r7, {r2 - r6}
+	stmia	r7, {r2 - r6}		// pt_regs의 남은 공간에 위에서 설정한
+					// 값을 저장함
+	//   pt_reg.r0 : 인터럽트 발생 할 때의 r0
+	//   pt_reg.r1 : 인터럽트 발생 할 때의 r1
+	//   ...
+	//   pt_reg.r12 : 인터럽트 발생 할 때의 r12
+	//   pt_reg.r13 : sp_svc
+	//   pt_reg.r14 : 인터럽트 발생 할 때의 lr
+	//   pt_reg.r15 : 인터럽트 처리 후 복귀할 주소
+	//   pt_reg.cpsr : 인터럽트 발생 할 때의 cpsr
+	//   pt_reg.orig_r0 : -1
 	*/
 
 	irq_handler
+	/*
+	ldr	r1, =handle_arch_irq	// r1 : gic_handle_irq
+					// gic 초기화 할 때 저장하였음
+	mov	r0, sp			// r0 : pt_regs 구조체 시작 주소
+	adr	lr, BSYM(9997f)		// lr 값을 만들어줌
+	ldr	pc, [r1]		// gic_handle_irq 함수 호출
+9997:
+	*/
 
 #ifdef CONFIG_PREEMPT
 	get_thread_info tsk
@@ -1069,9 +1104,9 @@ vector_irq:
 	mrs	lr, spsr		// spsr을 lr에 저장
 	str	lr, [sp, #8]		@ save spsr
 					// lr을 스택에 저장
-					// sp[0] : r0
-					// sp[1] : lr
-					// sp[2] : spsr
+					// stk.irq[0] : 인터럽트 발생 시 r0
+					// stk.irq[1] : 인터럽트 복귀 주소 lr
+					// stk.irq[2] : 인터럽트 발생 시 cpsr
 
 	@
 	@ Prepare for SVC32 mode.  IRQs remain disabled.

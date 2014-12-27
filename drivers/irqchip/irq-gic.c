@@ -295,18 +295,38 @@ static int gic_set_wake(struct irq_data *d, unsigned int on)
 #define gic_set_wake	NULL
 #endif
 
+// regs.r0 : 인터럽트 발생 할 때의 r0
+// regs.r1 : 인터럽트 발생 할 때의 r1
+// ...
+// regs.r12 : 인터럽트 발생 할 때의 r12
+// regs.r13 : sp_svc
+// regs.r14 : 인터럽트 발생 할 때의 lr
+// regs.r15 : 인터럽트 처리 후 복귀할 주소
+// regs.cpsr : 인터럽트 발생 할 때의 cpsr
+// regs.orig_r0 : -1
+// EINT[15] 때문에 발생한 인터럽트로 가정
 static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 {
 	u32 irqstat, irqnr;
 	struct gic_chip_data *gic = &gic_data[0];
+	// gic : &gic_data[0]
 	void __iomem *cpu_base = gic_data_cpu_base(gic);
+	// cpu_base : 0xF0002000
 
 	do {
 		irqstat = readl_relaxed(cpu_base + GIC_CPU_INTACK);
+		// irqstat : GICC_IAR 값이 저장됨
+		
 		irqnr = irqstat & ~0x1c00;
+		// irqnr : 63
+		// EINT[15]의 경우 combiner를 통해 63번 인터럽트로 gic에게 전달됨
 
 		if (likely(irqnr > 15 && irqnr < 1021)) {
+			// gic->domain : gic용 irq_domain 주소, irqnr : 63
 			irqnr = irq_find_mapping(gic->domain, irqnr);
+			// irqnr : 63
+
+			// irqnr : 63, regs : &pt_regs
 			handle_IRQ(irqnr, regs);
 			continue;
 		}

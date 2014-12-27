@@ -115,15 +115,21 @@ static void __local_bh_disable(unsigned long ip, unsigned int cnt)
 		trace_preempt_off(CALLER_ADDR0, get_parent_ip(CALLER_ADDR1));
 }
 #else /* !CONFIG_TRACE_IRQFLAGS */
+// ip : return 주소, cnt : SOFTIRQ_DISABLE_OFFSET : 0x200
 static inline void __local_bh_disable(unsigned long ip, unsigned int cnt)
 {
+	// cnt : 0x200
 	preempt_count_add(cnt);
+	// preempt 값 증가
+	
 	barrier();
+	// 메모리 확실하게 갱신시킴
 }
 #endif /* CONFIG_TRACE_IRQFLAGS */
 
 void local_bh_disable(void)
 {
+	// SOFTIRQ_DISABLE_OFFSET : 0x200
 	__local_bh_disable(_RET_IP_, SOFTIRQ_DISABLE_OFFSET);
 }
 
@@ -312,14 +318,19 @@ asmlinkage void do_softirq(void)
 void irq_enter(void)
 {
 	int cpu = smp_processor_id();
+	// cpu : 0번으로 가정
 
 	rcu_irq_enter();
+	// cpu 0번의 rcu_dynticks의 nesting level을
+	// 증가시킴
+	
 	if (is_idle_task(current) && !in_interrupt()) {
 		/*
 		 * Prevent raise_softirq from needlessly waking up ksoftirqd
 		 * here, as softirq will be serviced on return from interrupt.
 		 */
 		local_bh_disable();
+		// preempt 값 증가
 		tick_check_idle(cpu);
 		_local_bh_enable();
 	}

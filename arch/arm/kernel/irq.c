@@ -62,9 +62,12 @@ int arch_show_interrupts(struct seq_file *p, int prec)
  * own 'handler'.  Used by platform code implementing C-based 1st
  * level decoding.
  */
+// irqnr : 63, regs : svc_entry에서 만든 pt_regs의 주소
 void handle_IRQ(unsigned int irq, struct pt_regs *regs)
 {
+	// regs : svc_entry에서 만든 pt_regs의 주소
 	struct pt_regs *old_regs = set_irq_regs(regs);
+	// old_regs : 이전에 처리된 인터럽트의 pt_regs의 주소 값
 
 	irq_enter();
 
