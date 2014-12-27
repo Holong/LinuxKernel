@@ -150,7 +150,7 @@ ENDPROC(__und_invalid)
  UNWIND(.fnstart		)
  UNWIND(.save {r0 - pc}		)
 	sub	sp, sp, #(S_FRAME_SIZE + \stack_hole - 4)
-#ifdef CONFIG_THUMB2_KERNEL
+#ifdef CONFIG_THUMB2_KERNEL		
  SPFIX(	str	r0, [sp]	)	@ temporarily saved
  SPFIX(	mov	r0, sp		)
  SPFIX(	tst	r0, #4		)	@ test original stack alignment
@@ -200,6 +200,41 @@ ENDPROC(__dabt_svc)
 	.align	5
 __irq_svc:
 	svc_entry
+
+	/* 아래와 같이 풀림
+ 	.fnstart
+	.save {r0 - pc}			// sdmfd sp!, {r0 - pc} 로 변경됨
+					// 모든 레지스터를 스택에 저장
+	sub	sp, sp, #(S_FRAME_SIZE + \stack_hole - 4)
+					// S_FRAME_SIZE : 72
+					// stack_hole : 0
+
+ 	tst	sp, #4	
+ 	subeq	sp, sp, #4
+	stmia	sp, {r1 - r12}
+
+	ldmia	r0, {r3 - r5}
+	add	r7, sp, #S_SP - 4	@ here for interlock avoidance
+	mov	r6, #-1			@  ""  ""      ""       ""
+	add	r2, sp, #(S_FRAME_SIZE + \stack_hole - 4)
+ 	addeq	r2, r2, #4
+	str	r3, [sp, #-4]!		@ save the "real" r0 copied
+					@ from the exception stack
+
+	mov	r3, lr
+
+	@
+	@ We are now ready to fill in the remaining blanks on the stack:
+	@
+	@  r2 - sp_svc
+	@  r3 - lr_svc
+	@  r4 - lr_<exception>, already fixed up for correct return/restart
+	@  r5 - spsr_<exception>
+	@  r6 - orig_r0 (see pt_regs definition in ptrace.h)
+	@
+	stmia	r7, {r2 - r6}
+	*/
+
 	irq_handler
 
 #ifdef CONFIG_PREEMPT
@@ -1014,34 +1049,61 @@ vector_rst:
 	vector_stub	irq, IRQ_MODE, 4
 
 	
-/*	아래와 같이 매크로가 풀리게 됨
+	// 아래와 같이 매크로가 풀리게 됨
 	.align	5
 
 vector_irq:
-	sub	lr, lr, 4 
+	.if \correction
+	sub	lr, lr, #\correction	// lr 값을 조정하기 위해 correction을 이용
+	.endif
+					// irq 발생 시 lr에 pc 값이 저장되는데
+					// irq 복귀 주소를 계산하기 위해서는 irq의 경우 4를 빼야함
+					// lr : 복귀할 주소가 저장됨
 
 	@
 	@ Save r0, lr_<exception> (parent PC) and spsr_<exception>
 	@ (parent CPSR)
 	@
 	stmia	sp, {r0, lr}		@ save r0, lr
-	mrs	lr, spsr
+					// r0, lr를 스택에 저장
+	mrs	lr, spsr		// spsr을 lr에 저장
 	str	lr, [sp, #8]		@ save spsr
+					// lr을 스택에 저장
+					// sp[0] : r0
+					// sp[1] : lr
+					// sp[2] : spsr
 
 	@
 	@ Prepare for SVC32 mode.  IRQs remain disabled.
 	@
-	mrs	r0, cpsr
+	mrs	r0, cpsr		// cpsr을 r0에 저장
 	eor	r0, r0, #(IRQ_MODE ^ SVC_MODE | PSR_ISETSTATE)
-	msr	spsr_cxsf, r0
+					// IRQ_MODE : 0x00000012
+					// SVC_MODE : 0x00000013
+					// PSR_ISETSTATE : 0
+	msr	spsr_cxsf, r0		// MODE : 0b10011로 변경해서
+					// spsr에 저장
+					// SVC 모드 값으로 저장함
+					// irq disable 상태임
 
 	@
 	@ the branch table must immediately follow this code
 	@
-	and	lr, lr, #0x0f
-	mov	r0, sp
- 	ldr	lr, [pc, lr, lsl #2]	
+	and	lr, lr, #0x0f		// lr : 인터럽트 발생 시 cpsr 값
+					// lr에서 모드 비트만 빼서 다시 lr에 저장
+					// SVC에서 irq가 걸렸을 때는 lr에 3이 저장
+					// USR에서 irq가 걸렸을 때는 lr에 0이 저장
+	mov	r0, sp			// sp (&stk.irq[0])를 r0에 저장
+ 	ldr	lr, [pc, lr, lsl #2]	// SVC : pc + 12
+					// USR : pc + 0
+					// 이 명령이 실행될 때 pc 값은 현재 명령의 +8이 됨
+					// 즉 ldr이 execute에 들어갈 때 pc 값은 __irq_usr를 가리키고
+					// 있는 것임
 	movs	pc, lr			@ branch to handler in SVC mode
+					// exception return 명령
+					// movs, subs의 rd가 pc일 경우 자동으로 아래 동작이 수행됨
+					// spsr을 cpsr로 다시 저장
+					// __irq_svc로 이동한다고 가정(SVC도중에 irq가 온 경우)
 ENDPROC(vector_irq)
 
 	.align	2
@@ -1163,7 +1225,7 @@ vector_fiq:
 	.globl	vector_fiq_offset
 	.equ	vector_fiq_offset, vector_fiq
 
-	/* 벡터 테이블이 되는 부분 */
+	// 벡터 테이블이 되는 부분
 	.section .vectors, "ax", %progbits
 __vectors_start:
 	W(b)	vector_rst
@@ -1172,9 +1234,9 @@ __vectors_start:
 	W(b)	vector_pabt
 	W(b)	vector_dabt
 	W(b)	vector_addrexcptn
-	W(b)	vector_irq
+	W(b)	vector_irq		// irq 용 핸들러
 	W(b)	vector_fiq
-	/* 여기까지 벡터 테이블이 됨 */
+	// 여기까지 벡터 테이블이 됨
 	
 	.data
 
