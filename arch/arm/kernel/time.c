@@ -125,10 +125,13 @@ int __init register_persistent_clock(clock_access_fn read_boot,
 
 void __init time_init(void)
 {
+	// machine_desc :  __mach_desc_EXYNOS5_DT_name
+	// 		   mach-exynos5-dt.c에 선언되어 있음
+	// machine_desc->init_time : NULL
 	if (machine_desc->init_time) {
 		machine_desc->init_time();
 	} else {
-#ifdef CONFIG_COMMON_CLK
+#ifdef CONFIG_COMMON_CLK		// Y
 		of_clk_init(NULL);
 #endif
 		clocksource_of_init();

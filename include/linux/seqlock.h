@@ -220,10 +220,12 @@ static inline void raw_write_seqcount_begin(seqcount_t *s)
 	smp_wmb();
 }
 
+// s : &timekeeper_seq
 static inline void raw_write_seqcount_end(seqcount_t *s)
 {
 	smp_wmb();
 	s->sequence++;
+	// timekeeper_seq.sequence : 2
 }
 
 /*
@@ -248,10 +250,15 @@ static inline void write_seqcount_begin(seqcount_t *s)
 	write_seqcount_begin_nested(s, 0);
 }
 
+// s : &timekeeper_seq
 static inline void write_seqcount_end(seqcount_t *s)
 {
 	seqcount_release(&s->dep_map, 1, _RET_IP_);
+	// NULL 함수
+
+	// s : &timekeeper_seq
 	raw_write_seqcount_end(s);
+	// timekeeper_seq.sequence : 2 로 하나 증가시켜줌
 }
 
 /**

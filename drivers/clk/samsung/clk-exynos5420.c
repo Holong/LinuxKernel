@@ -765,10 +765,12 @@ static struct of_device_id ext_clk_match[] __initdata = {
 };
 
 /* register exynos5420 clocks */
+// np : clock-controller의 노드 주소
 static void __init exynos5420_clk_init(struct device_node *np)
 {
 	void __iomem *reg_base;
 
+	// np : clock-controller의 노드 주소
 	if (np) {
 		reg_base = of_iomap(np, 0);
 		if (!reg_base)

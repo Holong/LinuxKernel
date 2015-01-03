@@ -2239,17 +2239,48 @@ EXPORT_SYMBOL_GPL(of_clk_get_parent_name);
  * This function scans the device tree for matching clock providers and
  * calls their initialization functions
  */
+// matches : NULL
 void __init of_clk_init(const struct of_device_id *matches)
 {
 	const struct of_device_id *match;
 	struct device_node *np;
 
+	// matches : NULL
 	if (!matches)
 		matches = __clk_of_table;
-
+	// matches : __clk_of_table
+	// 링커 스트립트에서 정의하는 변수임
+	//
+	// __clk_of_table 섹션에는 CLK_OF_DECLARE 매크로를 이용해
+	// 특정 구조체들이 들어가게 됨
+	//
+	// static const struct of_device_id __clk_of_table_fixed_factor_clk __used __section(__clk_of_table)
+	// 	= { .compatible = "fixed-factor-clock", .data = of_fixed_factor_clk_setup };
+	//
+	// static const struct of_device_id __clk_of_table_fixed_clk __used __section(__clk_of_table)
+	// 	= { .compatible = "fixed-clock", .data = of_fixed_clk_setup };
+	//
+	// static const struct of_device_id __clk_of_table_exynos4210_audss_clk __used __section(__clk_of_table)
+	// 	= { .compatible = "samsung,exynos4210-audss-clock", .data = exynos_audss_clk_init };
+	//
+	// static const struct of_device_id __clk_of_table_exynos5250_audss_clk __used __section(__clk_of_table)
+	// 	= { .compatible = "samsung,exynos5250-audss-clock", .data = exynos_audss_clk_init };
+	//
+	// static const struct of_device_id __clk_of_table_exynos5420_clk __used __section(__clk_of_table)
+	// 	= { .compatible = "samsung,exynos5420-clock", .data = exynos5420_clk_init };
+	
 	for_each_matching_node_and_match(np, matches, &match) {
-		of_clk_init_cb_t clk_init_cb = match->data;
+		// np : compatible이 일치하는 디바이스 트리의 노드 주소
+		// match : 그 때의 struct of_device_id 주소
+		// 현재 보드의 디바이스 트리에 일치하는 것은
+		// __clk_of_table_exynos5420_clk 밖에 없음
+	
+		of_clk_init_kb_t clk_init_cb = match->data;
+		// clk_init_cb : exynos5420_clk_init
+
+		// np : samsung,exynos5420-clock에 해당하는 노드 주소
 		clk_init_cb(np);
+		// exynos5420_clk_init(np) 가 호출됨
 	}
 }
 #endif

@@ -709,6 +709,10 @@ asmlinkage void __init start_kernel(void)
 	// softirq_vec 배열의 HI_SOFTIRQ에 함수를 등록
 
 	timekeeping_init();
+	// timekeeper, clocksource_jiffies 와
+	// 각종 tick 관련 전역 변수를 초기화
+	// shadow_timekeeper는 timekeeper와 똑같은 값으로 만들어 줌
+	
 	time_init();
 	sched_clock_postinit();
 	perf_event_init();

@@ -71,12 +71,19 @@ struct timekeeper {
 
 };
 
+// tk : &timekeeper
 static inline struct timespec tk_xtime(struct timekeeper *tk)
 {
 	struct timespec ts;
 
+	// timekeeper.xtime_sec : 0
 	ts.tv_sec = tk->xtime_sec;
+	// ts.tv_sec : 0
+	
+	// timekeeper.xtime_nsec : 0, timekeeper.shift : 8
 	ts.tv_nsec = (long)(tk->xtime_nsec >> tk->shift);
+	// ts.tv_nsec : 0
+	
 	return ts;
 }
 

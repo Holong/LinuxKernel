@@ -355,8 +355,10 @@ EXPORT_SYMBOL(mktime);
  *	0 <= tv_nsec < NSEC_PER_SEC
  * For negative values only the tv_sec field is negative !
  */
+// ts : &tmp, sec : 0, nsec : 0
 void set_normalized_timespec(struct timespec *ts, time_t sec, s64 nsec)
 {
+	// nsec : 0
 	while (nsec >= NSEC_PER_SEC) {
 		/*
 		 * The following asm() prevents the compiler from
@@ -372,8 +374,13 @@ void set_normalized_timespec(struct timespec *ts, time_t sec, s64 nsec)
 		nsec += NSEC_PER_SEC;
 		--sec;
 	}
+	// nsec가 1초보다 클 경우 sec로 값을 넘겨서 변경시켜 주는 동작 수행
+
 	ts->tv_sec = sec;
+	// tmp.tv_sec : 0
+	
 	ts->tv_nsec = nsec;
+	// tmp.tv_nsec : 0
 }
 EXPORT_SYMBOL(set_normalized_timespec);
 

@@ -854,6 +854,7 @@ struct device_node *of_find_matching_node_by_address(struct device_node *from,
 // [0] np : gic 노드의 주소, index : 0
 // [1] np : gic 노드의 주소, index : 1
 // [2] np : combiner 노드의 주소
+// [3] np : clock-controller의 노드 주소, index : 0
 void __iomem *of_iomap(struct device_node *np, int index)
 {
 	struct resource res;
