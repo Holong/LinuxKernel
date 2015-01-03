@@ -42,6 +42,7 @@ static inline void timerqueue_init(struct timerqueue_node *node)
 	RB_CLEAR_NODE(&node->node);
 }
 
+// head : hrtimer_bases(0).clock_base[0].active
 static inline void timerqueue_init_head(struct timerqueue_head *head)
 {
 	head->head = RB_ROOT;

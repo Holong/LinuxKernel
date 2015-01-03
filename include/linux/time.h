@@ -94,25 +94,39 @@ static inline struct timespec timespec_sub(struct timespec lhs,
 /*
  * Returns true if the timespec is norm, false if denorm:
  */
+// ts : &now
 static inline bool timespec_valid(const struct timespec *ts)
 {
 	/* Dates before 1970 are bogus */
+	// now.tv_sec : 0
 	if (ts->tv_sec < 0)
 		return false;
 	/* Can't have more nanoseconds then a second */
+	// now.tv_nsec : 0
 	if ((unsigned long)ts->tv_nsec >= NSEC_PER_SEC)
 		return false;
+
 	return true;
+	// return true
 }
 
+// ts : &now
 static inline bool timespec_valid_strict(const struct timespec *ts)
 {
+	// ts : &now
 	if (!timespec_valid(ts))
+		// timespec_valid : true
 		return false;
+	// 통과됨
+	
 	/* Disallow values that could overflow ktime_t */
+	// now.tv_sec : 0, KTIME_SEC_MAX : 0x7FFFFFFF
 	if ((unsigned long long)ts->tv_sec >= KTIME_SEC_MAX)
 		return false;
+	// 통과
+	
 	return true;
+	// return true
 }
 
 extern bool persistent_clock_exist;

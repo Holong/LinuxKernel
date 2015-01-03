@@ -253,21 +253,35 @@ static void ntp_update_frequency(void)
 	u64 second_length;
 	u64 new_base;
 
+	// tick_usec : 10000(한 틱당 걸리는 마이크로초), NSEC_PER_USEC : 1000, USER_HZ : 100
 	second_length		 = (u64)(tick_usec * NSEC_PER_USEC * USER_HZ)
 						<< NTP_SCALE_SHIFT;
+	// second_length : 4294967296000000000
 
+	// ntp_tick_adj : 0
 	second_length		+= ntp_tick_adj;
+	// second_length : 4294967296000000000
+	
+	// time_freq : 0
 	second_length		+= time_freq;
+	// second_length : 4294967296000000000
 
 	tick_nsec		 = div_u64(second_length, HZ) >> NTP_SCALE_SHIFT;
+	// tick_nsec : 10000000
+	// 한 틱당 걸리는 나노초
+	
 	new_base		 = div_u64(second_length, NTP_INTERVAL_FREQ);
+	// new_base : 42949672960000000
 
 	/*
 	 * Don't wait for the next second_overflow, apply
 	 * the change to the tick length immediately:
 	 */
 	tick_length		+= new_base - tick_length_base;
+	// tick_length : 42949672960000000
+	
 	tick_length_base	 = new_base;
+	// tick_length_base : 42949672960000000
 }
 
 static inline s64 ntp_update_offset_fll(s64 offset64, long secs)
@@ -341,17 +355,33 @@ static void ntp_update_offset(long offset)
 void ntp_clear(void)
 {
 	time_adjust	= 0;		/* stop active adjtime() */
+	// time_adjust : 0
+	
+	// time_status : STA_UNSYNC
 	time_status	|= STA_UNSYNC;
+	// time_status : STA_UNSYNC
+	
 	time_maxerror	= NTP_PHASE_LIMIT;
+	// time_maxerror : NTP_PHASE_LIMIT
+	
 	time_esterror	= NTP_PHASE_LIMIT;
+	// time_esterror : NTP_PHASE_LIMIT;
 
 	ntp_update_frequency();
+	// tick_nsec : 10000000
+	// tick_length : 42949672960000000
+	// tick_length_base : 42949672960000000
+	// 로 설정
 
 	tick_length	= tick_length_base;
+	// tick_length : 42949672960000000
+	
 	time_offset	= 0;
+	// time_offset : 0
 
 	/* Clear PPS state variables */
 	pps_clear();
+	// NULL 함수
 }
 
 
@@ -933,4 +963,11 @@ __setup("ntp_tick_adj=", ntp_tick_adj_setup);
 void __init ntp_init(void)
 {
 	ntp_clear();
+	// time_status : STA_UNSYNC
+	// time_maxerror : NTP_PHASE_LIMIT
+	// time_esterror : NTP_PHASE_LIMIT;
+	// tick_nsec : 10000000
+	// tick_length : 42949672960000000
+	// tick_length_base : 42949672960000000
+	// 전역변수를 위와 같이 설정함
 }

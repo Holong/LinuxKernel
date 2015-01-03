@@ -399,4 +399,10 @@ void tick_resume(void)
 void __init tick_init(void)
 {
 	tick_broadcast_init();
+	// tick_broadcast_mask의 비트를 전부 0으로 초기화
+	// tick_broadcast_on의 비트를 전부 0으로 초기화
+	// tmpmask의 비트를 전부 0으로 초기화
+	// tick_broadcast_oneshot_mask의 비트를 전부 0으로 초기화
+	// tick_braodcast_pending_mask의 비트를 전부 0으로 초기화
+	// tick_broadcast_force_mask의 비트를 전부 0으로 초기화
 }

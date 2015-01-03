@@ -45,7 +45,7 @@
  */
 typedef struct seqcount {
 	unsigned sequence;
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#ifdef CONFIG_DEBUG_LOCK_ALLOC	// N
 	struct lockdep_map dep_map;
 #endif
 } seqcount_t;
@@ -212,9 +212,11 @@ static inline int read_seqcount_retry(const seqcount_t *s, unsigned start)
 
 
 
+// s : &timekeeper_seq
 static inline void raw_write_seqcount_begin(seqcount_t *s)
 {
 	s->sequence++;
+	// timekeeper_seq.sequence : 1
 	smp_wmb();
 }
 
@@ -228,14 +230,21 @@ static inline void raw_write_seqcount_end(seqcount_t *s)
  * Sequence counter only version assumes that callers are using their
  * own mutexing.
  */
+// s : &timekeeper_seq, subclass : 0
 static inline void write_seqcount_begin_nested(seqcount_t *s, int subclass)
 {
+	// s : &timekeeper_seq
 	raw_write_seqcount_begin(s);
+	// timekeeper_seq.sequence : 1 로 하나 증가시켜줌
+
 	seqcount_acquire(&s->dep_map, subclass, 0, _RET_IP_);
+	// NULL 매크로이기 때문에 삭제됨
 }
 
+// s : &timekeeper_seq
 static inline void write_seqcount_begin(seqcount_t *s)
 {
+	// s : &timekeeper_seq, 0
 	write_seqcount_begin_nested(s, 0);
 }
 

@@ -1505,15 +1505,20 @@ signed long __sched schedule_timeout_uninterruptible(signed long timeout)
 }
 EXPORT_SYMBOL(schedule_timeout_uninterruptible);
 
+// cpu : 0 
 static int init_timers_cpu(int cpu)
 {
 	int j;
 	struct tvec_base *base;
 	static char tvec_base_done[NR_CPUS];
+	// NR_CPUS : 4
 
+	// cpu : 0
+	// tvec_base_done[0] : 0
 	if (!tvec_base_done[cpu]) {
 		static char boot_done;
 
+		// boot_done : 0
 		if (boot_done) {
 			/*
 			 * The APs use this path later in boot
@@ -1538,27 +1543,50 @@ static int init_timers_cpu(int cpu)
 			 * initialised either.
 			 */
 			boot_done = 1;
+			// boot_done : 1
+
 			base = &boot_tvec_bases;
+			// base : &boot_tvec_bases
+
 		}
+		// &base->lock : &boot_tvec_bases.lock
 		spin_lock_init(&base->lock);
+		// 스핀락 초기화
+
 		tvec_base_done[cpu] = 1;
+		// tvec_base_done[0] : 1
+
 	} else {
 		base = per_cpu(tvec_bases, cpu);
 	}
 
 
+	// TVN_SIZE : 64
 	for (j = 0; j < TVN_SIZE; j++) {
 		INIT_LIST_HEAD(base->tv5.vec + j);
 		INIT_LIST_HEAD(base->tv4.vec + j);
 		INIT_LIST_HEAD(base->tv3.vec + j);
 		INIT_LIST_HEAD(base->tv2.vec + j);
+		// boot_tvec_bases 내부의 tv5 ~ tv2 리스트들을 초기화
+		// tv 하나마다 64개의 리스트 변수가 존재함
 	}
+
+	// TVR_SIZE : 256
 	for (j = 0; j < TVR_SIZE; j++)
 		INIT_LIST_HEAD(base->tv1.vec + j);
+		// boot_tvec_bases 내부의 tv1 리스트 배열을 전부 초기화
+		// 총 256개가 됨
 
+	// base : &boot_tvec_bases
 	base->timer_jiffies = jiffies;
+	// boot_tvec_bases.timer_jiffies : -30000
+	
 	base->next_timer = base->timer_jiffies;
+	// boot_tvec_bases.next_timer : -30000
+	
 	base->active_timers = 0;
+	// boot_tvec_bases.active_timers : 0
+	
 	return 0;
 }
 
@@ -1609,20 +1637,27 @@ static void migrate_timers(int cpu)
 }
 #endif /* CONFIG_HOTPLUG_CPU */
 
+// self : &timers_nb, action : CPU_UP_PREPARE : 0x0003, hcpu : 0
 static int timer_cpu_notify(struct notifier_block *self,
 				unsigned long action, void *hcpu)
 {
 	long cpu = (long)hcpu;
+	// cpu : 0
 	int err;
 
+	// acion : CPU_UP_PREPARE
 	switch(action) {
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
+		// cpu : 0
 		err = init_timers_cpu(cpu);
+		// boot_tvec_bases 전역 구조체 내부를 초기화
+		// err : 0
+
 		if (err < 0)
 			return notifier_from_errno(err);
 		break;
-#ifdef CONFIG_HOTPLUG_CPU
+#ifdef CONFIG_HOTPLUG_CPU // Y
 	case CPU_DEAD:
 	case CPU_DEAD_FROZEN:
 		migrate_timers(cpu);
@@ -1645,14 +1680,28 @@ void __init init_timers(void)
 
 	/* ensure there are enough low bits for flags in timer->base pointer */
 	BUILD_BUG_ON(__alignof__(struct tvec_base) & TIMER_FLAG_MASK);
+	// 컴파일을 수행할 때, 버그가 있는지 체크하는 매크로임
 
+	// &timers_nb, CPU_UP_PREPARE : 0x0003, smp_processor_id() : 0
 	err = timer_cpu_notify(&timers_nb, (unsigned long)CPU_UP_PREPARE,
 			       (void *)(long)smp_processor_id());
+	// boot_tvec_bases 전역 구조체 내부를 초기화
+	// err : NOTIFY_OK
+	
 	init_timer_stats();
+	// NULL 함수
 
+	// err : NOTIFY_OK
 	BUG_ON(err != NOTIFY_OK);
+
+	// &timers_nb
 	register_cpu_notifier(&timers_nb);
+	// cpu_chain에 timers_nb를 등록
+	
+	// TIMER_SOFTIRQ : 1, run_timer_softirq
 	open_softirq(TIMER_SOFTIRQ, run_timer_softirq);
+	// softirq_vec[TIMER_SOFTIRQ].action : run_timer_softirq
+	// softirq_vec 배열에 함수를 등록
 }
 
 /**

@@ -652,10 +652,15 @@ static int hrtimer_reprogram(struct hrtimer *timer,
 /*
  * Initialize the high resolution related parts of cpu_base
  */
+// base : &hrtimer_bases(0)
 static inline void hrtimer_init_hres(struct hrtimer_cpu_base *base)
 {
+	// KTIME_MAX : 0x7FFFFFFFFFFFFFFF
 	base->expires_next.tv64 = KTIME_MAX;
+	// hrtimer_bases(0).expires_next.tv64 : 0x7FFFFFFFFFFFFFFF
+
 	base->hres_active = 0;
+	// hrtimer_bases(0).hres_active : 0
 }
 
 /*
@@ -1688,17 +1693,29 @@ SYSCALL_DEFINE2(nanosleep, struct timespec __user *, rqtp,
 /*
  * Functions related to boot-time initialization:
  */
+// cpu : 0
 static void init_hrtimers_cpu(int cpu)
 {
+	// hrtimer_bases : per_cpu 변수, cpu : 0
 	struct hrtimer_cpu_base *cpu_base = &per_cpu(hrtimer_bases, cpu);
+	// cpu_base : hrtimer_bases의 0번 cpu용 공간 주소
 	int i;
 
+	// HRTIMER_MAX_CLOCK_BASES : 4
 	for (i = 0; i < HRTIMER_MAX_CLOCK_BASES; i++) {
 		cpu_base->clock_base[i].cpu_base = cpu_base;
-		timerqueue_init_head(&cpu_base->clock_base[i].active);
-	}
+		// hrtimer_bases(0).clock_base[0].cpu_base : &hrtimer_bases(0)
 
+		// hrtimer_bases(0).clock_base[0].active : struct timerqueue_head형
+		timerqueue_init_head(&cpu_base->clock_base[i].active);
+		// hrtimer_bases(0).clock_base[0].active를 초기화
+	}
+	// hrtimer_bases(0).clock_base[0 ~ 3] 까지 위 동작을 수행
+
+	// cpu_base : &hrtimer_bases(0)
 	hrtimer_init_hres(cpu_base);
+	// hrtimer_bases(0).expires_next.tv64 : 0x7FFFFFFFFFFFFFFF
+	// hrtimer_bases(0).hres_active : 0
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -1769,16 +1786,22 @@ static void migrate_hrtimers(int scpu)
 
 #endif /* CONFIG_HOTPLUG_CPU */
 
+// self : &hrtimers_nb, action : CPU_UP_PREPARE, hcpu : 0
 static int hrtimer_cpu_notify(struct notifier_block *self,
 					unsigned long action, void *hcpu)
 {
 	int scpu = (long)hcpu;
+	// scpu : 0
 
+	// action CPU_UP_PREPARE
 	switch (action) {
 
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
+		// scpu : 0
 		init_hrtimers_cpu(scpu);
+		// percpu 변수 hrtimer_bases의 0번 cpu용 공간을
+		// 초기화 해 줌
 		break;
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -1808,11 +1831,17 @@ static struct notifier_block hrtimers_nb = {
 
 void __init hrtimers_init(void)
 {
+	// &hrtimers_nb, CPU_UP_PREPARE, 0
 	hrtimer_cpu_notify(&hrtimers_nb, (unsigned long)CPU_UP_PREPARE,
 			  (void *)(long)smp_processor_id());
+	// percpu 변수 hrtimer_bases의 0번 cpu용 공간을 초기화
+
 	register_cpu_notifier(&hrtimers_nb);
-#ifdef CONFIG_HIGH_RES_TIMERS
+	// cpu_chain에 hrtimers_nb를 등록
+
+#ifdef CONFIG_HIGH_RES_TIMERS		// Y
 	open_softirq(HRTIMER_SOFTIRQ, run_hrtimer_softirq);
+	// softirq_vec[HRTIMER_SOFTIRQ].action : run_hrtimer_softirq
 #endif
 }
 

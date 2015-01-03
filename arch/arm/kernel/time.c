@@ -88,14 +88,22 @@ static void dummy_clock_access(struct timespec *ts)
 static clock_access_fn __read_persistent_clock = dummy_clock_access;
 static clock_access_fn __read_boot_clock = dummy_clock_access;;
 
+// ts : &now
 void read_persistent_clock(struct timespec *ts)
 {
+	// ts : &now
 	__read_persistent_clock(ts);
+	// dummy_clock_access(ts)가 호출됨
+	// now.tv_sec : 0, now.tv_nsec : 0 으로 초기화
 }
 
+// ts : &boot
 void read_boot_clock(struct timespec *ts)
 {
+	// ts : &boot
 	__read_boot_clock(ts);
+	// dummy_clock_access(ts)가 호출됨
+	// boot.tv_sec : 0, boot.tv_nsec : 0 으로 초기화
 }
 
 int __init register_persistent_clock(clock_access_fn read_boot,

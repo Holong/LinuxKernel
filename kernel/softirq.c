@@ -431,10 +431,18 @@ void __raise_softirq_irqoff(unsigned int nr)
 }
 
 // nr : SCHED_SOFTIRQ, action : run_rebalance_domains : 함수 포인터
+// nr : TIMER_SOFTIRQ, action : run_timer_softirq
+// nr : HRTIMER_SOFTIRQ, action : run_hrtimer_softirq
+// nr : TASKLET_SOFTIRQ, action : tasklet_action
+// nr : HI_SOFTIRQ, action : tasklet_hi_action
 void open_softirq(int nr, void (*action)(struct softirq_action *))
 {
 	softirq_vec[nr].action = action;
 	// softirq_vec[SCHED_SOFTIRQ].action : run_rebalance_domains
+	// softirq_vec[TIMER_SOFTIRQ].action : run_timer_softirq
+	// softirq_vec[HRTIMER_SOFTIRQ].action : run_hrtimer_softirq
+	// softirq_vec[TASKLET_SOFTIRQ].action : tasklet_action
+	// softirq_vec[HI_SOFTIRQ].action : tasklet_hi_action
 }
 
 /*
@@ -643,14 +651,23 @@ void __init softirq_init(void)
 	int cpu;
 
 	for_each_possible_cpu(cpu) {
+		// cpu 0 ~ 3까지 반복문 수행
+
+		// cpu : 0
 		per_cpu(tasklet_vec, cpu).tail =
 			&per_cpu(tasklet_vec, cpu).head;
+		// tasklet_vec(0).tail : &tasklet_vec(0).head
 		per_cpu(tasklet_hi_vec, cpu).tail =
 			&per_cpu(tasklet_hi_vec, cpu).head;
+		// tasklet_hi_vec(0).tail : &tasklet_hi_vec(0).head
 	}
+	// tasklet_vec(0 ~ 3), tasklet_hi_vec(0 ~ 3) 까지 동일한 작업 수행
 
 	open_softirq(TASKLET_SOFTIRQ, tasklet_action);
+	// softirq_vec[TASKLET_SOFTIRQ].action : tasklet_action
+	
 	open_softirq(HI_SOFTIRQ, tasklet_hi_action);
+	// softirq_vec[HI_SOFTIRQ].action : tasklet_hi_action
 }
 
 static int ksoftirqd_should_run(unsigned int cpu)

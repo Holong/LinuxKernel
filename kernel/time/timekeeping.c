@@ -791,16 +791,29 @@ void __init timekeeping_init(void)
 	struct timespec now, boot, tmp;
 
 	read_persistent_clock(&now);
+	// now.tv_sec : 0
+	// now.tv_nsec : 0 으로 초기화
 
 	if (!timespec_valid_strict(&now)) {
+		// timespec_valid_strict : 현재 now의 값이 논리적으로 맞는지 확인
+		// 맞으면 true 반환
+		// 여기서는 true가 반환됨
 		pr_warn("WARNING: Persistent clock returned invalid value!\n"
 			"         Check your CMOS/BIOS settings.\n");
 		now.tv_sec = 0;
 		now.tv_nsec = 0;
+	
+	// now.tv_sec : 0, now.tv_nsec : 0
 	} else if (now.tv_sec || now.tv_nsec)
 		persistent_clock_exist = true;
+	// 양 쪽 다 통과됨
 
 	read_boot_clock(&boot);
+	// boot.tv_sec : 0
+	// boot.tv_nsec : 0
+	// 로 설정됨
+	
+	// timespec_valid_strict(&boot) : true
 	if (!timespec_valid_strict(&boot)) {
 		pr_warn("WARNING: Boot clock returned invalid value!\n"
 			"         Check your CMOS/BIOS settings.\n");
@@ -809,8 +822,21 @@ void __init timekeeping_init(void)
 	}
 
 	raw_spin_lock_irqsave(&timekeeper_lock, flags);
+	// 스핀락 획득, cpsr 값 저장
+	
+	// &timekeeper_seq : 전역 변수
 	write_seqcount_begin(&timekeeper_seq);
+	// timekeeper_seq.sequence 를 1로 하나 증가시켜줌
+	
 	ntp_init();
+	// 전역변수를 아래와 같이 설정함
+	//
+	// time_status : STA_UNSYNC
+	// time_maxerror : NTP_PHASE_LIMIT
+	// time_esterror : NTP_PHASE_LIMIT;
+	// tick_nsec : 10000000
+	// tick_length : 42949672960000000
+	// tick_length_base : 42949672960000000
 
 	clock = clocksource_default_clock();
 	if (clock->enable)

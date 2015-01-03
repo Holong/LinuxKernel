@@ -690,9 +690,24 @@ asmlinkage void __init start_kernel(void)
 	// gic_of_init, combiner_of_init이 수행됨
 	
 	tick_init();
+	// tick_broadcast_~라는 cpumask 전역 변수들을 0으로 초기화함
+	
 	init_timers();
+	// boot_tvec_bases 전역 구조체 내부를 초기화
+	// cpu_chain에 timers_nb를 등록
+	// softirq_vec 배열의 TIMER_SOFTIRQ에 함수를 등록
+
 	hrtimers_init();
+	// percpu 변수 hrtimer_bases의 0번 cpu용 공간을 초기화
+	// cpu_chain에 hrtimers_nb를 등록
+	// softirq_vec 배열의 HRTIMER_SOFTIRQ에 함수를 등록
+	
 	softirq_init();
+	// tasklet_vec(0 ~ 3).tail : &tasklet_vec(0 ~ 3).head
+	// tasklet_hi_vec(0 ~ 3).tail : &tasklet_hi_vec(0 ~ 3).head
+	// softirq_vec 배열의 TASKLET_SOFTIRQ에 함수를 등록
+	// softirq_vec 배열의 HI_SOFTIRQ에 함수를 등록
+
 	timekeeping_init();
 	time_init();
 	sched_clock_postinit();

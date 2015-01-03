@@ -878,11 +878,22 @@ bool tick_broadcast_oneshot_available(void)
 void __init tick_broadcast_init(void)
 {
 	zalloc_cpumask_var(&tick_broadcast_mask, GFP_NOWAIT);
+	// tick_broadcast_mask의 비트를 전부 0으로 초기화
+	
 	zalloc_cpumask_var(&tick_broadcast_on, GFP_NOWAIT);
+	// tick_broadcast_on의 비트를 전부 0으로 초기화
+	
 	zalloc_cpumask_var(&tmpmask, GFP_NOWAIT);
-#ifdef CONFIG_TICK_ONESHOT
+	// tmpmask의 비트를 전부 0으로 초기화
+	
+#ifdef CONFIG_TICK_ONESHOT		// Y
 	zalloc_cpumask_var(&tick_broadcast_oneshot_mask, GFP_NOWAIT);
+	// tick_broadcast_oneshot_mask의 비트를 전부 0으로 초기화
+	
 	zalloc_cpumask_var(&tick_broadcast_pending_mask, GFP_NOWAIT);
+	// tick_braodcast_pending_mask의 비트를 전부 0으로 초기화
+	
 	zalloc_cpumask_var(&tick_broadcast_force_mask, GFP_NOWAIT);
+	// tick_broadcast_force_mask의 비트를 전부 0으로 초기화
 #endif
 }

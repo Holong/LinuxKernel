@@ -181,7 +181,7 @@ struct hrtimer_cpu_base {
 	raw_spinlock_t			lock;
 	unsigned int			active_bases;
 	unsigned int			clock_was_set;
-#ifdef CONFIG_HIGH_RES_TIMERS
+#ifdef CONFIG_HIGH_RES_TIMERS		// Y
 	ktime_t				expires_next;
 	int				hres_active;
 	int				hang_detected;
