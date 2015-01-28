@@ -21,9 +21,12 @@
 #define __clk_put(clk)	do { } while (0)
 #endif
 
+// size : 56
 static inline struct clk_lookup_alloc *__clkdev_alloc(size_t size)
 {
 	return kzalloc(size, GFP_KERNEL);
+	// 56 바이트 크기 공간을 할당받고
+	// 시작 주소를 반환
 }
 
 #endif

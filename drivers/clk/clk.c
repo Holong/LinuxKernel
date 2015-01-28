@@ -581,13 +581,16 @@ unsigned int __clk_get_prepare_count(struct clk *clk)
 	return !clk ? 0 : clk->prepare_count;
 }
 
+// clk : NULL
 unsigned long __clk_get_rate(struct clk *clk)
 {
 	unsigned long ret;
 
+	// clk : NULL
 	if (!clk) {
 		ret = 0;
 		goto out;
+		// out으로 이동
 	}
 
 	ret = clk->rate;
@@ -600,6 +603,7 @@ unsigned long __clk_get_rate(struct clk *clk)
 
 out:
 	return ret;
+	// return 0
 }
 
 unsigned long __clk_get_flags(struct clk *clk)
@@ -667,6 +671,7 @@ static struct clk *__clk_lookup_subtree(const char *name, struct clk *clk)
 	return NULL;
 }
 
+// name : "fin_pll"
 struct clk *__clk_lookup(const char *name)
 {
 	struct clk *root_clk;
@@ -676,18 +681,22 @@ struct clk *__clk_lookup(const char *name)
 		return NULL;
 
 	/* search the 'proper' clk tree first */
+	// clk_root_list : NULL
 	hlist_for_each_entry(root_clk, &clk_root_list, child_node) {
 		ret = __clk_lookup_subtree(name, root_clk);
 		if (ret)
 			return ret;
 	}
+	// 통과됨
 
 	/* if not found, then search the orphan tree */
+	// clk_root_list : NULL
 	hlist_for_each_entry(root_clk, &clk_orphan_list, child_node) {
 		ret = __clk_lookup_subtree(name, root_clk);
 		if (ret)
 			return ret;
 	}
+	// 통과됨
 
 	return NULL;
 }
@@ -1504,15 +1513,17 @@ EXPORT_SYMBOL_GPL(clk_get_parent);
  * .parents array exists, and if so use it to avoid an expensive tree
  * traversal.  If .parents does not exist then walk the tree with __clk_lookup.
  */
+// clk : 할당받은 struct clk용 공간
 static struct clk *__clk_init_parent(struct clk *clk)
 {
 	struct clk *ret = NULL;
 	u8 index;
 
 	/* handle the trivial cases */
-
+	// clk->num_parents : 0
 	if (!clk->num_parents)
 		goto out;
+		// out으로 이동
 
 	if (clk->num_parents == 1) {
 		if (IS_ERR_OR_NULL(clk->parent))
@@ -1545,6 +1556,7 @@ static struct clk *__clk_init_parent(struct clk *clk)
 
 out:
 	return ret;
+	// return NULL
 }
 
 void __clk_reparent(struct clk *clk, struct clk *new_parent)
@@ -1642,26 +1654,36 @@ EXPORT_SYMBOL_GPL(clk_set_parent);
  * Initializes the lists in struct clk, queries the hardware for the
  * parent and rate and sets them both.
  */
+// dev : NULL, clk
 int __clk_init(struct device *dev, struct clk *clk)
 {
 	int i, ret = 0;
 	struct clk *orphan;
 	struct hlist_node *tmp2;
 
+	// clk : 이전에 만든 clk 구조체 주소
 	if (!clk)
 		return -EINVAL;
 
 	clk_prepare_lock();
+	// 뮤텍스 락 획득
+	// 뮤텍스 락을 획득하면서 현재 태스크의 주소를 prepare_owner에 저장함
+	// prepare_refcnt도 바꿔줌
 
 	/* check to see if a clock with this name is already registered */
+	// clk->name : "fin_pll"
+	// __clk_lookup("fin_pll") : NULL
 	if (__clk_lookup(clk->name)) {
 		pr_debug("%s: clk %s already initialized\n",
 				__func__, clk->name);
 		ret = -EEXIST;
 		goto out;
 	}
+	// 통과됨
 
 	/* check that clk_ops are sane.  See Documentation/clk.txt */
+	// clk->ops : &clk_fixed_rate_ops
+	// clk->ops->set_rate : NULL
 	if (clk->ops->set_rate &&
 	    !((clk->ops->round_rate || clk->ops->determine_rate) &&
 	      clk->ops->recalc_rate)) {
@@ -1670,19 +1692,26 @@ int __clk_init(struct device *dev, struct clk *clk)
 		ret = -EINVAL;
 		goto out;
 	}
+	// 통과됨
 
+	// clk->ops : &clk_fixed_rate_ops
+	// clk->ops->set_parent : NULL
+	// clk->ops->get_parent : NULL
 	if (clk->ops->set_parent && !clk->ops->get_parent) {
 		pr_warning("%s: %s must implement .get_parent & .set_parent\n",
 				__func__, clk->name);
 		ret = -EINVAL;
 		goto out;
 	}
+	// 통과
 
 	/* throw a WARN if any entries in parent_names are NULL */
+	// clk->num_parents : 0
 	for (i = 0; i < clk->num_parents; i++)
 		WARN(!clk->parent_names[i],
 				"%s: invalid NULL in %s's .parent_names\n",
 				__func__, clk->name);
+	// 통과
 
 	/*
 	 * Allocate an array of struct clk *'s to avoid unnecessary string
@@ -1694,6 +1723,8 @@ int __clk_init(struct device *dev, struct clk *clk)
 	 * If clk->parents is not NULL we skip this entire block.  This allows
 	 * for clock drivers to statically initialize clk->parents.
 	 */
+	// clk->num_parents : 0
+	// clk->parents : NULL
 	if (clk->num_parents > 1 && !clk->parents) {
 		clk->parents = kcalloc(clk->num_parents, sizeof(struct clk *),
 					GFP_KERNEL);
@@ -1709,7 +1740,9 @@ int __clk_init(struct device *dev, struct clk *clk)
 					__clk_lookup(clk->parent_names[i]);
 	}
 
+	// clk : 할당받은 struct clk용 공간
 	clk->parent = __clk_init_parent(clk);
+	// clk->parent : NULL
 
 	/*
 	 * Populate clk->parent if parent has already been __clk_init'd.  If
@@ -1721,11 +1754,15 @@ int __clk_init(struct device *dev, struct clk *clk)
 	 * clocks and re-parent any that are children of the clock currently
 	 * being clk_init'd.
 	 */
+	// clk->parent : NULL
 	if (clk->parent)
 		hlist_add_head(&clk->child_node,
 				&clk->parent->children);
+
+	// clk->flags : CLK_IS_ROOT | CLK_IS_BASIC
 	else if (clk->flags & CLK_IS_ROOT)
 		hlist_add_head(&clk->child_node, &clk_root_list);
+		// clk를 clk_root_list에 연결함
 	else
 		hlist_add_head(&clk->child_node, &clk_orphan_list);
 
@@ -1735,9 +1772,17 @@ int __clk_init(struct device *dev, struct clk *clk)
 	 * parent's rate.  If a clock doesn't have a parent (or is orphaned)
 	 * then rate is set to zero.
 	 */
+	// clk->ops : &clk_fixed_rate_ops
+	// clk->ops->recalc_rate = clk_fixed_rate_recalc_rate
 	if (clk->ops->recalc_rate)
 		clk->rate = clk->ops->recalc_rate(clk->hw,
 				__clk_get_rate(clk->parent));
+		// clk_fixed_rate_recalc_rate(clk->hw, __clk_get_rate(clk->parent))
+		// 가 호출됨
+		//
+		// clk->hw : &fixed->hw, __clk_get_rate(clk->parent) : 0
+		// return to_clk_fixed_rate(hw)->fixed_rate;
+		// clk->rate : 24000000
 	else if (clk->parent)
 		clk->rate = clk->parent->rate;
 	else
@@ -1747,6 +1792,7 @@ int __clk_init(struct device *dev, struct clk *clk)
 	 * walk the list of orphan clocks and reparent any that are children of
 	 * this clock
 	 */
+	// clk_orphan_list : NULL
 	hlist_for_each_entry_safe(orphan, tmp2, &clk_orphan_list, child_node) {
 		if (orphan->num_parents && orphan->ops->get_parent) {
 			i = orphan->ops->get_parent(orphan->hw);
@@ -1761,6 +1807,7 @@ int __clk_init(struct device *dev, struct clk *clk)
 				break;
 			}
 	 }
+	// 통과됨
 
 	/*
 	 * optional platform-specific magic
@@ -1770,13 +1817,17 @@ int __clk_init(struct device *dev, struct clk *clk)
 	 * Please consider other ways of solving initialization problems before
 	 * using this callback, as its use is discouraged.
 	 */
+	// clk->ops : &clk_fixed_rate_ops
+	// clk->ops->init : NULL
 	if (clk->ops->init)
 		clk->ops->init(clk->hw);
 
 	clk_debug_register(clk);
+	// NULL 함수
 
 out:
 	clk_prepare_unlock();
+	// 뮤텍스 락 해제
 
 	return ret;
 }
@@ -1819,26 +1870,48 @@ struct clk *__clk_register(struct device *dev, struct clk_hw *hw)
 }
 EXPORT_SYMBOL_GPL(__clk_register);
 
+// dev : NULL, hw : &fixed->hw, clk : struct clk 공간 주소
 static int _clk_register(struct device *dev, struct clk_hw *hw, struct clk *clk)
 {
 	int i, ret;
 
+	// hw->init->name : "fin_pll", GFP_KERNEL
 	clk->name = kstrdup(hw->init->name, GFP_KERNEL);
+	// "fin_pll" 크기에 맞게 공간을 할당받고 문자열을 저장
+	// clk->name : "fin_pll"
 	if (!clk->name) {
 		pr_err("%s: could not allocate clk->name\n", __func__);
 		ret = -ENOMEM;
 		goto fail_name;
 	}
+	// hw->init->ops : &clk_fixed_rate_ops
 	clk->ops = hw->init->ops;
+	// clk->ops : &clk_fixed_rate_ops
+	
+	// hw : &fixed->hw
 	clk->hw = hw;
+	// clk->hw : hw
+	
+	// flags : CLK_IS_ROOT | CLK_IS_BASIC
 	clk->flags = hw->init->flags;
+	// clk->flags : CLK_IS_ROOT | CLK_IS_BASIC
+	
+	// hw->init->num_parents : 0
 	clk->num_parents = hw->init->num_parents;
+	// clk->num_parents : 0
+	
+	// clk
 	hw->clk = clk;
+	// hw->clk : clk
 
 	/* allocate local copy in case parent_names is __initdata */
+	// clk->num_parents : 0, sizeof(char *) : 4, GFP_KERNEL
 	clk->parent_names = kcalloc(clk->num_parents, sizeof(char *),
 					GFP_KERNEL);
+	// clk->parent_names : ZERO_SIZE_PTR
+	// size가 0으로 메모리 요청을 하면 ZERO_SIZE_PTR이 반환됨
 
+	// clk->parent_names : ZERO_SIZE_PTR
 	if (!clk->parent_names) {
 		pr_err("%s: could not allocate clk->parent_names\n", __func__);
 		ret = -ENOMEM;
@@ -1846,6 +1919,7 @@ static int _clk_register(struct device *dev, struct clk_hw *hw, struct clk *clk)
 	}
 
 
+	// clk->num_parents : 0
 	/* copy each string name in case parent_names is __initdata */
 	for (i = 0; i < clk->num_parents; i++) {
 		clk->parent_names[i] = kstrdup(hw->init->parent_names[i],
@@ -1856,10 +1930,18 @@ static int _clk_register(struct device *dev, struct clk_hw *hw, struct clk *clk)
 			goto fail_parent_names_copy;
 		}
 	}
+	// 통과
 
+	// dev : NULL, clk
 	ret = __clk_init(dev, clk);
+	// clk->parent : NULL
+	// clk->rate : 24000000
+	// clk를 clk_root_list에 연결함
+	// ret : 0
+	
 	if (!ret)
 		return 0;
+		// return 0
 
 fail_parent_names_copy:
 	while (--i >= 0)
@@ -1882,21 +1964,30 @@ fail_name:
  * rest of the clock API.  In the event of an error clk_register will return an
  * error code; drivers must test for an error code after calling clk_register.
  */
+// dev : NULL, hw : &fixed->hw
 struct clk *clk_register(struct device *dev, struct clk_hw *hw)
 {
 	int ret;
 	struct clk *clk;
 
 	clk = kzalloc(sizeof(*clk), GFP_KERNEL);
+	// struct clk용 공간을 할당받고, 시작 주소를 clk에 저장
+	
+	// clk : struct clk용 공간 주소
 	if (!clk) {
 		pr_err("%s: could not allocate clk\n", __func__);
 		ret = -ENOMEM;
 		goto fail_out;
 	}
 
+	// dev : NULL, hw : &fixed->hw, clk : struct clk 공간 주소
 	ret = _clk_register(dev, hw, clk);
+	// ret : 0
+	
+	// ret : 0
 	if (!ret)
 		return clk;
+		// return clk
 
 	kfree(clk);
 fail_out:
@@ -2139,6 +2230,8 @@ EXPORT_SYMBOL_GPL(of_clk_src_onecell_get);
  * @clk_src_get: callback for decoding clock
  * @data: context pointer for @clk_src_get callback.
  */
+// np : clock-controller의 노드 주소, clk_src_get : of_clk_src_onecell_get
+// data : &clk_data
 int of_clk_add_provider(struct device_node *np,
 			struct clk *(*clk_src_get)(struct of_phandle_args *clkspec,
 						   void *data),
@@ -2146,17 +2239,34 @@ int of_clk_add_provider(struct device_node *np,
 {
 	struct of_clk_provider *cp;
 
+	// sizeof(struct of_clk_provider) : 20, GFP_KERNEL
 	cp = kzalloc(sizeof(struct of_clk_provider), GFP_KERNEL);
+	// struct of_clk_provider용 공간을 할당받고 시작 주소를 반환
+	
+	// cp : 할당받은 공간의 시작 주소
 	if (!cp)
 		return -ENOMEM;
 
 	cp->node = of_node_get(np);
+	// cp->node : clock-controller 노드의 시작 주소
+	
 	cp->data = data;
+	// cp->data : &clk_data
+	
+	// clk_src_get : 함수 포인터
 	cp->get = clk_src_get;
+	// cp->get : clk_src_get
 
 	mutex_lock(&of_clk_lock);
+	// 뮤텍스 락 획득
+	
+	// of_clk_providers : 리스트
 	list_add(&cp->link, &of_clk_providers);
+	// of_clk_providers에 앞에서 만든 struct of_clk_provider를 연결해둠
+	
 	mutex_unlock(&of_clk_lock);
+	// 뮤텍스 락 해제
+	
 	pr_debug("Added clock from %s\n", np->full_name);
 
 	return 0;
@@ -2275,7 +2385,7 @@ void __init of_clk_init(const struct of_device_id *matches)
 		// 현재 보드의 디바이스 트리에 일치하는 것은
 		// __clk_of_table_exynos5420_clk 밖에 없음
 	
-		of_clk_init_kb_t clk_init_cb = match->data;
+		of_clk_init_cb_t clk_init_cb = match->data;
 		// clk_init_cb : exynos5420_clk_init
 
 		// np : samsung,exynos5420-clock에 해당하는 노드 주소

@@ -299,6 +299,13 @@ PNAME(maudio0_p)	= { "fin_pll", "maudio_clk", "sclk_dpll", "sclk_mpll",
 /* fixed rate clocks generated outside the soc */
 static struct samsung_fixed_rate_clock exynos5420_fixed_rate_ext_clks[] __initdata = {
 	FRATE(fin_pll, "fin_pll", NULL, CLK_IS_ROOT, 0),
+//	{			
+//		.id		= fin_pll,
+//		.name		= "fin_pll",
+//		.parent_name	= NULL,
+//		.flags		= CLK_IS_ROOT,
+//		.fixed_rate	= 0,
+//	}
 };
 
 /* fixed rate clocks generated inside the soc */
@@ -772,19 +779,71 @@ static void __init exynos5420_clk_init(struct device_node *np)
 
 	// np : clock-controller의 노드 주소
 	if (np) {
+		// np : clock-controller의 노드 주소
 		reg_base = of_iomap(np, 0);
+		// clock-controller의 노드에 존재하는 res 값을 이용해
+		// 물리 메모리와 가상 메모리를 연결해 줌
+		//
+		// alloc area (CLK) 를 만들고 rb tree에 alloc area 를 추가
+		// 가상주소 va_start 기준으로 CLK 를 RB Tree 추가한 결과
+		//
+		//                                  CHID-b
+		//                               (0xF8000000)
+		//                              /            \
+		//                         TMR-b               PMU-b
+		//                    (0xF6300000)             (0xF8180000)
+		//                      /      \               /           \
+		//                GIC#1-r      WDT-b         CMU-b         SRAM-b
+		//            (0xF0002000)   (0xF6400000)  (0xF8100000)   (0xF8400000)
+		//             /       \                                          \
+		//        GIC#0-b     CLK-b                                        ROMC-r
+		//    (0xF0000000)   (0xF0040000)                                 (0xF84C0000)
+		//                   /      \
+		//               COMB-r     SYSC-r
+		//          (0xF0004000)   (0xF6100000)
+		//
+		// vmap_area_list에 GIC#0 - GIC#1 - COMB - CLK - SYSC -TMR - WDT - CHID - CMU - PMU - SRAM - ROMC
+		// 순서로 리스트에 연결이 됨
+
+		// reg_base : 0xF0040000
+		// 매핑된 가상 메모리 시작 주소임
 		if (!reg_base)
 			panic("%s: failed to map registers\n", __func__);
 	} else {
 		panic("%s: unable to determine soc\n", __func__);
 	}
 
+	// np : clock-controller의 노드 주소, reg_base : 0xF0040000, nr_clks : 769
+	// exynos5420_clk_regs : 전역 배열, ARRAY_SIZE(exynos5420_clk_regs) : 59
+	// NULL, 0
 	samsung_clk_init(np, reg_base, nr_clks,
 			exynos5420_clk_regs, ARRAY_SIZE(exynos5420_clk_regs),
 			NULL, 0);
+	// reg_dump[0 ... 58]의 offset 멤버 값을 exynos5420_clk_regs의 값으로 초기화함
+	// syscore_ops_list에 samsung_clk_syscore_ops를 연결해둠
+	// clk_table을 위한 공간을 할당받아 확보해 둠
+	// struct of_clk_provider를 새로 할당받고 내부 값을 초기화
+	// of_clk_provider.node : clock-controller 노드의 시작 주소
+	// of_clk_provider.data : &clk_data
+	// of_clk_provider.get : clk_src_get
+	// 이 구조체를 of_clk_providers 리스트에 연결함
+	
+	// exynos5420_fixed_rate_ext_clks : 전역 구조체 배열,
+	// ARRAY_SIZE(exynos5420_fixed_rate_ext_clks) : 1
+	// ext_clk_match : 전역 구조체 배열
 	samsung_clk_of_register_fixed_ext(exynos5420_fixed_rate_ext_clks,
 			ARRAY_SIZE(exynos5420_fixed_rate_ext_clks),
 			ext_clk_match);
+	// exynos5420_fixed_rate_ext_clks에 존재하는 값을 이용해 아래 구조체를 생성함.
+	//
+	// struct clk_fixed_rate 공간을 할당받고 초기화
+	// struct clk 공간을 할당받고 초기화 수행
+	// 이전에 만들어 둔 clk_table의 fin_pll 위치에 할당받은 struct clk를 저장함
+	// struct clk_lookup_alloc을 할당받고, 내부 초기화
+	// 할당받은 구조체 내부에 존재하는 clk_lookup 구조체를 clocks 리스트에 연결
+	// 결국 생성한 구조체는 clk_fixed_rate, clk, clk_lookup_alloc이 됨
+	
+	// exynos5420_plls : 전역 배열, ARRAY_SIZE(exynos5420_plls) : 11, reg_base : 0xF0040000
 	samsung_clk_register_pll(exynos5420_plls, ARRAY_SIZE(exynos5420_plls),
 					reg_base);
 	samsung_clk_register_fixed_rate(exynos5420_fixed_rate_clks,

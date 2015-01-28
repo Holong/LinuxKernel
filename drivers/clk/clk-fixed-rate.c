@@ -47,6 +47,8 @@ EXPORT_SYMBOL_GPL(clk_fixed_rate_ops);
  * @flags: framework-specific flags
  * @fixed_rate: non-adjustable clock rate
  */
+// dev : NULL, name : "fin_pll", parent_name : NULL, flags : CLK_IS_ROOT, 
+// fixed_rate : 24000000
 struct clk *clk_register_fixed_rate(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags,
 		unsigned long fixed_rate)
@@ -57,28 +59,52 @@ struct clk *clk_register_fixed_rate(struct device *dev, const char *name,
 
 	/* allocate fixed-rate clock */
 	fixed = kzalloc(sizeof(struct clk_fixed_rate), GFP_KERNEL);
+	// struct clk_fixed_rate 크기만큼 공간을 할당받고
+	// fixed에 시작 주소를 저장함
+	
+	// fixed : clk_fixed_rate 공간
 	if (!fixed) {
 		pr_err("%s: could not allocate fixed clk\n", __func__);
 		return ERR_PTR(-ENOMEM);
 	}
 
+	// name : "fin_pll"
 	init.name = name;
+	// init.name : "fin_pll"
+	
+	// clk_fixed_rate_ops : 전역 구조체
 	init.ops = &clk_fixed_rate_ops;
+	// init.ops : &clk_fixed_rate_ops
+	
+	// flags : CLK_IS_ROOT
 	init.flags = flags | CLK_IS_BASIC;
+	// init.flags : CLK_IS_ROOT | CLK_IS_BASIC
+	
+	// parent_name : NULL
 	init.parent_names = (parent_name ? &parent_name: NULL);
+	// init.parent_names : NULL
+	
+	// parent_name : NULL
 	init.num_parents = (parent_name ? 1 : 0);
+	// init.num_parents : 0
 
 	/* struct clk_fixed_rate assignments */
+	// fixed_rate : 24000000
 	fixed->fixed_rate = fixed_rate;
+	// fixed->fixed_rate : 240000000
 	fixed->hw.init = &init;
+	// fixed->hw.init : &init
 
 	/* register the clock */
+	// dev : NULL, &fixed->hw
 	clk = clk_register(dev, &fixed->hw);
+	// clk : 할당받은 struct clk 공간
 
 	if (IS_ERR(clk))
 		kfree(fixed);
 
 	return clk;
+	// return clk
 }
 EXPORT_SYMBOL_GPL(clk_register_fixed_rate);
 

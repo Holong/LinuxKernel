@@ -171,11 +171,17 @@ void clk_put(struct clk *clk)
 }
 EXPORT_SYMBOL(clk_put);
 
+// cl : struct clk_lookup 공간
 void clkdev_add(struct clk_lookup *cl)
 {
 	mutex_lock(&clocks_mutex);
+	// 뮤텍스 락 획득
+	
 	list_add_tail(&cl->node, &clocks);
+	// clocks 리스트에 struct clk_lookup을 매달아 둠
+	
 	mutex_unlock(&clocks_mutex);
+	// 뮤텍스 락 해제
 }
 EXPORT_SYMBOL(clkdev_add);
 
@@ -198,28 +204,44 @@ struct clk_lookup_alloc {
 	char	con_id[MAX_CON_ID];
 };
 
+// clk : 할당받은 struct clk 공간, con_id : "fin_pll", dev_fmt : NULL
+// ap : NULL
 static struct clk_lookup * __init_refok
 vclkdev_alloc(struct clk *clk, const char *con_id, const char *dev_fmt,
 	va_list ap)
 {
 	struct clk_lookup_alloc *cla;
 
+	// sizeof(*cla) : 56
 	cla = __clkdev_alloc(sizeof(*cla));
+	// cla : 할당받은 공간의 시작 주소
+	
+	// cla : 할당받은 공간의 시작 주소
 	if (!cla)
 		return NULL;
+	// 통과
 
+	// clk : 할당받은 struct clk 공간
 	cla->cl.clk = clk;
+	// cla->cl.clk : clk
+	
+	// con_id : "fin_pll"
 	if (con_id) {
 		strlcpy(cla->con_id, con_id, sizeof(cla->con_id));
+		// cla->con_id에 "fin_pll" 문자열을 복사
+
 		cla->cl.con_id = cla->con_id;
+		// cla->cl.con_id : cla->con_id
 	}
 
+	// dev_fmt : NULL
 	if (dev_fmt) {
 		vscnprintf(cla->dev_id, sizeof(cla->dev_id), dev_fmt, ap);
 		cla->cl.dev_id = cla->dev_id;
 	}
 
 	return &cla->cl;
+	// cla 내부의 clk_lookup 구조체의 주소 반환
 }
 
 struct clk_lookup * __init_refok
@@ -280,6 +302,7 @@ EXPORT_SYMBOL(clkdev_drop);
  * those.  This is to permit this function to be called immediately
  * after clk_register().
  */
+// clk : 할당받은 struct clk 공간, con_id : "fin_pll", dev_fmt : NULL
 int clk_register_clkdev(struct clk *clk, const char *con_id,
 	const char *dev_fmt, ...)
 {
@@ -290,13 +313,24 @@ int clk_register_clkdev(struct clk *clk, const char *con_id,
 		return PTR_ERR(clk);
 
 	va_start(ap, dev_fmt);
+	
+	// clk : 할당받은 struct clk 공간, con_id : "fin_pll", dev_fmt : NULL
+	// ap : NULL
 	cl = vclkdev_alloc(clk, con_id, dev_fmt, ap);
+	// struct clk_lookup_alloc을 할당받고, 내부 초기화
+	// 할당받은 구조체 내부에 존재하는 clk_lookup 구조체의 시작 주소가
+	// 반환되어 cl에 저장됨
+	
 	va_end(ap);
 
+	// cl : struct clk_lookup 공간
 	if (!cl)
 		return -ENOMEM;
+	// 통과
 
+	// cl : struct clk_lookup 공간
 	clkdev_add(cl);
+	// clocks 리스트에 struct clk_lookup을 매달아 둠
 
 	return 0;
 }

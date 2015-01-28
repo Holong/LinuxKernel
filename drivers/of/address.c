@@ -862,6 +862,7 @@ void __iomem *of_iomap(struct device_node *np, int index)
 	// [0] np : gic 노드의 주소, index : 0, res : res 주소
 	// [1] np : gic 노드의 주소, index : 1, res : res 주소
 	// [2] np : combiner 노드의 주소, index : 0, res : res 주소
+	// [3] np : clock-controller의 노드 주소, res : res 주소
 	if (of_address_to_resource(np, index, &res))
 		// of_address_to_resource : np의 reg 값을 해석해 resource 구조체로 변경
 		//

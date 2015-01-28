@@ -710,6 +710,7 @@ struct clk * __init samsung_clk_register_pll2550x(const char *name,
 	return clk;
 }
 
+// pll_clk : &exynos5420_plls[0], base : 0xF0040000
 static void __init _samsung_clk_register_pll(struct samsung_pll_clock *pll_clk,
 						void __iomem *base)
 {
@@ -719,17 +720,46 @@ static void __init _samsung_clk_register_pll(struct samsung_pll_clock *pll_clk,
 	int ret, len;
 
 	pll = kzalloc(sizeof(*pll), GFP_KERNEL);
+	// struct samsung_clk_pll 만큼의 공간을 할당받고
+	// 시작 주소를 pll에 저장
+	
+	// pll : struct samsung_clk_pll 용 공간
 	if (!pll) {
 		pr_err("%s: could not allocate pll clk %s\n",
 			__func__, pll_clk->name);
 		return;
 	}
 
-	init.name = pll_clk->name;
-	init.flags = pll_clk->flags;
-	init.parent_names = &pll_clk->parent_name;
-	init.num_parents = 1;
+	// pll_clk : exynos5420_plls[0]
+	// exynos5420_plls[0] =	{
+	//	.id		= fout_apll,
+	//	.type		= pll_2550		
+	//	.dev_name	= NULL,			
+	//	.name		= "fout_apll",		
+	//	.parent_name	= "fin_pll",		
+	//	.flags		= CLK_GET_RATE_NOCACHE,	
+	//	.con_offset	= APLL_CON0,
+	//	.lock_offset	= APLL_LOCK,		
+	//	.rate_table	= NULL,			
+	//	.alias		= "fout_apll",		
+	//}
 
+	// pll_clk->name : "fout_apll"
+	init.name = pll_clk->name;
+	// init.name : "fout_apll"
+	
+	// pll_clk->flags : CLK_GET_RATE_NOCACHE
+	init.flags = pll_clk->flags;
+	// init.flags : CLK_GET_RATE_NOCACHE
+	
+	// pll_clk->parent_name : "fin_pll"
+	init.parent_names = &pll_clk->parent_name;
+	// init.parent_names : "fin_pll"
+	
+	init.num_parents = 1;
+	// init.num_parents : 1
+
+	// pll_clk->rate_table : NULL
 	if (pll_clk->rate_table) {
 		/* find count of rates in rate_table */
 		for (len = 0; pll_clk->rate_table[len].rate != 0; )
@@ -744,13 +774,17 @@ static void __init _samsung_clk_register_pll(struct samsung_pll_clock *pll_clk,
 			"%s: could not allocate rate table for %s\n",
 			__func__, pll_clk->name);
 	}
+	// 통과
 
+	// pll_clk->type : pll_2550
 	switch (pll_clk->type) {
 	/* clk_ops for 35xx and 2550 are similar */
 	case pll_35xx:
 	case pll_2550:
+		// pll_clk->rate_table : NULL
 		if (!pll->rate_table)
 			init.ops = &samsung_pll35xx_clk_min_ops;
+			// init.ops : &samsung_pll35xx_clk_min_ops
 		else
 			init.ops = &samsung_pll35xx_clk_ops;
 		break;
@@ -815,11 +849,14 @@ static void __init _samsung_clk_register_pll(struct samsung_pll_clock *pll_clk,
 			__func__, pll_clk->name, ret);
 }
 
+// pll_list : exynos5420_plls, nr_pll : 11, base : 0xF0040000
 void __init samsung_clk_register_pll(struct samsung_pll_clock *pll_list,
 				unsigned int nr_pll, void __iomem *base)
 {
 	int cnt;
 
+	// nr_pll : 11
 	for (cnt = 0; cnt < nr_pll; cnt++)
+		// &exynos5420_plls[0], base : 0xF0040000
 		_samsung_clk_register_pll(&pll_list[cnt], base);
 }

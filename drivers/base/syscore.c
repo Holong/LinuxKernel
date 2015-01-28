@@ -18,11 +18,17 @@ static DEFINE_MUTEX(syscore_ops_lock);
  * register_syscore_ops - Register a set of system core operations.
  * @ops: System core operations to register.
  */
+// ops : samsung_clk_syscore_ops
 void register_syscore_ops(struct syscore_ops *ops)
 {
 	mutex_lock(&syscore_ops_lock);
+	// 뮤텍스 락 획득
+	
 	list_add_tail(&ops->node, &syscore_ops_list);
+	// syscore_ops_list에 samsung_clk_syscore_ops를 연결해둠
+	
 	mutex_unlock(&syscore_ops_lock);
+	// 뮤텍스 락 해제
 }
 EXPORT_SYMBOL_GPL(register_syscore_ops);
 

@@ -1083,7 +1083,7 @@ vector_rst:
  */
 	vector_stub	irq, IRQ_MODE, 4
 
-	
+/*	
 	// 아래와 같이 매크로가 풀리게 됨
 	.align	5
 
